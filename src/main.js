@@ -197,7 +197,7 @@ function openModal(type, data) {
   } else if (type === 'help') {
     modal.innerHTML = modalHeader('A QUIET ADVENTURE / 漫游指南', '不必赶路，森林会等你。') +
       `<div class="help-grid"><div><kbd>W A S D</kbd><h3>自由移动</h3><p>或使用方向键。按住 Shift 快步前行。</p></div><div>${icon('compass')}<h3>环顾四周</h3><p>按住鼠标拖动。手机上拖动画面，使用左下角摇杆移动。</p></div><div><kbd>E</kbd><h3>观察与种植</h3><p>靠近发光标记，按 E 或点击提示，记录物种或种下树苗。</p></div><div>${icon('map')}<h3>找到你的方向</h3><p>M 打开地图，J 打开图鉴，P 拍照，Esc 关闭窗口或暂停。</p></div></div><div class="help-note">目标：记录 5 种生命，种下 3 株幼苗。这是使用授权模型、实拍材质与扫描素材的单人 3D 雨林原型，不是完整地点的复原；环境声为合成声景。进度和位置只保存在当前浏览器。<br><a href="/ASSET-CREDITS.txt" target="_blank" rel="noopener">素材来源与许可</a></div><div class="help-actions"><button class="text-button" id="reset-progress">重新开始探索</button><button class="text-button" data-open="feedback">反馈与建议</button></div>`;
-    modal.innerHTML += `<div class="help-note"><strong>林间动物观察</strong><p>入口小径左侧的枯枝上有绿鬣蜥，右侧榕树根上有猩红丽唐纳雀。小径边可近看金色箭毒蛙和华丽锯颚天牛，溪岸有淡水蟹。它们可自由观赏，不计入原有五项图鉴任务。</p><p>动物为真实标本或活体扫描，采用简化的整体位移动作，不是骨骼动画。</p></div>`;
+    modal.innerHTML += `<div class="help-note"><strong>林间动物观察</strong><p>入口小径左侧的枯枝上有绿鬣蜥。小径上可近看金色箭毒蛙和华丽锯颚天牛，溪岸有淡水蟹。它们可自由观赏，不计入原有五项图鉴任务。</p><p>动物为真实标本或活体扫描，采用简化的整体位移动作，不是骨骼动画。</p></div>`;
   } else if (type === 'feedback') {
     modal.innerHTML = modalHeader('反馈与建议', '让这片森林继续生长。', '无需登录。写下遇到的问题，下载后交给分享游戏的人；这里不会自动发送或收集你的信息。') + `<label for="feedback-text">你的建议</label><textarea id="feedback-text" rows="6" maxlength="3000" placeholder="你遇到了什么？在哪个位置？希望怎样改进？"></textarea><button class="primary-button" id="download-feedback">下载反馈文本 ${icon('arrow')}</button><p id="feedback-status" role="status"></p>`;
   } else if (type === 'pause') {
