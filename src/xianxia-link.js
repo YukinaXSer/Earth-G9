@@ -62,13 +62,14 @@ export class XianxiaLink {
     const p=this.local(x,z);
     if(p.z<89)return true;
     if(p.z>132)return p.z<146&&Math.abs(p.x)<40;
-    return p.z<139&&sampleRoute(CAVE,p.x,p.z).distance<8;
+    const bounds=this.world.caveBounds;
+    return bounds?p.x>bounds.min.x&&p.x<bounds.max.x:p.z<139&&sampleRoute(CAVE,p.x,p.z).distance<8;
   }
-  canWalk(x,z) {const p=this.local(x,z);return p.z>132&&p.z<146&&Math.abs(p.x)<3.5||canWalkMountain(p.x,p.z);}
+  canWalk(x,z) {const p=this.local(x,z);return p.z>132&&p.z<146&&Math.abs(p.x)<3.5||(p.z>0&&p.z<132&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z));}
   groundHeight(x,z){const p=this.local(x,z);return this.world.groundHeight(p.x,p.z)+this.offset.y;}
   update(position,time) {
     const p=this.local(position.x,position.z),mountain=p.z<70;
-    const dark=caveAmount(p.x,p.z);
+    const dark=this.world.caveDarkness?this.world.caveDarkness(p.x,p.z):caveAmount(p.x,p.z);
     if(dark>0&&!this.forestState){const s=this.forest.scene;this.forestState={background:s.background,environment:s.environmentIntensity,color:s.fog.color.clone(),density:s.fog.density,lights:this.forestLights.map(light=>[light,light.intensity])};}
     if(this.forestState){const s=this.forest.scene,state=this.forestState;
       if(dark>0){s.background=new THREE.Color(.5*(1-dark),.6*(1-dark),.5*(1-dark));s.environmentIntensity=state.environment*(1-dark);s.fog.color.copy(state.color).multiplyScalar(1-dark);s.fog.density=.0045+dark*.018;for(const [light,intensity]of state.lights)light.intensity=intensity*(1-dark);}

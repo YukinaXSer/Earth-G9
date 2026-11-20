@@ -1,3 +1,5 @@
+import capturedCaveRoute from './xianxia-cave-route.json' with {type:'json'};
+
 export const TRAIL = [
   [0,7,0,12],[0,8,-30,8],[22,11,-57,9],[65,15,-72,14],
   [108,18,-64,9],[153,22,-96,9],[195,27,-147,12],[184,33,-202,8],
@@ -6,7 +8,7 @@ export const TRAIL = [
   [449,83,-361,13],[444,92,-441,9],[370,100,-501,11],[300,108,-561,10],
   [320,118,-640,8],[400,128,-710,11],[470,139,-690,10],[500,150,-610,20]
 ].map(([x,y,z,width])=>[x*1.6,y,z*1.6,width*.28]);
-export const CAVE = [[0,0,132,6],[0,0,110,5],[6,.5,88,4],[10,1.5,68,4],[-5,3,47,4],[-8,5,27,5],[0,7,0,10]];
+export const CAVE = capturedCaveRoute;
 export const BRANCH = [[195,27,-147,9],[240,28,-170,10],[274,30,-220,12],[245,34,-265,10],[184,33,-202,8]].map(([x,y,z,width])=>[x*1.6,y,z*1.6,width*.28]);
 export const LOCATIONS = [
   {id:'cave',name:'两界洞',subtitle:'一洞隔尘世，松风入青岚',point:[0,7,0],kind:'passage'},
@@ -36,9 +38,9 @@ export function canWalkMountain(x,z) {
   const p=sampleMountain(x,z);
   return p.distance <= p.width-.5;
 }
-export function caveAmount(x,z) {
+export function caveAmount(x,z,width=12) {
   const p=sampleRoute(CAVE,x,z);
-  if(p.distance>12)return 0;
+  if(p.distance>width)return 0;
   return smooth(Math.max(0,Math.min(1,(z-4)/22)))*smooth(Math.max(0,Math.min(1,(130-z)/20)));
 }
 export function routeLength(route) {

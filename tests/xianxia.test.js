@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { CAVE,TRAIL,BRANCH,LOCATIONS,sampleRoute,sampleMountain,canWalkMountain,caveAmount,routeLength,nearestLocation } from '../src/xianxia-route.js';
 import { XianxiaLink } from '../src/xianxia-link.js';
-import { XianxiaWorld,capturedCaveGeometry } from '../src/xianxia-world.js';
+import { XianxiaWorld } from '../src/xianxia-world.js';
 
 test('the entire main trail, cave and branch are continuously walkable in either direction',()=>{
   for(const route of [TRAIL,CAVE,BRANCH])for(let i=1;i<route.length;i++){
@@ -100,13 +100,24 @@ test('help is available from the header as well as the desktop-only footer',()=>
   assert.match(header,/<button id="help-top"[^>]*aria-label="操作说明"[^>]*>\$\{icon\('help'\)\}/);
   assert.match(source,/\$\('#help-top'\)\.onclick=\$\('#help-button'\)\.onclick/);
 });
-test('continuous captured-relief enclosure has no overhead or side gaps throughout the interior',()=>{
-  const geometry=capturedCaveGeometry((u,v)=>(Math.sin(u*3+v)+1)/2),mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));mesh.updateMatrixWorld(true);
-  for(let z=8;z<=129;z+=3){
-    const p=sampleRoute(CAVE,0,z),eye=new THREE.Vector3(p.x,p.height+1.85,z);
-    for(const direction of [new THREE.Vector3(0,1,0),new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0)]){
-      const hits=new THREE.Raycaster(eye,direction,0,20).intersectObject(mesh);assert.ok(hits.length,`open cave at ${z} facing ${direction.toArray()}`);assert.ok(hits[0].distance>2);
-    }
+function capturedScanMeshes(name){
+  const bytes=readFileSync(new URL('../public/xianxia/models/'+name+'.glb',import.meta.url)),length=bytes.readUInt32LE(12),gltf=JSON.parse(bytes.toString('utf8',20,20+length)),bin=28+length,group=new THREE.Group();
+  const attribute=(id,count)=>{
+    const a=gltf.accessors[id],v=gltf.bufferViews[a.bufferView],size={5126:4,5125:4,5123:2,5121:1}[a.componentType],read={5126:'readFloatLE',5125:'readUInt32LE',5123:'readUInt16LE',5121:'readUInt8'}[a.componentType],values=[];
+    for(let i=0;i<a.count;i++)for(let j=0;j<count;j++)values.push(bytes[read](bin+(v.byteOffset??0)+(a.byteOffset??0)+i*(v.byteStride??size*count)+j*size));
+    return values;
+  };
+  for(const m of gltf.meshes)for(const p of m.primitives){
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(attribute(p.attributes.POSITION,3),3));if(p.indices!==undefined)g.setIndex(attribute(p.indices,1));
+    group.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({side:THREE.DoubleSide})));
   }
-  assert.ok(geometry.attributes.position.count<16000);
+  group.updateMatrixWorld(true);return group;
+}
+test('the captured lava tube, not a generated tunnel, supplies the roof and walls along its measured floor',()=>{
+  const body=capturedScanMeshes('cave-scan');let vertices=0;body.traverse(o=>{if(o.isMesh)vertices+=o.geometry.attributes.position.count;});assert.ok(vertices>10000);
+  for(let z=8;z<=126;z+=6){
+    const p=sampleRoute(CAVE,0,z),eye=new THREE.Vector3(p.x,p.height+1.85,z);
+    for(const direction of [new THREE.Vector3(0,1,0),new THREE.Vector3(1,0,0),new THREE.Vector3(-1,0,0)])assert.ok(new THREE.Raycaster(eye,direction,0,100).intersectObject(body,true).length,'uncaptured boundary at '+z+' '+direction.toArray());
+  }
+  const source=readFileSync(new URL('../src/xianxia-world.js',import.meta.url),'utf8');assert.doesNotMatch(source,/capturedCaveGeometry|TubeGeometry|SphereGeometry\(.*cave/);
 });
