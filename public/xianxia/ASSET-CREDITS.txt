@@ -1,6 +1,27 @@
 青岚境 / Earth 2 Xianxia — material provenance
 ===========================================
-This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Mountain elevations come from measured Huangshan terrain, not profiles invented around the route. The background photograph is not walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
+This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses a complete photographed landscape, with measured Huangshan elevations beyond it; neither is a profile invented around the route. The background photograph is not walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
+
+Close-scale photographed landscape
+----------------------------------
+"Mountain terrain - Haytor Dartmoor National Park" by Chris Bibb / chrisbibb.
+https://sketchfab.com/3d-models/6d15587128a5451d9e29d6b50061045e
+Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+Original capture: 300 oblique aerial photographs, approximately 50 m above
+the outcrops, 4K texture. The WHOLE captured terrain is used as actual 3D
+geometry, not as a photograph on an invented slope or a flat support plane.
+File: models/terrain-scan.glb. Changes: rigid translation, uniform 4.5x
+enlargement in all axes, clipping at the cave join, UV-preserving boundary
+triangulation, smooth normals, decimation and embedded WebP. Additional
+licensed near-surface photographic normal/luminance detail is applied without
+inventing terrain displacement. Player feet intersect the final visible
+triangles; a 12 m proxy is used only to mosaic the distant measured terrain
+around the capture boundary, not to replace the foreground scan geometry.
+Source transformation, uniform scale and original SHA-256 are retained in
+src/xianxia-foreground-data.json. The English source terrain is deliberately
+reinterpreted in this fictional Chinese-themed composite, not relabelled as
+a survey of Huangshan. Public source copy: ScanSceneverse, credited below.
 
 Measured Huangshan landscape and georeferenced imagery
 -----------------------------------------------------
@@ -56,32 +77,49 @@ Changes: rock GLTF converted to binary GLB; mesh welding, simplification, prunin
 
 Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
 
-Captured cave geometry (both Creative Commons Attribution 4.0 International)
+Captured cave geometry (Creative Commons Attribution 4.0 International)
 --------------------------------------------------------------------------
 License: https://creativecommons.org/licenses/by/4.0/
-"Urriðakotshellir Lava Tube (Part 1)" by Ciara_McKnight / ciara474.
-https://sketchfab.com/3d-models/urriakotshellir-lava-tube-part-1-05669ce2deb748748ba2f8f423b0f8f3
-Original capture: iPhone 12 LiDAR, Scaniverse, Iceland, 2022. Used as
-models/cave-scan.glb. Adaptations: rigid orientation, uniform 6.736684x
-enlargement, longitudinal clipping for the joins, small capture-hole repairs
-using neighbouring photographed surface patches, decimation and embedded WebP.
-The centre-floor route is measured from that captured geometry; runtime feet
-intersect the actual rendered scan triangles. No procedural tunnel enclosure.
-Original GLB SHA-256: 3eab9a61a9e0e195d6e853b28fb413fa6531ff0e042289db597baa9bdacadc15
+"Sea Cave 3" by b_nealie.
+https://sketchfab.com/3d-models/ce71dc2848984acfb11d8002a48a6043
+Captured from 46 photographs using 3DF Zephyr, including an actual arched
+entrance, forested approach, floor, interior walls and ceiling. Used as
+models/cave-scan.glb. Replaces the separate LiDAR body, Hohlenstein-Stadel
+entrance and subsequently rejected Mossy Sandstone Cave shelter; those are
+not used in the runtime. Source: about 698,000 triangles and nine native
+1024-pixel texture tiles. Native normalized units are uniformly scaled by
+0.04 for a human-height walkable passage; no claim of surveyed physical size.
+The captured arm is duplicated and opposed at its photographed interior,
+with a 1 m overlap. A single shared rigid tilt connects the rainforest datum
+to the mountain datum 7 m higher, preserving the source proportions. No
+independent stretching, generated tunnel or decorative stacked mouth rocks.
+Adaptations: rigid orientation, front/back clipping with interpolated UVs,
+conservative simplification and embedded quality-95 WebP without upscaling.
+The floor route and headroom are derived from captured triangles. Runtime
+feet and ceiling collision use the final rendered mesh, not an invented floor.
+Source matrices and enclosed lighting range: src/xianxia-cave-captures.json.
+Original GLB SHA-256: 44eef15244164d8503361b51dda69c3954cc1d784dfc9afbb88832cf3d72727e
 
-"Rocky cave entrance" by Nature-témoin / speleotv.
-https://sketchfab.com/3d-models/rocky-cave-entrance-6b0765f8887a47e1b0a063a118293c83
-27-photograph reconstruction of Hohlenstein-Stadel, Germany. Used as
-models/cave-mouth-scan.glb. Adaptations: rigid orientation, uniform scaling
-from source units, backside clipping and ground removal at the joins, mesh
-simplification, WebP and physically lit materials. A whole captured rock
-formation supplies each mouth, not individual decorative boulders.
-Original GLB SHA-256: 9f68aa2b131ddd38b61606afce16186dc5f8c3b31d343f0606c8ddb42a9e3fe4
+Walking-distance surface detail uses the photographed 4K diffuse and
+displacement of Poly Haven's rock_wall_02 (CC0, native physical tile 2 x 2 m):
+https://polyhaven.com/a/rock_wall_02
+Files: textures/cave-detail-color.webp and cave-detail-height.webp.
+Triplanar photographic albedo replaces the blurry baked wall/roof color;
+the captured floor and dark crevice occlusion remain. Derivative bump adds
+real photographed surface relief without changing the captured cave shape.
+Bump strength is an authored appearance setting, not measured cave relief.
+No synthetic noise, generative upscaling or displacement of the cave mesh.
+The source 16-bit height is quantized to 8-bit lossless WebP; color is quality
+95 WebP. The cropped floor edge fades over 1.5 m onto the demo's existing
+forest ground, which is graded to the captured boundary heights. Only that
+demo instance is graded; the rainforest's source terrain is unchanged.
+Diffuse download SHA-256: 08033b35eec27a9f806881d6fedd18c55433ef0130092f851b3c019e57989a68
+Height download SHA-256: 24986dff8c35a58d194c5866762abd3f6210b7a7519dca12bec3d6da87ca9678
 
 Licensed copies obtained from the public ScanSceneverse distribution:
 https://huggingface.co/datasets/Stable-X/ScanSceneverse
-These are modified captures from different real places, joined into a fictional
-cave. This does not claim that the captured sites themselves are connected.
+This modified, repeated capture forms a fictional cave. It does not claim
+that the real cave connects a rainforest to Huangshan or Dartmoor.
 
 Fonts
 -----

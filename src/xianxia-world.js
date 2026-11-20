@@ -1,12 +1,52 @@
 import * as THREE from 'three';
+import {foregroundHeight,blendedTerrainHeight} from './xianxia-foreground.js';
+import caveCaptures from './xianxia-cave-captures.json' with {type:'json'};
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TRAIL,CAVE,BRANCH,LOCATIONS,sampleMountain,sampleRoute,caveAmount } from './xianxia-route.js';
-import { measuredTerrainHeight,measuredTerrainGeometry,TERRAIN_SOURCE } from './xianxia-terrain.js';
+import { TRAIL,CAVE,CAVE_LENGTH,BRANCH,LOCATIONS,sampleMountain,sampleRoute,caveAmount } from './xianxia-route.js';
+import { measuredTerrainGeometry,TERRAIN_SOURCE } from './xianxia-terrain.js';
 
 const clamp=THREE.MathUtils.clamp;
 const seeded=(seed)=>()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;};
 const asset=p=>`/xianxia/${p}`;
+
+export function addCapturedRockDetail(material,color,height){
+  material.onBeforeCompile=shader=>{
+    shader.uniforms.captureRockColor={value:color};shader.uniforms.captureRockHeight={value:height};
+    shader.vertexShader='varying vec3 vCapturePoint; varying vec3 vCaptureNormal;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCapturePoint=position; vCaptureNormal=normal;');
+    shader.fragmentShader=`uniform sampler2D captureRockColor;
+uniform sampler2D captureRockHeight;
+varying vec3 vCapturePoint; varying vec3 vCaptureNormal;
+`+shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      vec3 captureWeights=pow(abs(vCaptureNormal),vec3(4.));
+      float captureWeightSum=dot(captureWeights,vec3(1.));
+      captureWeights=captureWeightSum>.000001?captureWeights/captureWeightSum:vec3(0.,1.,0.);
+      vec3 capturePoint=vCapturePoint*.5;
+      vec3 captureGrain=texture2D(captureRockColor,capturePoint.yz).rgb*captureWeights.x
+        +texture2D(captureRockColor,capturePoint.xz).rgb*captureWeights.y
+        +texture2D(captureRockColor,capturePoint.xy).rgb*captureWeights.z;
+      float captureNativeLuminance=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+      float captureGreen=(diffuseColor.g-max(diffuseColor.r,diffuseColor.b))/max(.03,captureNativeLuminance);
+      float captureDetail=1.-smoothstep(.1,.4,captureGreen);
+      float captureOcclusion=mix(.45,1.,smoothstep(.015,.12,captureNativeLuminance));
+      float captureWall=1.-smoothstep(.6,.9,vCaptureNormal.y);
+      diffuseColor.rgb=mix(diffuseColor.rgb,captureGrain*captureOcclusion,captureDetail*captureWall);
+      float captureGround=smoothstep(.3,.6,vCaptureNormal.y)*(1.-smoothstep(.4,.7,vCapturePoint.y));
+      diffuseColor.a*=mix(1.,smoothstep(0.,1.5,-vCapturePoint.z),captureGround);
+      float captureHeight=(texture2D(captureRockHeight,capturePoint.yz).r*captureWeights.x
+        +texture2D(captureRockHeight,capturePoint.xz).r*captureWeights.y
+        +texture2D(captureRockHeight,capturePoint.xy).r*captureWeights.z)*.035*captureDetail;
+`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+      vec3 captureDx=dFdx(-vViewPosition),captureDy=dFdy(-vViewPosition);
+      vec3 captureR1=cross(captureDy,normal),captureR2=cross(normal,captureDx);
+      float captureDet=dot(captureDx,captureR1)*faceDirection;
+      vec3 captureGradient=sign(captureDet)*(dFdx(captureHeight)*captureR1+dFdy(captureHeight)*captureR2);
+      normal=normalize(abs(captureDet)*normal-captureGradient);
+`);
+  };
+  material.transparent=true;material.alphaTest=.01;
+  material.customProgramCacheKey=()=> 'captured-rock-photographic-detail-v1';material.needsUpdate=true;
+}
 
 export function photographicHorizonGeometry(){
   const geometry=new THREE.SphereGeometry(2000,96,48),uv=geometry.attributes.uv;
@@ -34,8 +74,8 @@ export function routeRibbonGeometry(route,height,width=p=>p.width+1.6,step=1.5,c
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 
-export function createFloorIndex(geometries){
-  const cells=new Map(),size=12;
+export function createFloorIndex(geometries,size=12){
+  const cells=new Map();
   for(const geometry of geometries){
     const p=geometry.attributes.position,index=geometry.index,count=index?index.count:p.count;
     for(let i=0;i<count;i+=3){
@@ -64,19 +104,22 @@ export class XianxiaWorld {
     this.sectors=[];this.colliders=[];this.loader=new GLTFLoader();this.textureLoader=new THREE.TextureLoader();
   }
   async load() {
-    const files=['cave-scan','cave-mouth-scan'];
+    const files=['cave-scan','terrain-scan'];
     let loaded=0;
-    const models=await Promise.all(files.map(async name=>{const data=await this.loader.loadAsync(asset(`models/${name}.glb`));this.onProgress(++loaded/14);return data.scene;}));
+    const models=await Promise.all(files.map(async name=>{const data=await this.loader.loadAsync(asset(`models/${name}.glb`));this.onProgress(++loaded/15);return data.scene;}));
     this.models=Object.fromEntries(files.map((f,i)=>[f,models[i]]));
+    for(const model of models)model.traverse(child=>{for(const material of Array.isArray(child.material)?child.material:[child.material])if(material?.map){material.map.anisotropy=8;material.map.needsUpdate=true;}});
     const boulders=await this.loader.loadAsync(asset('models/moss-boulders.glb'));
     this.boulders=boulders.scene.children.map(source=>{
       source.updateWorldMatrix(true,true);const box=new THREE.Box3().setFromObject(source),center=box.getCenter(new THREE.Vector3()),group=new THREE.Group();
       source.traverse(child=>{if(child.isMesh){const geometry=child.geometry.clone().applyMatrix4(child.matrixWorld);geometry.translate(-center.x,-box.min.y,-center.z);group.add(new THREE.Mesh(geometry,child.material));}});
       group.userData.size=box.getSize(new THREE.Vector3());return group;
     });
-    const textures=await Promise.all(['rocky_trail-diff.jpg','rocky_trail-nor_gl.jpg','rocky_trail-disp.png','huangshan.webp','pine-0.png','pine-1.png','pine-2.png','cave-diff.jpg','cave-normal.jpg','cave-disp.png','cave-rough.jpg'].map(async name=>{
-      const t=await this.textureLoader.loadAsync(asset(`textures/${name}`));this.onProgress(Math.min(1,++loaded/14));return t;
+    const textures=await Promise.all(['rocky_trail-diff.jpg','rocky_trail-nor_gl.jpg','rocky_trail-disp.png','huangshan.webp','pine-0.png','pine-1.png','pine-2.png','cave-diff.jpg','cave-normal.jpg','cave-disp.png','cave-rough.jpg','cave-detail-color.webp','cave-detail-height.webp'].map(async name=>{
+      const t=await this.textureLoader.loadAsync(asset(`textures/${name}`));this.onProgress(Math.min(1,++loaded/15));return t;
     }));
+    this.caveDetailColor=textures[11];this.caveDetailHeight=textures[12];this.caveDetailColor.colorSpace=THREE.SRGBColorSpace;
+    for(const texture of [this.caveDetailColor,this.caveDetailHeight]){texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.anisotropy=8;}
     this.diffuse=textures[0];this.normal=textures[1];this.panorama=textures[3];
     this.pinePhotos=textures.slice(4,7);for(const photo of this.pinePhotos)photo.colorSpace=THREE.SRGBColorSpace;
     this.caveDiffuse=textures[7];this.caveNormal=textures[8];this.caveRough=textures[10];this.caveDiffuse.colorSpace=THREE.SRGBColorSpace;
@@ -89,7 +132,7 @@ export class XianxiaWorld {
     const img=textures[2].image,canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
     const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);this.heightPixels=ctx.getImageData(0,0,img.width,img.height);textures[2].dispose();
     this.satellite=await this.textureLoader.loadAsync(asset('textures/huangshan-satellite.webp'));this.satellite.colorSpace=THREE.SRGBColorSpace;this.satellite.anisotropy=4;
-    this.makeGround();this.makeHorizon();this.makeScenery();this.makeCave();this.makeLandmarks();this.onProgress(1);
+    this.makeCapturedTerrain();this.makeGround();this.makeHorizon();this.makeScenery();this.makeCave();this.makeLandmarks();this.onProgress(1);
     return this;
   }
   capturedDisplacement(x,z) {
@@ -98,9 +141,9 @@ export class XianxiaWorld {
     const ix=((Math.floor(x*12)%width)+width)%width,iz=((Math.floor(z*12)%height)+height)%height;
     return (data[(iz*width+ix)*4]/255-.5)*.2;
   }
-  vertexHeight(x,z) {return z<=0?measuredTerrainHeight(x,z):sampleMountain(x,z).height+this.capturedDisplacement(x,z);}
+  vertexHeight(x,z) {return z<=0?this.terrainHeight(x,z):sampleMountain(x,z).height+this.capturedDisplacement(x,z);}
   sourceHeight(x,z) {
-    if(z<=0)return measuredTerrainHeight(x,z);
+    if(z<=0)return this.terrainHeight(x,z);
     const step=2,x0=Math.floor(x/step)*step,z0=Math.floor(z/step)*step,u=(x-x0)/step,v=(z-z0)/step;
     const a=this.vertexHeight(x0,z0),b=this.vertexHeight(x0+step,z0),c=this.vertexHeight(x0,z0+step),d=this.vertexHeight(x0+step,z0+step);
     return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
@@ -113,11 +156,29 @@ export class XianxiaWorld {
     }
     return null;
   }
-  groundHeight(x,z){return (z>0&&z<132?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
-  canWalkCave(x,z){return z<=1||z>=131?sampleRoute(CAVE,x,z).distance<6:this.caveFootHeight(x,z)!=null;}
+  groundHeight(x,z){return (z>0&&z<CAVE_LENGTH?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
+  canWalkCave(x,z){
+    if(z<=1||z>=CAVE_LENGTH-1)return sampleRoute(CAVE,x,z).distance<6;
+    const floor=this.caveFootHeight(x,z),roof=this.caveCeilingIndex?.heightAt(x,z);
+    return floor!=null&&(roof==null||-roof-floor>=2);
+  }
   caveDarkness(x,z){return this.caveFloorIndex&&!this.canWalkCave(x,z)?0:caveAmount(x,z,this.caveBounds?Math.max(Math.abs(this.caveBounds.min.x),Math.abs(this.caveBounds.max.x))+1:12);}
-  supportHeight(x,z){
-    return measuredTerrainHeight(x,z);
+  terrainHeight(x,z){return this.foregroundIndex?.heightAt(x,z)??blendedTerrainHeight(x,z);}
+  supportHeight(x,z){return this.terrainHeight(x,z);}
+  makeCapturedTerrain(){
+    const group=this.models['terrain-scan'].clone(true);this.root.add(group);this.root.updateMatrixWorld(true);
+    const inverse=new THREE.Matrix4().copy(this.root.matrixWorld).invert(),geometries=[];
+    group.traverse(child=>{
+      if(!child.isMesh)return;
+      geometries.push(child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,child.matrixWorld)));
+      const material=child.material=child.material.clone();material.normalMap=this.normal;material.normalScale=new THREE.Vector2(.3,.3);
+      material.onBeforeCompile=shader=>{
+        shader.uniforms.photographicDetail={value:this.diffuse};
+        shader.vertexShader='varying vec2 vCapturedMeters; varying float vCapturedDistance;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCapturedMeters=position.xz; vCapturedDistance=length((modelViewMatrix*vec4(position,1.)).xyz);').replace('#include <uv_vertex>','#include <uv_vertex>\n#ifdef USE_NORMALMAP\nvNormalMapUv=position.xz*.17;\n#endif');
+        shader.fragmentShader='uniform sampler2D photographicDetail; varying vec2 vCapturedMeters; varying float vCapturedDistance;\n'+shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nfloat grain=dot(texture2D(photographicDetail,vCapturedMeters*.17).rgb,vec3(.2126,.7152,.0722)); diffuseColor.rgb*=1.+(grain-.4)*.35*(1.-smoothstep(12.,60.,vCapturedDistance));');
+      };
+    });
+    this.foregroundIndex=createFloorIndex(geometries);for(const geometry of geometries)geometry.dispose();this.foreground=group;
   }
   makeGround() {
     const material=new THREE.MeshStandardMaterial({map:this.diffuse,normalMap:this.normal,normalScale:new THREE.Vector2(.7,.7),roughness:.96,color:0xc5c4ac});
@@ -129,9 +190,9 @@ export class XianxiaWorld {
       shader.vertexShader='varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTerrainMeters=position.xz; vTerrainSlope=1.-abs(normal.y); vTerrainDistance=length((modelViewMatrix*vec4(position,1.)).xyz);');
       shader.fragmentShader='uniform sampler2D terrainDetail; varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nvec3 stone=texture2D(terrainDetail,vTerrainMeters*.17).rgb; float nearDetail=1.-smoothstep(50.,180.,vTerrainDistance); diffuseColor.rgb=mix(diffuseColor.rgb,stone,nearDetail*(.18+.6*smoothstep(.12,.5,vTerrainSlope)));');
     };
-    this.support=new THREE.Mesh(measuredTerrainGeometry((x,z)=>z>0&&sampleRoute(CAVE,x,z).distance<sampleRoute(CAVE,x,z).width+4),terrainMaterial);
+    this.support=new THREE.Mesh(measuredTerrainGeometry((x,z)=>z>0&&z<CAVE_LENGTH+12&&Math.abs(x)<40||z<=0&&foregroundHeight(x,z)!=null,blendedTerrainHeight),terrainMaterial);
     this.support.name='Huangshan surveyed SRTM relief';this.root.add(this.support);
-    this.supportIndex={heightAt:measuredTerrainHeight};
+    this.supportIndex={heightAt:(x,z)=>this.terrainHeight(x,z)};
     this.floorIndex=createFloorIndex([this.ground.geometry]);
   }
   makeHorizon() {
@@ -193,28 +254,42 @@ export class XianxiaWorld {
   }
   makeCave() {
     const g=new THREE.Group();g.name='两界洞 · 连续步行通道';this.root.add(g);
-    g.add(this.models['cave-scan'].clone(true),this.models['cave-mouth-scan'].clone(true));
-    const exit=this.models['cave-mouth-scan'].clone(true);exit.rotation.y=Math.PI;exit.position.set(0,7,132);g.add(exit);
+    this.models['cave-scan'].traverse(child=>{
+      if(!child.isMesh)return;
+      if(!child.geometry.attributes.normal)child.geometry.computeVertexNormals();
+      for(const material of Array.isArray(child.material)?child.material:[child.material]){material.flatShading=false;addCapturedRockDetail(material,this.caveDetailColor,this.caveDetailHeight);}
+    });
+    for(const side of ['forest','mountain']){
+      const capture=this.models['cave-scan'].clone(true);capture.applyMatrix4(new THREE.Matrix4().fromArray(caveCaptures[side].matrix));g.add(capture);
+    }
     this.root.updateMatrixWorld(true);
-    const inverse=new THREE.Matrix4().copy(this.root.matrixWorld).invert(),floors=[];
+    const inverse=new THREE.Matrix4().copy(this.root.matrixWorld).invert(),floors=[],ceilings=[],surfaces=[];
+    const reference=Array.from({length:Math.ceil(CAVE_LENGTH/.025)+1},(_,i)=>sampleRoute(CAVE,0,i*.025).height);
     g.traverse(child=>{
       if(!child.isMesh)return;
-      const geometry=child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,child.matrixWorld)),p=geometry.attributes.position,index=geometry.index,positions=[];
+      const geometry=child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,child.matrixWorld)),p=geometry.attributes.position,index=geometry.index,positions=[],roofPositions=[],surfacePositions=[];
       const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(),normal=new THREE.Vector3(),ab=new THREE.Vector3(),ac=new THREE.Vector3();
       for(let i=0;i<(index?.count??p.count);i+=3){
         a.fromBufferAttribute(p,index?index.getX(i):i);b.fromBufferAttribute(p,index?index.getX(i+1):i+1);c.fromBufferAttribute(p,index?index.getX(i+2):i+2);
         normal.crossVectors(ab.subVectors(b,a),ac.subVectors(c,a)).normalize();
         const x=(a.x+b.x+c.x)/3,z=(a.z+b.z+c.z)/3,y=(a.y+b.y+c.y)/3;
-        if(normal.y>.3&&z>=0&&z<=132&&y<sampleRoute(CAVE,x,z).height+3)positions.push(...a.toArray(),...b.toArray(),...c.toArray());
+        const referenceHeight=reference[Math.max(0,Math.min(reference.length-1,Math.round(z/.025)))];
+        if(normal.y>.3&&z>=0&&z<=CAVE_LENGTH&&y<referenceHeight+4)surfacePositions.push(...a.toArray(),...b.toArray(),...c.toArray());
+        if(normal.y>.3&&z>=0&&z<=CAVE_LENGTH&&y<referenceHeight+.7)positions.push(...a.toArray(),...b.toArray(),...c.toArray());
+        if(normal.y<-.3&&z>=0&&z<=CAVE_LENGTH&&y>referenceHeight+.5){for(const v of [a,b,c])roofPositions.push(v.x,-v.y,v.z);}
       }
       if(positions.length){const floor=new THREE.BufferGeometry();floor.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));floors.push(floor);}
+      if(roofPositions.length){const roof=new THREE.BufferGeometry();roof.setAttribute('position',new THREE.Float32BufferAttribute(roofPositions,3));ceilings.push(roof);}
+      if(surfacePositions.length){const surface=new THREE.BufferGeometry();surface.setAttribute('position',new THREE.Float32BufferAttribute(surfacePositions,3));surfaces.push(surface);}
       geometry.dispose();
     });
-    this.caveFloorIndex=createFloorIndex(floors);for(const floor of floors)floor.dispose();
+    this.caveFloorIndex=createFloorIndex(floors,1);for(const floor of floors)floor.dispose();
+    this.caveCeilingIndex=createFloorIndex(ceilings,1);for(const roof of ceilings)roof.dispose();
+    this.caveSurfaceIndex=createFloorIndex(surfaces,1);for(const surface of surfaces)surface.dispose();
     this.caveBounds=new THREE.Box3().setFromObject(g).translate(this.root.position.clone().negate());
     this.caveLights=[];
-    for(const z of [18,48,78,110]){
-      const p=sampleRoute(CAVE,0,z),light=new THREE.PointLight(0xa4b6a5,25,35,1.4);light.position.set(p.x,p.height+3.8,z);g.add(light);this.caveLights.push(light);
+    for(const z of [.136,.364,.591,.833].map(t=>t*CAVE_LENGTH)){
+      const p=sampleRoute(CAVE,0,z),light=new THREE.PointLight(0xa4b6a5,7,20,1.4);light.position.set(p.x,p.height+1.5,z);g.add(light);this.caveLights.push(light);
     }
     this.cave=g;
   }

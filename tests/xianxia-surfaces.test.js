@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {blendedTerrainHeight,FOREGROUND_SOURCE} from '../src/xianxia-foreground.js';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { photographicHorizonGeometry,routeRibbonGeometry,createFloorIndex,XianxiaWorld } from '../src/xianxia-world.js';
@@ -35,8 +36,8 @@ test('player feet use the visible road triangles, not an unrelated source-height
 test('hills follow measured terrain, not a fabricated downhill profile around the route',()=>{
   const world=Object.assign(Object.create(XianxiaWorld.prototype),{});
   for(const [x,z]of [[0,-20],[105,-20],[-105,-20],[600,-900]]){
-    assert.equal(world.supportHeight(x,z),measuredTerrainHeight(x,z));
-    assert.equal(world.sourceHeight(x,z),measuredTerrainHeight(x,z));
+    assert.equal(world.supportHeight(x,z),blendedTerrainHeight(x,z));
+    assert.equal(world.sourceHeight(x,z),blendedTerrainHeight(x,z));
   }
   assert.ok(Math.abs(world.supportHeight(105,-20)-world.supportHeight(-105,-20))>10);
 });

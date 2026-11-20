@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
-import { XianxiaWorld } from './xianxia-world.js';
-import { sampleRoute,CAVE,canWalkMountain,caveAmount } from './xianxia-route.js';
+import { XianxiaWorld,createFloorIndex } from './xianxia-world.js';
+import { sampleRoute,CAVE,CAVE_LENGTH,canWalkMountain,caveAmount } from './xianxia-route.js';
 
 export class XianxiaLink {
   constructor(forest,{anchor={x:72,y:.20866,z:-230},clearApproach=true,onProgress=()=>{}}={}) {
     this.forest=forest;this.anchor=anchor;
     this.forestLights=[];forest.scene.traverse(o=>{if(o.isLight)this.forestLights.push(o);});
-    this.offset=new THREE.Vector3(anchor.x,anchor.y,anchor.z-132);
+    this.offset=new THREE.Vector3(anchor.x,anchor.y,anchor.z-CAVE_LENGTH);
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#c1d0cc');
     this.scene.fog=new THREE.FogExp2('#becac0',.0017);
     this.skyLight=new THREE.HemisphereLight('#e2f0e9','#575b45',2.5);this.scene.add(this.skyLight);
@@ -19,7 +19,7 @@ export class XianxiaLink {
       const pmrem=new THREE.PMREMGenerator(forest.renderer);this.environmentTarget=pmrem.fromEquirectangular(hdr);this.scene.environment=this.environmentTarget.texture;hdr.dispose();pmrem.dispose();
       this.forestCave=this.world.cave.clone(true);this.forestCave.position.add(this.offset);forest.scene.add(this.forestCave);
       this.forestCave.visible=false;
-      this.entrance={x:anchor.x,z:anchor.z+16};
+      this.entrance={x:anchor.x,z:anchor.z+48};
       if(clearApproach)this.prepareApproach();
       return this;
     });
@@ -27,7 +27,7 @@ export class XianxiaLink {
   local(x,z){return {x:x-this.offset.x,z:z-this.offset.z};}
   inApproach(x,z,width=14){
     const p=this.local(x,z);
-    return p.z>67&&p.z<156&&(p.z>=132?Math.abs(p.x):sampleRoute(CAVE,p.x,p.z).distance)<width;
+    return p.z>CAVE_LENGTH/2-2&&p.z<CAVE_LENGTH+56&&(p.z>=CAVE_LENGTH?Math.abs(p.x):sampleRoute(CAVE,p.x,p.z).distance)<(p.z>CAVE_LENGTH+24?Math.min(width,7):width);
   }
   prepareApproach(){
     const habitat=this.forest.habitat,matrix=new THREE.Matrix4(),point=new THREE.Vector3(),zero=new THREE.Vector3();
@@ -52,23 +52,29 @@ export class XianxiaLink {
     if(this.forest.ground){
       const geometry=this.forest.ground.geometry=this.forest.ground.geometry.clone(),positions=geometry.attributes.position;
       for(let i=0;i<positions.count;i++){
-        const x=positions.getX(i),z=positions.getZ(i);
-        if(this.inApproach(x,z,8)&&this.local(x,z).z<128)positions.setY(i,Math.min(positions.getY(i),this.groundHeight(x,z)-1));
+        const x=positions.getX(i),z=positions.getZ(i),p=this.local(x,z);
+        if(!this.inApproach(x,z,14))continue;
+        const contact=this.world.caveSurfaceIndex?.heightAt(p.x,Math.min(p.z,CAVE_LENGTH-.15));
+        if(contact!=null&&p.z>CAVE_LENGTH-2&&p.z<CAVE_LENGTH+6){
+          const blend=THREE.MathUtils.smoothstep(CAVE_LENGTH+6-p.z,0,6),depth=.04+THREE.MathUtils.smoothstep(CAVE_LENGTH-p.z-1.5,0,2)*.96;
+          positions.setY(i,THREE.MathUtils.lerp(positions.getY(i),contact+this.offset.y-depth,blend));
+        }else if(p.z<CAVE_LENGTH)positions.setY(i,Math.min(positions.getY(i),this.groundHeight(x,z)-1));
       }
       positions.needsUpdate=true;geometry.computeVertexNormals();
+      this.approachFloorIndex=createFloorIndex([geometry],3);
     }
   }
   owns(x,z) {
     const p=this.local(x,z);
-    if(p.z<89)return true;
-    if(p.z>132)return p.z<146&&Math.abs(p.x)<40;
+    if(p.z<=0)return true;
+    if(p.z>CAVE_LENGTH)return p.z<CAVE_LENGTH+14&&Math.abs(p.x)<40;
     const bounds=this.world.caveBounds;
-    return bounds?p.x>bounds.min.x&&p.x<bounds.max.x:p.z<139&&sampleRoute(CAVE,p.x,p.z).distance<8;
+    return bounds?p.x>bounds.min.x&&p.x<bounds.max.x:p.z<CAVE_LENGTH+7&&sampleRoute(CAVE,p.x,p.z).distance<8;
   }
-  canWalk(x,z) {const p=this.local(x,z);return p.z>132&&p.z<146&&Math.abs(p.x)<3.5||(p.z>0&&p.z<132&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z));}
-  groundHeight(x,z){const p=this.local(x,z);return this.world.groundHeight(p.x,p.z)+this.offset.y;}
+  canWalk(x,z) {const p=this.local(x,z);return p.z>CAVE_LENGTH&&p.z<CAVE_LENGTH+14&&Math.abs(p.x)<3.5||(p.z>0&&p.z<CAVE_LENGTH&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z));}
+  groundHeight(x,z){const p=this.local(x,z);return p.z>CAVE_LENGTH&&this.approachFloorIndex?(this.approachFloorIndex.heightAt(x,z)??this.world.groundHeight(p.x,p.z)+this.offset.y):this.world.groundHeight(p.x,p.z)+this.offset.y;}
   update(position,time) {
-    const p=this.local(position.x,position.z),mountain=p.z<70;
+    const p=this.local(position.x,position.z),mountain=p.z<CAVE_LENGTH*.53;
     const dark=this.world.caveDarkness?this.world.caveDarkness(p.x,p.z):caveAmount(p.x,p.z);
     if(dark>0&&!this.forestState){const s=this.forest.scene;this.forestState={background:s.background,environment:s.environmentIntensity,color:s.fog.color.clone(),density:s.fog.density,lights:this.forestLights.map(light=>[light,light.intensity])};}
     if(this.forestState){const s=this.forest.scene,state=this.forestState;

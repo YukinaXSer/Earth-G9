@@ -22,12 +22,12 @@ export function measuredTerrainHeight(x,z){
   return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
 }
 
-export function measuredTerrainGeometry(omit=()=>false){
+export function measuredTerrainGeometry(omit=()=>false,heightAt=vertex){
   const step=TERRAIN_STEP,minX=Math.ceil(data.x0/step)*step,minZ=Math.ceil(data.z0/step)*step;
   const columns=Math.floor((data.x0+(data.width-1)*data.step-minX)/step),rows=Math.floor((data.z0+(data.height-1)*data.step-minZ)/step);
   const positions=[],uv=[],indices=[],photo=data.satellite;
   for(let j=0;j<=rows;j++)for(let i=0;i<=columns;i++){
-    const x=minX+i*step,z=minZ+j*step;positions.push(x,vertex(x,z),z);uv.push((x-photo.x0)/photo.size,1-(z-photo.z0)/photo.size);
+    const x=minX+i*step,z=minZ+j*step;positions.push(x,heightAt(x,z),z);uv.push((x-photo.x0)/photo.size,1-(z-photo.z0)/photo.size);
     if(i<columns&&j<rows&&!omit(x+step/2,z+step/2)){
       const a=j*(columns+1)+i,b=a+1,c=a+columns+1,d=c+1;indices.push(a,c,b,b,c,d);
     }
