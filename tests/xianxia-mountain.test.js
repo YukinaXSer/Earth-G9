@@ -82,10 +82,17 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   assert.match(shader.vertexShader,/captureWorldToLocal\*modelMatrix/);
   assert.match(shader.fragmentShader,/captureNormalToWorld\*photoSurface.n/);
   const count=requested.length;
+  assert.equal(mountain.world.floorIndex.heightAt(798,-110.9),null);
+  await mountain.world.updateMountain(798);
+  assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,4);
+  assert.ok(mountain.world.floorIndex.canMove(798,-110.9,798.05,-110.9));
+  const restoredCount=requested.length;
   await mountain.world.updateMountain(100.5);
-  assert.equal(requested.length,count);
+  assert.equal(requested.length,restoredCount);
+  assert.ok(count<restoredCount);
   await mountain.world.updateMountain(135);
   assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,4);
+  await assert.rejects(mountain.world.updateMountain(1e100),/Invalid mountain position/);
   const resident=mountain.world.floorIndex.tiles.size;
   await mountain.world.updateMountain(4000);
   assert.ok(mountain.world.floorIndex.tiles.size<=resident);

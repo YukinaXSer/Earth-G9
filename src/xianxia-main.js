@@ -93,7 +93,18 @@ async function boot(){try{
   world.canvas.setAttribute('aria-label','青岚境与雨林连续山境：WASD 行走，鼠标拖动环顾，M 山行图，E 驻足');
   await withTimeout(world.ready,120000);world.initializing=true;
   link=new XianxiaLink(world,{nearOnly:true,clearApproach:false,anchor:{x:0,y:groundHeight(0,-90),z:-90},onProgress:p=>{$('#percent').textContent=`${Math.round(65+p*30)}%`;$('#loadbar').style.width=`${65+p*30}%`;$('#load-status').textContent='正在铺展松岩与云海';}});
-  await withTimeout(link.ready,90000);world.worldLink=link;world.position.set(link.offset.x+MOUNTAIN_ENTRANCE.position.x,0,link.offset.z+MOUNTAIN_ENTRANCE.position.z);world.yaw=MOUNTAIN_ENTRANCE.yaw;world.pitch=.015;world.camera.position.set(world.position.x,link.groundHeight(world.position.x,world.position.z)+1.85,world.position.z);
+  await withTimeout(link.ready,90000);world.worldLink=link;
+  let spawn={x:link.offset.x+MOUNTAIN_ENTRANCE.position.x,z:link.offset.z+MOUNTAIN_ENTRANCE.position.z,yaw:MOUNTAIN_ENTRANCE.yaw,pitch:.015};
+  if(progress.position){
+    const saved=progress.position,local=link.local(saved.x,saved.z);
+    if(Number.isSafeInteger(Math.round(local.x))){
+      await withTimeout(link.world.updateMountain(local.x),90000);
+      if(link.world.streamingError)throw link.world.streamingError;
+      if(link.canWalk(saved.x,saved.z))spawn=saved;
+      else await withTimeout(link.world.updateMountain(MOUNTAIN_ENTRANCE.position.x),90000);
+    }
+  }
+  world.position.set(spawn.x,0,spawn.z);world.yaw=spawn.yaw;world.pitch=Math.max(-1.05,Math.min(1.05,spawn.pitch));world.camera.position.set(spawn.x,link.groundHeight(spawn.x,spawn.z)+1.85,spawn.z);
   await world.prepareDemo(link.scene);world.initializing=false;ready=true;$('#loadbar').style.width='100%';$('#enter').disabled=false;$('#forest-start').hidden=true;$('#enter').innerHTML=`${progress.position?'继续山行':'入山，听风'} ${icon('arrow')}`;$('#load-status').textContent='山林已就绪';$('#count').textContent=`${progress.visited.length}/6`;$('#continue-note').textContent='入口近景验收中 · 完整山路和山洞暂不开放';
   update({x:world.position.x,z:world.position.z,yaw:world.yaw});
 }catch(error){console.error(error);$('#load-status').textContent='素材加载未完成，请刷新后重试。';$('#enter').textContent='重新加载';$('#enter').disabled=false;$('#enter').onclick=()=>location.reload();}}

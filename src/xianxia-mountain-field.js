@@ -192,8 +192,9 @@ export async function loadMountainField(world){
   surface.set(0,0,[first.index]);surface.set(0,1,[next.index]);
   show(0,1,next,'near');show(0,0,first,'near');
   show(-1,0,first,'near');show(-1,1,next,'near');
-  let pending=Promise.resolve(),startX;const queued=new Set();
+  let pending=Promise.resolve();const queued=new Set();
   world.updateMountain=x=>{
+    if(!Number.isSafeInteger(Math.round(x)))return Promise.reject(new Error('Invalid mountain position'));
     const station=(x-MOUNTAIN_BASE_X)/MOUNTAIN_PERIOD;
     const current=Math.floor(station);
     for(let b=current-8;b<=current+8;b++)if(!groups.has(b)){
@@ -203,7 +204,6 @@ export async function loadMountainField(world){
       group.removeFromParent();groups.delete(b);
       for(let p=0;p<4;p++){surface.delete(b,p);slots.delete(b+':'+p);}
     }
-    startX??=x;if(Math.abs(x-startX)<.15)return pending;
     for(const [b,group]of groups)for(let p=0;p<4;p++){
       const center=group.position.x+group.scale.x*(MOUNTAIN_BASE_X+mountainStation(p*16+8));
       if(Math.abs(center-x)>60&&slots.get(b+':'+p)?.lod==='near')show(b,p,far[p],'far');
