@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, BOUNDS, START } from './data.js';
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
-import { capturedCollider, colliderContains } from './captured-collisions.js';
+import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
 const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
@@ -224,7 +224,7 @@ export class Habitat {
   composeForest() {
     const w = this.world, layout = createForestLayout(w.lowDetail);
     for (const tree of layout.emergent) {
-      if (w.colliders.some(c => colliderContains(c, tree.x, tree.z, tree.scale * 1.5, groundHeight(tree.x, tree.z)))) continue;
+      if (w.colliders.some(c => colliderBoundsContain(c, tree.x, tree.z, tree.scale * 1.5, groundHeight(tree.x, tree.z)))) continue;
       this.place('tree', tree.x, tree.z, tree.scale, tree.angle, 0, groundHeight(tree.x, tree.z) - .12);
       w.colliders.push({ x: tree.x, z: tree.z, radius: tree.scale * 1.5, shadeRadius: tree.scale * 4 });
     }
@@ -247,11 +247,12 @@ export class Habitat {
     }
     for (const item of layout.debris) {
       if (w.colliders.some(c => !c.parts && Math.hypot(c.x - item.x, c.z - item.z) < c.radius + (item.key === 'log' && item.scale < .55 ? .25 : 1.2))) continue;
-      this.place(item.key, item.x, item.z, item.scale, item.angle, item.variant);
+      const placed = this.place(item.key, item.x, item.z, item.scale, item.angle, item.variant);
       if (item.key === 'log' && item.scale >= .55) {
+        const variants = this.models.get('log'), variant = variants[item.variant % variants.length];
         for (let i = 0; i <= 6; i++) {
           const offset = (i / 6 - .5) * 3.05 * item.scale;
-          w.colliders.push({ x: item.x + Math.cos(item.angle) * offset, z: item.z - Math.sin(item.angle) * offset, radius: .18 * item.scale + .06 });
+          w.colliders.push(refineCollider({ x: item.x + Math.cos(item.angle) * offset, z: item.z - Math.sin(item.angle) * offset, radius: .18 * item.scale + .06 }, variant, placed[0].matrix));
         }
       } else if (item.key === 'rock') w.colliders.push({ x: item.x, z: item.z, radius: item.scale * 1.15 });
     }
@@ -359,12 +360,11 @@ export class Habitat {
         this.world.butterflyPerch = point.add(new THREE.Vector3(0, .023, 0));
       }
     }
-    this.place('log', -7, 22, .8, .7);
-    this.place('log', 5, -89, .85, -.3);
     for (const [x, z, scale, angle] of [[-7, 22, .8, .7], [5, -89, .85, -.3]]) {
+      const placed = this.place('log', x, z, scale, angle);
       for (let i = 0; i <= 6; i++) {
         const offset = (i / 6 - .5) * 3.05 * scale;
-        w.colliders.push({ x: x + Math.cos(angle) * offset, z: z - Math.sin(angle) * offset, radius: .22 });
+        w.colliders.push(refineCollider({ x: x + Math.cos(angle) * offset, z: z - Math.sin(angle) * offset, radius: .22 }, this.models.get('log')[0], placed[0].matrix));
       }
     }
     this.place('rock', 4, -88, 1.2, .4);
