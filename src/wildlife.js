@@ -78,7 +78,7 @@ export class Wildlife {
       else console.warn('No supported bird perch found');
       this.critters = await loadCritters(this.world.scene, placements);
       this.extraStartedAt = this.world.elapsed;
-      this.world.colliders.push({ x: -1.9, z: 30, radius: .2 });
+      this.world.addCollider({ x: -1.9, z: 30, radius: .2 });
       return this.critters;
     }).catch(error => { this.extraError = String(error); console.warn('Additional wildlife unavailable:', error); });
     return this.extraReady;

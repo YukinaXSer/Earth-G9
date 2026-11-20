@@ -345,6 +345,11 @@ export class Rainforest {
 
   resetPosition() { this.position.set(START.x, 0, START.z); this.yaw = -0.09; this.pitch = 0.035; this.notifyPosition(); }
 
+  addCollider(collider) {
+    this.colliders.push(collider);
+    this.recoverPosition();
+  }
+
   recoverPosition() {
     const free = (x, z) => {
       const floor = groundHeight(x, z);
