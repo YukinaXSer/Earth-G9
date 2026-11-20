@@ -37,6 +37,11 @@ test('canvas wheel zoom ignores inactive, paused and failed scenes', () => {
   let prevented = false;
   const event = { deltaY: -120, deltaMode: 0, preventDefault() { prevented = true; } };
   listeners.wheel(event); assert.ok(prevented); assert.ok(camera.fov < DEFAULT_FOV);
+  for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) {
+    const fov = camera.fov; prevented = false;
+    listeners.wheel({ ...event, [modifier]: true });
+    assert.equal(camera.fov, fov); assert.equal(prevented, false);
+  }
   for (const [key, value] of [['active', false], ['paused', true], ['contextFailed', true]]) {
     const previous = world[key], fov = camera.fov; world[key] = value; prevented = false;
     listeners.wheel(event); assert.equal(camera.fov, fov); assert.equal(prevented, false);

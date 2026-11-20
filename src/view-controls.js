@@ -25,7 +25,7 @@ export function bindLookControls(canvas, world) {
   };
   const enabled = () => world.active && !world.paused && !world.contextFailed;
   canvas.addEventListener('wheel', event => {
-    if (!enabled() || !Number.isFinite(event.deltaY)) return;
+    if (!enabled() || event.ctrlKey || event.metaKey || event.altKey || !Number.isFinite(event.deltaY)) return;
     event.preventDefault();
     const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? canvas.clientHeight : 1);
     world.zoomView(Math.exp(Math.max(-500, Math.min(500, pixels)) * .0015));
