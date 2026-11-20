@@ -36,7 +36,13 @@ https://polyhaven.com/a/pine_sapling_medium
 Its native three-dimensional trunk, branches and needles are LOD-reduced and
 quantized without enlargement, with photographic albedo under the shared PBR
 lighting. Whole-tree photographic cards are no longer loaded at this entry.
+Black unused atlas texels are padded with the nearest existing photographed
+color (no recoloring or generated texture detail), reducing black mip bleed.
 Visible trunk triangles supply body collision without becoming ground support.
+Beyond 96m (Low) / 192m (High), a half-metre vertex-cluster LOD of the same
+captured triangles is used; original tile-rim vertices remain. This LOD supplies
+terrain queries. Near geometry is not clustered. Subpixel photographic grain
+fades with screen footprint; the complete mid-scale photograph remains.
 
 "Mountain terrain - Haytor Dartmoor National Park" by Chris Bibb / chrisbibb.
 https://sketchfab.com/3d-models/6d15587128a5451d9e29d6b50061045e

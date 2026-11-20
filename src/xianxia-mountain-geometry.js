@@ -18,6 +18,31 @@ export function mountainStation(u){
   return u<1?2*Math.sqrt(Math.max(0,u)):u>63?66-2*Math.sqrt(Math.max(0,64-u)):u+1;
 }
 
+export function distantMountainGeometry(source,step=.5){
+  if(!Number.isFinite(step)||step<=0)throw new Error('Invalid distant mesh spacing');
+  source.computeBoundingBox();const {min,max}=source.boundingBox;
+  const p=source.attributes.position,n=source.attributes.normal,vertices=[],normals=[],remap=new Uint32Array(p.count),cells=new Map();
+  for(let i=0;i<p.count;i++){
+    const px=p.getX(i),py=p.getY(i),pz=p.getZ(i),rim=Math.min(Math.abs(px-min.x),Math.abs(px-max.x),Math.abs(pz-min.z),Math.abs(pz-max.z))<.001;
+    const x=rim?px:Math.round(px/step)*step,y=rim?py:Math.round(py/step)*step,z=rim?pz:Math.round((pz-MOUNTAIN_BASE_Z)/step)*step+MOUNTAIN_BASE_Z,key=x+':'+y+':'+z;
+    let id=cells.get(key);
+    if(id==null){id=vertices.length/3;cells.set(key,id);vertices.push(x,y,z);normals.push(0,0,0);}
+    remap[i]=id;for(let a=0;a<3;a++)normals[id*3+a]+=n.getComponent(i,a);
+  }
+  for(let i=0;i<normals.length;i+=3)if(Math.hypot(normals[i],normals[i+1],normals[i+2])<1e-6)normals[i+1]=1;
+  const triangles=[],seen=new Set(),indices=source.index;
+  for(let i=0;i<indices.count;i+=3){
+    const a=remap[indices.getX(i)],b=remap[indices.getX(i+1)],c=remap[indices.getX(i+2)];
+    if(a===b||b===c||a===c)continue;
+    const key=[a,b,c].sort((a,b)=>a-b).join(':');if(seen.has(key))continue;
+    seen.add(key);triangles.push(a,b,c);
+  }
+  if(!triangles.length||triangles.length>=indices.count)return source;
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geometry.normalizeNormals();
+  geometry.setIndex(triangles);geometry.computeBoundingBox();geometry.computeBoundingSphere();return geometry;
+}
+
 export function decodeMountainGeometry(buffer){
   const view=new DataView(buffer);
   if(buffer.byteLength<36||view.getUint32(0,true)!==0x314e544d)throw new Error('Invalid mountain geometry header');

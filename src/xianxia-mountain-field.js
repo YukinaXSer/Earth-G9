@@ -4,7 +4,7 @@ import {createFloorIndex} from './xianxia-world.js';
 import {loadPhotographicGround,ensureSurfaceNormals,addPhotographicCapture} from './xianxia-surface.js';
 import {CAPTURE_SHIFT,gradeCaptureApproach,groundProp} from './xianxia-near.js';
 import {MOUNTAIN_ENTRANCE} from './xianxia-mountain.js';
-import {decodeMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainCell} from './xianxia-mountain-geometry.js';
+import {decodeMountainGeometry,distantMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainCell} from './xianxia-mountain-geometry.js';
 import {MountainTileSurface} from './xianxia-mountain-surface.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {mountainPathDistance} from './xianxia-mountain-route.js';
@@ -179,10 +179,11 @@ export async function loadMountainField(world){
   }
   function show(block,band,phase,data,lod){
     const slot=slots.get(block+':'+band+':'+phase);
-    if(slot.lod===lod)return;
+    if(slot.lod===lod&&slot.level===(data.level??0))return;
     if(lod==='near'&&!data.props)decorate(phase,data);
     slot.group?.removeFromParent();slot.group=null;
     slot.batch.mesh.setVisibleAt(slot.id,lod==='far');
+    if(lod==='far')slot.batch.mesh.setGeometryIdAt(slot.id,slot.batch.geometry[data.level??0]);
     if(lod==='near'){
       const group=new THREE.Group();group.applyMatrix4(cellMatrix(block,band));
       const mesh=new THREE.Mesh(data.geometry,material);mesh.name='native-mountain';mesh.onBeforeRender=frame;
@@ -190,19 +191,28 @@ export async function loadMountainField(world){
       if(data.props)group.add(data.props.clone());world.root.add(group);slot.group=group;
       if(block===0&&band===0&&phase===0)world.ground=world.foreground=mesh;
     }
-    slot.lod=lod;surface.set(block,phase,[data.index,...(data.propIndices??[])],band);
+    slot.lod=lod;slot.level=data.level??0;surface.set(block,phase,[data.index,...(data.propIndices??[])],band);
   }
   const far=await Promise.all(manifest.tiles.map((_,phase)=>tile(phase,'far')));
-  const extentX=8,extentZ=16,batches=far.map(data=>Array.from({length:4},(_,mirror)=>{
-    const mesh=new THREE.BatchedMesh((extentX+1)*(extentZ+1),data.geometry.attributes.position.count,data.geometry.index.count,material);
-    const geometry=mesh.addGeometry(data.geometry),before=mesh.onBeforeRender;
+  const levels=far.map(data=>{
+    const geometry=distantMountainGeometry(data.geometry);
+    return geometry===data.geometry?[data]:[data,{...data,geometry,index:createFloorIndex([geometry],2),level:1}];
+  });
+  const extentX=8,extentZ=16,batches=levels.map(tiers=>Array.from({length:4},(_,mirror)=>{
+    const mesh=new THREE.BatchedMesh((extentX+1)*(extentZ+1),tiers.reduce((n,d)=>n+d.geometry.attributes.position.count,0),tiers.reduce((n,d)=>n+d.geometry.index.count,0),material);
+    const geometry=tiers.map(d=>mesh.addGeometry(d.geometry)),before=mesh.onBeforeRender;
     mesh.scale.set(mirror%2?-1:1,1,mirror>=2?-1:1);
     mesh.name='native-mountain-far';mesh.frustumCulled=false;mesh.receiveShadow=true;
     mesh.onBeforeRender=function(...args){frame();before.apply(this,args);};world.root.add(mesh);
     return {mesh,geometry};
   }));
+  function distance(b,r,p,x,z){
+    const cell=mountainCell(b,r),cx=cell.x+cell.scaleX*(MOUNTAIN_BASE_X+mountainStation(p*16+8)),cz=cell.z+cell.scaleZ*MOUNTAIN_BASE_Z;
+    return Math.max(Math.abs(cx-x),Math.max(0,Math.abs(cz-z)-MOUNTAIN_WIDTH/2));
+  }
+  const farAt=(p,d)=>levels[p][d>(world.quality==='low'?96:192)?levels[p].length-1:0];
   let windowBlock,windowBand;
-  function windowAt(block,band){
+  function windowAt(block,band,x=MOUNTAIN_ENTRANCE.position.x,z=MOUNTAIN_ENTRANCE.position.z){
     if(block===windowBlock&&band===windowBand)return;
     for(const[key,slot]of slots)if(Math.abs(slot.block-block)>extentX||Math.abs(slot.band-band)>extentZ){
       slot.group?.removeFromParent();slot.batch.mesh.deleteInstance(slot.id);
@@ -210,9 +220,9 @@ export async function loadMountainField(world){
     }
     for(let b=block-extentX;b<=block+extentX;b++)for(let r=band-extentZ;r<=band+extentZ;r++)for(let p=0;p<4;p++){
       const key=b+':'+r+':'+p;if(slots.has(key))continue;
-      const cell=mountainCell(b,r),batch=batches[p][Math.abs(b%2)+Math.abs(r%2)*2],id=batch.mesh.addInstance(batch.geometry);
+      const cell=mountainCell(b,r),batch=batches[p][Math.abs(b%2)+Math.abs(r%2)*2],id=batch.mesh.addInstance(batch.geometry[0]);
       batch.mesh.setMatrixAt(id,matrix.makeTranslation(cell.x*cell.scaleX,0,cell.z*cell.scaleZ));
-      slots.set(key,{block:b,band:r,phase:p,id,batch});show(b,r,p,far[p],'far');
+      slots.set(key,{block:b,band:r,phase:p,id,batch});show(b,r,p,farAt(p,distance(b,r,p,x,z)),'far');
     }
     windowBlock=block;windowBand=band;
   }
@@ -224,15 +234,14 @@ export async function loadMountainField(world){
   world.updateMountain=(x,z=MOUNTAIN_ENTRANCE.position.z)=>{
     if(!Number.isSafeInteger(Math.round(x))||!Number.isSafeInteger(Math.round(z)))return Promise.reject(new Error('Invalid mountain position'));
     const current=Math.floor((x-MOUNTAIN_BASE_X)/MOUNTAIN_PERIOD),band=Math.floor((z-MOUNTAIN_BASE_Z+MOUNTAIN_WIDTH/2)/MOUNTAIN_WIDTH);
-    windowAt(current,band);
-    const distance=(b,r,p)=>{
-      const cell=mountainCell(b,r),cx=cell.x+cell.scaleX*(MOUNTAIN_BASE_X+mountainStation(p*16+8)),cz=cell.z+cell.scaleZ*MOUNTAIN_BASE_Z;
-      return Math.max(Math.abs(cx-x),Math.max(0,Math.abs(cz-z)-MOUNTAIN_WIDTH/2));
-    };
-    for(const slot of slots.values())if(slot.lod==='near'&&distance(slot.block,slot.band,slot.phase)>60)show(slot.block,slot.band,slot.phase,far[slot.phase],'far');
+    windowAt(current,band,x,z);
+    for(const slot of slots.values()){
+      const d=distance(slot.block,slot.band,slot.phase,x,z);
+      if(slot.lod==='far'||d>60)show(slot.block,slot.band,slot.phase,farAt(slot.phase,d),'far');
+    }
     for(let b=current-1;b<=current+1;b++)for(let r=band-1;r<=band+1;r++)for(let p=0;p<4;p++){
       const key=b+':'+r+':'+p;
-      if(distance(b,r,p)>32||slots.get(key)?.lod==='near'||queued.has(key))continue;
+      if(distance(b,r,p,x,z)>32||slots.get(key)?.lod==='near'||queued.has(key))continue;
       queued.add(key);
       pending=pending.then(async()=>{
         const data=await tile(p,'near');await warm(data);if(slots.has(key))show(b,r,p,data,'near');

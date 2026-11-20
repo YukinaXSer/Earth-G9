@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {decodeMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z} from '../src/xianxia-mountain-geometry.js';
+import * as THREE from 'three';
+import {decodeMountainGeometry,distantMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z} from '../src/xianxia-mountain-geometry.js';
 
 function sample(){
   const buffer=new ArrayBuffer(66),view=new DataView(buffer);view.setUint32(0,0x314e544d,true);view.setUint32(4,3,true);view.setUint32(8,3,true);
@@ -21,6 +22,19 @@ test('captured period keeps its interior rigid and removes derivative jumps only
   for(let u=1;u<=63;u+=.25)assert.equal(mountainStation(u),u+1);
   assert.equal(mountainStation(0),0);assert.equal(mountainStation(64),66);
   assert.equal(mountainStation(.25),1);assert.equal(mountainStation(63.75),65);
+});
+
+test('distant scan clustering retains its rim and a real visible/collidable triangle mesh without modifying the source',()=>{
+  const source=new THREE.PlaneGeometry(4,4,40,40).rotateX(-Math.PI/2).translate(100,2,MOUNTAIN_BASE_Z);
+  const original=source.attributes.position.array.slice(),indices=source.index.array.slice(),lod=distantMountainGeometry(source);
+  assert.deepEqual(source.attributes.position.array,original);assert.deepEqual(source.index.array,indices);
+  assert.ok(lod.index.count<source.index.count/3);
+  for(let i=0;i<lod.attributes.normal.count;i++)assert.ok(Math.abs(new THREE.Vector3().fromBufferAttribute(lod.attributes.normal,i).length()-1)<1e-6);
+  const mesh=new THREE.Mesh(lod,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));mesh.updateMatrixWorld(true);
+  for(const x of [98,98.1,99.3,100.2,101.7,102])for(const z of [-1.9,-.3,.9,1.9]){
+    const hit=new THREE.Raycaster(new THREE.Vector3(x,10,MOUNTAIN_BASE_Z+z),new THREE.Vector3(0,-1,0)).intersectObject(mesh)[0];
+    assert.ok(hit);assert.ok(Math.abs(hit.point.y-2)<1e-6);
+  }
 });
 
 test('malformed geometry cannot allocate arbitrary buffers or read outside the payload',()=>{

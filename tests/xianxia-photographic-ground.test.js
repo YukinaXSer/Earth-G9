@@ -72,6 +72,8 @@ test('standard lighting receives photographic color, roughness and correctly vie
   material.onBeforeCompile(shader);
   assert.match(shader.fragmentShader,/Surface photoSurface/);assert.match(shader.fragmentShader,/mat3\(viewMatrix\)\*photoSurface.n/);
   assert.match(shader.fragmentShader,/roughnessFactor=mix/);assert.match(shader.fragmentShader,/textureGrad\(mc/);
+  assert.match(shader.fragmentShader,/detailFade=1.-smoothstep\(\.0125,\.04,max\(length\(px\),length\(py\)\)\)/);
+  assert.match(shader.fragmentShader,/if\(detailFade>\.001\)/);
   assert.equal(shader.uniforms.groundMesoColor.value,textures.groundMesoColor);
 });
 

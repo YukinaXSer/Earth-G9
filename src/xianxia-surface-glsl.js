@@ -53,10 +53,16 @@ Surface projectSurface(sampler2D c,sampler2D n,sampler2D mc,sampler2D mn,vec3 me
   vec2 zx=vec2(px.x,s.z*px.y)*repeats,zy=vec2(py.x,s.z*py.y)*repeats;
   Surface o;o.c=vec3(0);o.n=vec3(0);o.r=0.;
   vec3 macroColor=vec3(0),macroNormal=vec3(0);
+  float detailFade=1.-smoothstep(.0125,.04,max(length(px),length(py)));
   for(int axis=0;axis<3;axis++){
     if(w[axis]<.0001)continue;
     vec2 uv=axis==0?ux:axis==1?uy:uz,dx=axis==0?xx:axis==1?yx:zx,dy=axis==0?xy:axis==1?yy:zy;
-    Surface detail=photoPatch(c,n,uv,meanColor,dx,dy);
+    Surface detail;detail.c=meanColor;detail.n=vec3(0,0,1);detail.r=1.;
+    if(detailFade>.001){
+      detail=photoPatch(c,n,uv,meanColor,dx,dy);
+      detail.c=mix(meanColor,detail.c,detailFade);
+      detail.n=normalize(mix(vec3(0,0,1),detail.n,detailFade));
+    }
     vec4 nr=textureGrad(mn,uv*.125,dx*.125,dy*.125);
     vec3 m=normalize(nr.xyz*2.-1.);
     vec3 basis=axis==0?vec3(s.x,0,0):axis==1?vec3(0,s.y,0):vec3(0,0,s.z);
