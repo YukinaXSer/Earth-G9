@@ -94,6 +94,12 @@ test('pine impostors retain complete detailed foliage, transparency and source d
   const dimensions=JSON.parse(readFileSync(new URL('../public/xianxia/tree-dimensions.json',import.meta.url)));
   for(let i=0;i<3;i++){const data=readFileSync(new URL(`../public/xianxia/textures/pine-${i}.png`,import.meta.url));assert.equal(data.toString('ascii',1,4),'PNG');assert.equal(data[25],6);assert.equal(data.readUInt32BE(16),1536);assert.ok(dimensions[i].height>7);assert.ok(dimensions[i].height<15);}
 });
+test('help is available from the header as well as the desktop-only footer',()=>{
+  const source=readFileSync(new URL('../src/xianxia-main.js',import.meta.url),'utf8');
+  const header=source.match(/<header[\s\S]*?<\/header>/)[0];
+  assert.match(header,/<button id="help-top"[^>]*aria-label="操作说明"[^>]*>\$\{icon\('help'\)\}/);
+  assert.match(source,/\$\('#help-top'\)\.onclick=\$\('#help-button'\)\.onclick/);
+});
 test('continuous captured-relief enclosure has no overhead or side gaps throughout the interior',()=>{
   const geometry=capturedCaveGeometry((u,v)=>(Math.sin(u*3+v)+1)/2),mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));mesh.updateMatrixWorld(true);
   for(let z=8;z<=129;z+=3){
