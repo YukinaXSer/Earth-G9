@@ -74,6 +74,32 @@ loaded capture and texture are shared, with no additional download.
 Root Cluster 01 bank/soil slabs are no longer placed as tree feet.
 
 CC0 photographic PBR textures and environment from Poly Haven:
+- Bark Willow, photographed by Dimitrios Savva and processed by Dario Barresi:
+  https://polyhaven.com/a/bark_willow
+  2048px photographed diffuse and OpenGL normal for the limited near-trunk
+  meshes below. The scan's 39 existing seam-separated UV charts are rotated
+  by branch growth direction and rescaled to one metre in both directions.
+  This is generic willow bark,
+  not a species-specific reconstruction. LOW retains Lambert lighting;
+  no additional roughness or IBL pass is added.
+- Island Tree 02 near wood, Rob Tuytel (scanning/processing) and Rico Cilliers
+  (cleanup/processing): https://polyhaven.com/a/island_tree_02
+  near-forest-trunk.glb preserves the original 27,298 captured wood triangles
+  rather than the 348-triangle game LOD. Original leaves and twig meshes are
+  NOT restored. Only the two closest eligible tree stems within 12m can use it.
+  Only UV charts change; original positions are not replaced by generated
+  cylinders. Original atlas photos are not enlarged/rebaked: near clarity
+  comes from the separate metre-scale photographic maps. Projected low-LOD attributes provide
+  a single-draw geometry/material transition from 6m to 12m. Tree placement,
+  original colliders and distant meshes are unchanged. When a closer tree
+  requests an occupied detail slot, the outgoing stem finishes fading before
+  that slot is reused; incoming detail also fades in. At most two slots exist.
+  A fading stem retains its parent near group until that fade reaches zero,
+  so crossing the outer forest-LOD boundary cannot interrupt the transition.
+  Build script:
+  scripts/build-near-trunk.mjs, using the original Poly Haven glTF source.
+  Its map-trunk-grain.py preprocessing step needs NumPy and SciPy; these
+  are authoring dependencies only, never browser/runtime dependencies.
 - Forest Leaves 03 (captured leaf litter, normal, roughness and displacement): https://polyhaven.com/a/forest_leaves_03
   The displacement image is downsampled to an 8x8 low-frequency height field,
   remapped over 32m with 1.1m relief for terrain art direction. This is a
@@ -117,7 +143,9 @@ tree crowns are still sourced mesh geometry, not generated blob primitives.
 Two additional tree LODs reduce twig/leaf geometry while retaining the
 source's total leaf surface area through per-cluster size compensation.
 These are three-dimensional textured meshes, not forest photographs or
-billboards; the full source-tree geometry replaces them near the player.
+billboards. Nearby trees replace the distant canopy LOD with reduced render
+meshes, not original-density foliage; the separately limited near-wood mesh
+is described above.
 
 Sky-only HDRI: Overcast Soil (Pure Sky), Sergej Majboroda (original) and
 Jarod Guest (sky edits), https://polyhaven.com/a/overcast_soil_puresky

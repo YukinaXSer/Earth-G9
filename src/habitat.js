@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, BOUNDS, START } from './data.js';
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
 import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
+import { NearTrunks } from './near-trunks.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
 const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
@@ -22,6 +23,10 @@ export class Habitat {
     this.treeMaterials = new Map();
     this.lodTrees = [];
     this.groundOccluders = [];
+    this.nearTrunks = new NearTrunks({
+      anisotropy: world.renderer?.capabilities?.getMaxAnisotropy?.() ?? 1,
+      onMaterial: material => { this.materials.add(material); this.setWet(this.world.rainy); },
+    });
     this.hiddenMatrix = new THREE.Matrix4().makeScale(.000001, .000001, .000001);
     this.dummy = new THREE.Object3D();
   }
@@ -61,6 +66,7 @@ export class Habitat {
               if (waxy) { material.shininess = 32; material.specular.set('#3c4936'); }
               material.userData.foliageTint = material.color.clone();
             }
+            material.userData.nearTrunk = treeLod && original.name === 'island_tree_02';
             materialCache.set(materialKey, material);
             return material;
           });
@@ -405,7 +411,7 @@ export class Habitat {
       mesh.visible = distance < mesh.userData.viewDistance && distance >= (mesh.userData.minViewDistance ?? -Infinity);
     }
     for (const tree of this.lodTrees) {
-      const near = (tree.x - position.x) ** 2 + (tree.z - position.z) ** 2 < 18 ** 2;
+      const near = (tree.x - position.x) ** 2 + (tree.z - position.z) ** 2 < 18 ** 2 || (this.nearTrunks?.needsNearGroup(tree.group) ?? false);
       if (near === tree.near) continue;
       tree.near = near;
       if (near && !tree.group) {
@@ -420,6 +426,7 @@ export class Habitat {
         part.batch.mesh.instanceMatrix.needsUpdate = true;
       }
     }
+    this.nearTrunks?.update(position, this.lodTrees);
   }
 
   setWet(rainy) {
