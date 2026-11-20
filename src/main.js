@@ -170,7 +170,7 @@ function interact() {
 const modalHeader = (eyebrow, title, subtitle = '') => `<div class="modal-top"><span class="eyebrow">${eyebrow}</span><button class="icon-button close-modal" aria-label="关闭窗口">${icon('close')}</button></div><h2 id="modal-title">${title}</h2>${subtitle ? `<p class="modal-subtitle">${subtitle}</p>` : ''}`;
 
 function openModal(type, data) {
-  if (!world) return;
+  if (!world || world.contextFailed) return;
   if (modalType) { closeModal(false); }
   previousFocus = document.activeElement;
   modalType = type; world.paused = true; world.keys.clear(); world.touchMove = null;
@@ -355,6 +355,7 @@ app.addEventListener('click', event => {
 
 $('#modal-overlay').addEventListener('click', event => { if (event.target === $('#modal-overlay')) closeModal(); });
 document.addEventListener('keydown', event => {
+  if (world?.contextFailed) return;
   if (event.repeat) return;
   if (event.target.closest('textarea,input') && event.code !== 'Escape' && event.code !== 'Tab') return;
   if (event.code === 'Escape') { modalType ? closeModal() : entered && openModal('pause'); }
@@ -389,11 +390,14 @@ setTimeout(async () => {
   const lowQuality = () => { const url = new URL(location.href); url.searchParams.set('quality', 'low'); location.assign(url); };
   const showFailure = () => {
     clearTimeout(slowTimer);
+    if (modalType) closeModal(false);
+    if (world) { world.contextFailed = true; world.active = false; world.paused = true; world.keys.clear(); world.touchMove = null; world.dragging = false; }
     show('#loading', true);
     $('#loading').setAttribute('aria-busy', 'false');
     $('#loading').innerHTML = `${icon('leaf')}<h2>雨林暂时未能载入</h2><p>网络或设备准备耗时过长，或某个素材未能下载。</p><small>你的探索存档仍然保留。请检查网络后重试，也可选择流畅模式。</small><button class="primary-button" id="retry">重新加载</button><button class="text-button" id="retry-low">使用流畅模式重试</button>`;
     $('#retry').addEventListener('click', () => location.reload());
     $('#retry-low').addEventListener('click', lowQuality);
+    $('#retry').focus({ preventScroll: true });
   };
   $('#loading-low').addEventListener('click', lowQuality);
   const slowTimer = setTimeout(() => show('#loading-low', true), 15000);
