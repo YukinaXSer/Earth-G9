@@ -1,0 +1,93 @@
+import * as THREE from 'three';
+import {read} from 'three/addons/libs/ktx-parse.module.js';
+import {photographicSurfaceGLSL} from './xianxia-surface-glsl.js';
+import {TRAIL,BRANCH} from './xianxia-route.js';
+
+export function ensureSurfaceNormals(geometry){
+  if(!geometry.attributes.normal)geometry.computeVertexNormals();
+  return geometry;
+}
+
+export function nativeGroundTexture(buffer,row){
+  const container=read(new Uint8Array(buffer));
+  if(container.supercompressionScheme!==0||container.vkFormat!==row.vkFormat||container.pixelWidth!==row.width||container.pixelHeight!==row.height||container.faceCount!==1||container.layerCount!==0)throw new Error('Unexpected native ground texture');
+  const format={'etc-rgb':THREE.RGB_ETC2_Format,'etc-rgba':THREE.RGBA_ETC2_EAC_Format,bc1:THREE.RGB_S3TC_DXT1_Format,bc3:THREE.RGBA_S3TC_DXT5_Format}[row.encoding];
+  if(!format)throw new Error('Unsupported native ground format');
+  const mipmaps=container.levels.map((level,i)=>({data:level.levelData,width:Math.max(1,row.width>>i),height:Math.max(1,row.height>>i)}));
+  const texture=new THREE.CompressedTexture(mipmaps,row.width,row.height,format);texture.needsUpdate=true;return texture;
+}
+
+export async function loadPhotographicGround(renderer,{walls=false}={}){
+  if(renderer.capabilities.maxTextureSize<4096)throw new Error('Photographic ground requires 4096px texture support');
+  const root='/xianxia/surface/',response=await fetch(`${root}manifest.json`);
+  if(!response.ok)throw new Error('Photographic ground manifest unavailable');
+  const source=await response.json(),variant=renderer.extensions.has('WEBGL_compressed_texture_etc')?'etc2':renderer.extensions.has('WEBGL_compressed_texture_s3tc')?'s3tc':null;
+  if(!variant)throw new Error('Photographic ground requires ETC2 or S3TC GPU textures');
+  const manifest={...source,...source.variants[variant],variant};
+  const textures=Object.fromEntries(await Promise.all(Object.entries(manifest.textures).filter(([id])=>walls||id.startsWith('ground')).map(async([id,row])=>{
+    const response=await fetch(root+row.file);if(!response.ok)throw new Error(`Ground texture unavailable: ${id}`);
+    const texture=nativeGroundTexture(await response.arrayBuffer(),row);
+    texture.colorSpace=id.endsWith('Color')?THREE.SRGBColorSpace:THREE.NoColorSpace;
+    texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
+    texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+    texture.minFilter=THREE.LinearMipmapLinearFilter;texture.generateMipmaps=false;
+    return [id,texture];
+  })));
+  return {manifest,textures};
+}
+
+export function addPhotographicCapture(material,uniforms){
+  material.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,uniforms);
+    shader.vertexShader='uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=(modelMatrix*vec4(position,1.)).xyz-patchOrigin;normM=mat3(modelMatrix)*normal;');
+    shader.fragmentShader=photographicSurfaceGLSL+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
+      vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
+      vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
+      float mask=smoothstep(-groundMixWidth*.5,groundMixWidth*.5,dot(vec4(posM,1.),groundRegion));if(forceMaterial>=0.)mask=forceMaterial;
+      Surface photoSurface;
+      if(mask>=.99999)photoSurface=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);
+      else if(mask<=.00001)photoSurface=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);
+      else{
+        Surface a=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);
+        Surface b=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);
+        photoSurface.c=mix(b.c,a.c,mask);photoSurface.n=normalize(mix(b.n,a.n,mask));photoSurface.r=mix(b.r,a.r,mask);
+      }
+      diffuseColor.rgb*=photoSurface.c;
+    `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*photoSurface.n);');
+  };
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v1';material.needsUpdate=true;return material;
+}
+
+export function addPhotographicGround(material,{manifest,textures}){
+  const vertices=[...TRAIL,...BRANCH],edges=[];
+  for(const route of [TRAIL,BRANCH])for(let i=0;i<route.length-1;i++)edges.push([vertices.indexOf(route[i]),vertices.indexOf(route[i+1])]);
+  const uniform={stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.25)},groundMean:{value:new THREE.Vector3(...manifest.groundMean)},photoRoute:{value:vertices.map(p=>new THREE.Vector4(p[0],p[2],p[3],0))}};
+  for(const [key,texture]of Object.entries(textures))uniform[key]={value:texture};
+  material.onBeforeCompile=shader=>{
+    Object.assign(shader.uniforms,uniform);
+    shader.vertexShader='varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=position;normM=normal;');
+    const mask=`uniform vec4 photoRoute[${vertices.length}];
+float photoPath(vec2 p){
+  float coverage=0.;
+  ${edges.map(([a,b])=>`{vec4 a=photoRoute[${a}],b=photoRoute[${b}];vec2 v=b.xy-a.xy;float t=clamp(dot(p-a.xy,v)/max(dot(v,v),.0001),0.,1.);float width=mix(a.z,b.z,t)+1.;coverage=max(coverage,1.-smoothstep(width,width+.8,length(p-a.xy-v*t)));}`).join('\n')}
+  return coverage;
+}\n`;
+    shader.fragmentShader=photographicSurfaceGLSL+mask+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      vec3 photoG=dot(normM,normM)>.000001?normalize(normM):vec3(0.,1.,0.);
+      if(!gl_FrontFacing)photoG=-photoG;
+      vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=max(.000001,dot(photoW,vec3(1.)));
+      vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
+      float photoMask=photoPath(posM.xz)*step(.55,abs(photoG.y))*(1.-smoothstep(40.,65.,length(vViewPosition)));
+      Surface photoSurface;photoSurface.c=diffuseColor.rgb;photoSurface.n=photoG;photoSurface.r=1.;
+      if(photoMask>.0001)photoSurface=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);
+      diffuseColor.rgb=mix(diffuseColor.rgb,photoSurface.c,photoMask);
+    `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,photoSurface.r,photoMask);')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mix(normal,mat3(viewMatrix)*photoSurface.n,photoMask));');
+  };
+  material.customProgramCacheKey=()=> 'xianxia-full-photo-plus-grain-v1';
+  material.needsUpdate=true;return material;
+}

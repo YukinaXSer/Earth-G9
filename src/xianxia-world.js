@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRAIL,CAVE,CAVE_LENGTH,BRANCH,LOCATIONS,sampleMountain,sampleRoute,caveAmount } from './xianxia-route.js';
 import { measuredTerrainGeometry,TERRAIN_SOURCE } from './xianxia-terrain.js';
+import {loadPhotographicGround,addPhotographicGround,ensureSurfaceNormals} from './xianxia-surface.js';
 
 const clamp=THREE.MathUtils.clamp;
 const seeded=(seed)=>()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;};
@@ -85,7 +86,11 @@ export function createFloorIndex(geometries,size=12){
       }
     }
   }
-  return{heightAt(x,z){
+  const clip=(polygon,height,above)=>polygon.flatMap((a,i)=>{
+    const b=polygon[(i+1)%polygon.length],inside=above?a.y>=height:a.y<=height,next=above?b.y>=height:b.y<=height,out=inside?[a]:[];
+    if(inside!==next){const t=(height-a.y)/(b.y-a.y);out.push({x:a.x+(b.x-a.x)*t,y:height,z:a.z+(b.z-a.z)*t});}return out;
+  });
+  const index={geometries,heightAt(x,z){
     let height=-Infinity;
     for(const[a,b,c]of cells.get(`${Math.floor(x/size)},${Math.floor(z/size)}`)??[]){
       const denominator=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z);if(Math.abs(denominator)<1e-9)continue;
@@ -93,17 +98,40 @@ export function createFloorIndex(geometries,size=12){
       if(u>=-1e-5&&v>=-1e-5&&u+v<=1+1e-5)height=Math.max(height,a.y*u+b.y*v+c.y*(1-u-v));
     }
     return Number.isFinite(height)?height:null;
-  }};
+  },canMove(fromX,fromZ,x,z,radius=.35){
+    const floor=index.heightAt(x,z),previous=index.heightAt(fromX,fromZ);
+    if(floor==null||previous==null||floor-previous>.35||previous-floor>.65)return false;
+    for(const[dx,dz]of[[radius,0],[-radius,0],[0,radius],[0,-radius]]){
+      const support=index.heightAt(x+dx,z+dz);if(support==null||Math.abs(support-floor)>.45)return false;
+    }
+    const candidates=new Set();
+    for(let ix=Math.floor((x-radius)/size);ix<=Math.floor((x+radius)/size);ix++)for(let iz=Math.floor((z-radius)/size);iz<=Math.floor((z+radius)/size);iz++)for(const tri of cells.get(`${ix},${iz}`)??[])candidates.add(tri);
+    for(const tri of candidates){
+      const polygon=clip(clip(tri,floor+.35,true),floor+1.85,false);if(!polygon.length)continue;
+      let winding=false;
+      for(let i=0;i<polygon.length;i++){
+        const a=polygon[i],b=polygon[(i+1)%polygon.length],dx=b.x-a.x,dz=b.z-a.z,len=dx*dx+dz*dz;
+        const t=len?clamp(((x-a.x)*dx+(z-a.z)*dz)/len,0,1):0;
+        if((x-a.x-dx*t)**2+(z-a.z-dz*t)**2<radius*radius)return false;
+        if((a.z>z)!==(b.z>z)&&x<(b.x-a.x)*(z-a.z)/(b.z-a.z)+a.x)winding=!winding;
+      }
+      if(winding)return false;
+    }
+    return true;
+  }};return index;
 }
 
 
 export class XianxiaWorld {
-  constructor(scene,{offset=new THREE.Vector3(),quality='high',onProgress=()=>{}}={}) {
-    this.scene=scene;this.offset=offset;this.quality=quality;this.onProgress=onProgress;
+  constructor(scene,{offset=new THREE.Vector3(),quality='high',renderer,nearOnly=false,onProgress=()=>{}}={}) {
+    this.nearOnly=nearOnly;
+    this.scene=scene;this.offset=offset;this.quality=quality;this.renderer=renderer;this.onProgress=onProgress;
     this.root=new THREE.Group();this.root.name='青岚境';this.root.position.copy(offset);scene.add(this.root);
     this.sectors=[];this.colliders=[];this.loader=new GLTFLoader();this.textureLoader=new THREE.TextureLoader();
   }
   async load() {
+    if(this.nearOnly){const {loadNearCapture}=await import('./xianxia-near.js');return loadNearCapture(this);}
+    this.photographicGround=await loadPhotographicGround(this.renderer);
     const files=['cave-scan','terrain-scan'];
     let loaded=0;
     const models=await Promise.all(files.map(async name=>{const data=await this.loader.loadAsync(asset(`models/${name}.glb`));this.onProgress(++loaded/15);return data.scene;}));
@@ -157,6 +185,7 @@ export class XianxiaWorld {
     return null;
   }
   groundHeight(x,z){return (z>0&&z<CAVE_LENGTH?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
+  canWalkGround(x,z,fromX=x,fromZ=z){return this.floorIndex?.canMove(fromX,fromZ,x,z)??false;}
   canWalkCave(x,z){
     if(z<=1||z>=CAVE_LENGTH-1)return sampleRoute(CAVE,x,z).distance<6;
     const floor=this.caveFootHeight(x,z),roof=this.caveCeilingIndex?.heightAt(x,z);
@@ -167,22 +196,20 @@ export class XianxiaWorld {
   supportHeight(x,z){return this.terrainHeight(x,z);}
   makeCapturedTerrain(){
     const group=this.models['terrain-scan'].clone(true);this.root.add(group);this.root.updateMatrixWorld(true);
-    const inverse=new THREE.Matrix4().copy(this.root.matrixWorld).invert(),geometries=[];
+    const inverse=new THREE.Matrix4().copy(this.root.matrixWorld).invert();
+    this.foreground=new THREE.Group();this.foreground.name='captured-ground-surface';this.root.add(this.foreground);this.surfaceMeshes=[];
     group.traverse(child=>{
       if(!child.isMesh)return;
-      geometries.push(child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,child.matrixWorld)));
-      const material=child.material=child.material.clone();material.normalMap=this.normal;material.normalScale=new THREE.Vector2(.3,.3);
-      material.onBeforeCompile=shader=>{
-        shader.uniforms.photographicDetail={value:this.diffuse};
-        shader.vertexShader='varying vec2 vCapturedMeters; varying float vCapturedDistance;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvCapturedMeters=position.xz; vCapturedDistance=length((modelViewMatrix*vec4(position,1.)).xyz);').replace('#include <uv_vertex>','#include <uv_vertex>\n#ifdef USE_NORMALMAP\nvNormalMapUv=position.xz*.17;\n#endif');
-        shader.fragmentShader='uniform sampler2D photographicDetail; varying vec2 vCapturedMeters; varying float vCapturedDistance;\n'+shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nfloat grain=dot(texture2D(photographicDetail,vCapturedMeters*.17).rgb,vec3(.2126,.7152,.0722)); diffuseColor.rgb*=1.+(grain-.4)*.35*(1.-smoothstep(12.,60.,vCapturedDistance));');
-      };
+      const geometry=ensureSurfaceNormals(child.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,child.matrixWorld)));
+      const materials=(Array.isArray(child.material)?child.material:[child.material]).map(m=>addPhotographicGround(m.clone(),this.photographicGround));
+      const mesh=new THREE.Mesh(geometry,Array.isArray(child.material)?materials:materials[0]);mesh.receiveShadow=true;
+      this.foreground.add(mesh);this.surfaceMeshes.push(mesh);
     });
-    this.foregroundIndex=createFloorIndex(geometries);for(const geometry of geometries)geometry.dispose();this.foreground=group;
+    this.root.remove(group);
+    this.foregroundIndex=createFloorIndex(this.surfaceMeshes.map(m=>m.geometry),6);this.foregroundIndex.meshes=this.surfaceMeshes;
   }
   makeGround() {
-    const material=new THREE.MeshStandardMaterial({map:this.diffuse,normalMap:this.normal,normalScale:new THREE.Vector2(.7,.7),roughness:.96,color:0xc5c4ac});
-    this.ground=new THREE.Mesh(mergeGeometries([TRAIL,BRANCH].map(route=>routeRibbonGeometry(route,(x,z)=>this.sourceHeight(x,z)+.04,p=>p.width+.4,1.5,[-1,-.75,-.5,-.25,0,.25,.5,.75,1]))),material);this.ground.name='实拍位移山径';this.root.add(this.ground);
+    this.ground=this.foreground;
     const detailNormal=this.caveNormal.clone();detailNormal.repeat.set(TERRAIN_SOURCE.satellite.size*.17,TERRAIN_SOURCE.satellite.size*.17);
     const terrainMaterial=new THREE.MeshStandardMaterial({map:this.satellite,normalMap:detailNormal,normalScale:new THREE.Vector2(.6,.6),roughness:1});
     terrainMaterial.onBeforeCompile=shader=>{
@@ -190,10 +217,10 @@ export class XianxiaWorld {
       shader.vertexShader='varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTerrainMeters=position.xz; vTerrainSlope=1.-abs(normal.y); vTerrainDistance=length((modelViewMatrix*vec4(position,1.)).xyz);');
       shader.fragmentShader='uniform sampler2D terrainDetail; varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nvec3 stone=texture2D(terrainDetail,vTerrainMeters*.17).rgb; float nearDetail=1.-smoothstep(50.,180.,vTerrainDistance); diffuseColor.rgb=mix(diffuseColor.rgb,stone,nearDetail*(.18+.6*smoothstep(.12,.5,vTerrainSlope)));');
     };
-    this.support=new THREE.Mesh(measuredTerrainGeometry((x,z)=>z>0&&z<CAVE_LENGTH+12&&Math.abs(x)<40||z<=0&&foregroundHeight(x,z)!=null,blendedTerrainHeight),terrainMaterial);
+    this.support=new THREE.Mesh(measuredTerrainGeometry((x,z)=>z>0&&z<CAVE_LENGTH+12&&Math.abs(x)<40||z<=0&&(foregroundHeight(x,z)!=null||Math.min(sampleRoute(TRAIL,x,z).distance,sampleRoute(BRANCH,x,z).distance)<50),blendedTerrainHeight),terrainMaterial);
     this.support.name='Huangshan surveyed SRTM relief';this.root.add(this.support);
     this.supportIndex={heightAt:(x,z)=>this.terrainHeight(x,z)};
-    this.floorIndex=createFloorIndex([this.ground.geometry]);
+    this.floorIndex=this.foregroundIndex;
   }
   makeHorizon() {
     this.panorama.wrapS=THREE.MirroredRepeatWrapping;this.panorama.repeat.x=2;
@@ -304,6 +331,7 @@ export class XianxiaWorld {
     }
   }
   update(position,time=0) {
+    if(this.nearOnly)return {cave:0,height:this.groundHeight(position.x-this.offset.x,position.z-this.offset.z)};
     const x=position.x-this.offset.x,z=position.z-this.offset.z;
     this.horizon.position.set(x,this.groundHeight(x,z)-110,z);
     this.cave.visible=z>-100&&z<180;

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { XianxiaWorld,createFloorIndex } from './xianxia-world.js';
 import { sampleRoute,CAVE,CAVE_LENGTH,canWalkMountain,caveAmount } from './xianxia-route.js';
 
 export class XianxiaLink {
-  constructor(forest,{anchor={x:72,y:.20866,z:-230},clearApproach=true,onProgress=()=>{}}={}) {
+  constructor(forest,{anchor={x:72,y:.20866,z:-230},clearApproach=true,nearOnly=false,onProgress=()=>{}}={}) {
+    this.nearOnly=nearOnly;
     this.forest=forest;this.anchor=anchor;
     this.forestLights=[];forest.scene.traverse(o=>{if(o.isLight)this.forestLights.push(o);});
     this.offset=new THREE.Vector3(anchor.x,anchor.y,anchor.z-CAVE_LENGTH);
@@ -13,10 +13,16 @@ export class XianxiaLink {
     this.skyLight=new THREE.HemisphereLight('#e2f0e9','#575b45',2.5);this.scene.add(this.skyLight);
     this.sun=new THREE.DirectionalLight('#fff1d6',2.5);this.sun.position.set(200,350,-100);this.scene.add(this.sun);
     this.scene.environment=forest.scene.environment;this.scene.environmentIntensity=.75;
-    this.world=new XianxiaWorld(this.scene,{offset:this.offset,quality:forest.lowDetail?'low':'high',onProgress});
+    this.world=new XianxiaWorld(this.scene,{offset:this.offset,quality:forest.lowDetail?'low':'high',renderer:forest.renderer,nearOnly,onProgress});
     this.ready=this.world.load().then(async()=>{
-      const hdr=await new HDRLoader().loadAsync('/xianxia/textures/mountain-light.hdr');
-      const pmrem=new THREE.PMREMGenerator(forest.renderer);this.environmentTarget=pmrem.fromEquirectangular(hdr);this.scene.environment=this.environmentTarget.texture;hdr.dispose();pmrem.dispose();
+      await forest.environmentReady;
+      this.scene.environment=forest.scene.environment;
+      if(nearOnly){
+        this.scene.remove(this.skyLight,this.sun);this.scene.fog=forest.scene.fog.clone();
+        this.scene.environment=forest.scene.environment;this.scene.environmentIntensity=forest.scene.environmentIntensity;
+        for(const source of this.forestLights){const light=source.clone();this.scene.add(light);if(source===forest.sun){this.sun=light;this.scene.add(light.target);}}
+        return this;
+      }
       this.forestCave=this.world.cave.clone(true);this.forestCave.position.add(this.offset);forest.scene.add(this.forestCave);
       this.forestCave.visible=false;
       this.entrance={x:anchor.x,z:anchor.z+48};
@@ -65,15 +71,17 @@ export class XianxiaLink {
     }
   }
   owns(x,z) {
+    if(this.nearOnly)return true;
     const p=this.local(x,z);
     if(p.z<=0)return true;
     if(p.z>CAVE_LENGTH)return p.z<CAVE_LENGTH+14&&Math.abs(p.x)<40;
     const bounds=this.world.caveBounds;
     return bounds?p.x>bounds.min.x&&p.x<bounds.max.x:p.z<CAVE_LENGTH+7&&sampleRoute(CAVE,p.x,p.z).distance<8;
   }
-  canWalk(x,z) {const p=this.local(x,z);return p.z>CAVE_LENGTH&&p.z<CAVE_LENGTH+14&&Math.abs(p.x)<3.5||(p.z>0&&p.z<CAVE_LENGTH&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z));}
+  canWalk(x,z,fromX=x,fromZ=z) {const p=this.local(x,z),from=this.local(fromX,fromZ);if(this.nearOnly)return this.world.canWalkGround(p.x,p.z,from.x,from.z);return p.z>CAVE_LENGTH&&p.z<CAVE_LENGTH+14&&Math.abs(p.x)<3.5||(p.z>0&&p.z<CAVE_LENGTH&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z)&&this.world.canWalkGround(p.x,p.z,from.x,from.z));}
   groundHeight(x,z){const p=this.local(x,z);return p.z>CAVE_LENGTH&&this.approachFloorIndex?(this.approachFloorIndex.heightAt(x,z)??this.world.groundHeight(p.x,p.z)+this.offset.y):this.world.groundHeight(p.x,p.z)+this.offset.y;}
   update(position,time) {
+    if(this.nearOnly){this.sun.position.copy(this.forest.sun.position);this.sun.target.position.copy(this.forest.sun.target.position);return this.scene;}
     const p=this.local(position.x,position.z),mountain=p.z<CAVE_LENGTH*.53;
     const dark=this.world.caveDarkness?this.world.caveDarkness(p.x,p.z):caveAmount(p.x,p.z);
     if(dark>0&&!this.forestState){const s=this.forest.scene;this.forestState={background:s.background,environment:s.environmentIntensity,color:s.fog.color.clone(),density:s.fog.density,lights:this.forestLights.map(light=>[light,light.intensity])};}

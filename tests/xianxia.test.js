@@ -40,7 +40,7 @@ test('all six unique discoveries are on reachable routes; distant points do not 
 });
 function makeLink(anchor={x:72,y:.20866,z:-230}){
   const link=Object.create(XianxiaLink.prototype);link.anchor=anchor;link.offset=new THREE.Vector3(anchor.x,anchor.y,anchor.z-CAVE_LENGTH);
-  link.world={groundHeight:(x,z)=>sampleMountain(x,z).height};return link;
+  link.world={groundHeight:(x,z)=>sampleMountain(x,z).height,canWalkGround:()=>true};return link;
 }
 test('a configurable cave anchor maps both ends without changing player coordinates',()=>{
   for(const anchor of [{x:72,y:.20866,z:-230},{x:-30,y:12,z:200}]){
@@ -166,7 +166,11 @@ test('both full capture instances preserve one common rigid tilt and the native 
 });
 test('foreground feet use the complete photographed terrain mesh and the capture stops at the cave exit',()=>{
   const world=new XianxiaWorld(new THREE.Scene()),terrain=capturedScanMeshes('terrain-scan');
+  const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/manifest.json',import.meta.url)));
+  world.photographicGround={manifest,textures:Object.fromEntries(Object.keys(manifest.textures).map(k=>[k,new THREE.Texture()]))};
   world.normal=new THREE.Texture();world.diffuse=new THREE.Texture();world.models={'terrain-scan':terrain};world.makeCapturedTerrain();
+  assert.deepEqual(world.foregroundIndex.geometries,world.surfaceMeshes.map(m=>m.geometry));
+  assert.equal(world.foregroundIndex.meshes,world.surfaceMeshes);
   assert.ok(new THREE.Box3().setFromObject(world.foreground).max.z<.01);
   for(const [x,z]of [[0,-20],[100,-200],[500,-800],[800,-976]]){
     const hit=new THREE.Raycaster(new THREE.Vector3(x,2000,z),new THREE.Vector3(0,-1,0)).intersectObject(world.foreground,true)[0];
