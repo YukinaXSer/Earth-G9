@@ -27,3 +27,12 @@ test('a saved or map position inside newly captured wood recovers to nearby clea
   Rainforest.prototype.recoverPosition.call(world);
   assert.ok(world.position.equals(recovered));
 });
+
+test('a late animal collider cannot trap a player who reached its position before loading finished', () => {
+  const world = { position: new THREE.Vector3(-1.9, 0, 30), colliders: [] };
+  world.recoverPosition = () => Rainforest.prototype.recoverPosition.call(world);
+  const collider = { x: -1.9, z: 30, radius: .2 };
+  Rainforest.prototype.addCollider.call(world, collider);
+  assert.ok(!colliderContains(collider, world.position.x, world.position.z));
+  assert.ok(world.position.distanceTo(new THREE.Vector3(-1.9, 0, 30)) <= 1.01);
+});

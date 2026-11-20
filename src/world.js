@@ -4,6 +4,7 @@ import { Habitat } from './habitat.js';
 import { Wildlife } from './wildlife.js';
 import { TERRAIN } from './ground-relief.js';
 import { colliderContains } from './captured-collisions.js';
+import { DEFAULT_FOV, setFov, scaleView, bindLookControls } from './view-controls.js';
 import { SPECIES, PLANT_SITES, START, BOUNDS, groundHeight, riverX, RIVER_LEVEL } from './data.js';
 
 function seededRandom(seed = 2718) {
@@ -34,7 +35,7 @@ export class Rainforest {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#496c59');
     this.scene.fog = new THREE.FogExp2('#8ca18c', 0.0045);
-    this.camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 220);
+    this.camera = new THREE.PerspectiveCamera(DEFAULT_FOV, innerWidth / innerHeight, 0.1, 220);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     const gl = this.renderer.getContext();
     const debug = gl.getExtension('WEBGL_debug_renderer_info');
@@ -51,7 +52,7 @@ export class Rainforest {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
     this.canvas = this.renderer.domElement;
-    this.canvas.setAttribute('aria-label', '雨林场景：使用 WASD 移动，按住鼠标拖动环顾四周');
+    this.canvas.setAttribute('aria-label', '雨林场景：使用 WASD 移动，拖动环顾，滚轮或双指缩放视野');
     this.canvas.tabIndex = 0;
     this.makeMaterials();
     this.makeLighting();
@@ -97,6 +98,7 @@ export class Rainforest {
     await this.renderer.compileAsync(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
     this.initializing = false;
+    this.wildlife.startAdditional?.();
   }
 
   makeLighting() {
@@ -280,25 +282,27 @@ export class Rainforest {
     window.addEventListener('keydown', event => {
       if (!this.active || this.paused || event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable || event.target.closest?.('input,textarea,select')) return;
       if (event.target.closest?.('button') && event.code === 'Space') return;
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
+        event.preventDefault(); this.keys.add(event.code); return;
+      }
+      if (['KeyE', 'KeyM', 'KeyJ', 'KeyP', 'Escape', 'Tab'].includes(event.code)) return;
+      const factor = { '+': .85, '=': .85, '-': 1 / .85 }[event.key];
+      if (factor) { event.preventDefault(); this.zoomView(factor); return; }
+      if (event.key === '0') { event.preventDefault(); this.resetZoom(); return; }
       this.keys.add(event.code);
     });
     window.addEventListener('keyup', event => this.keys.delete(event.code));
-    window.addEventListener('blur', () => { this.keys.clear(); this.dragging = false; this.touchMove = null; });
-    this.canvas.addEventListener('pointerdown', event => {
-      if (!this.active || this.paused) return;
-      this.dragging = true; this.lastPointer = { x: event.clientX, y: event.clientY };
-      this.canvas.setPointerCapture(event.pointerId);
-    });
-    this.canvas.addEventListener('pointermove', event => {
-      if (!this.dragging || !this.lastPointer) return;
-      this.yaw -= (event.clientX - this.lastPointer.x) * 0.0035;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - (event.clientY - this.lastPointer.y) * 0.003, -1.05, 1.05);
-      this.lastPointer = { x: event.clientX, y: event.clientY };
-    });
-    const release = () => { this.dragging = false; this.lastPointer = null; };
-    this.canvas.addEventListener('pointerup', release); this.canvas.addEventListener('pointercancel', release);
+    window.addEventListener('blur', () => { this.keys.clear(); this.cancelLook(); this.touchMove = null; });
+    this.cancelLook = bindLookControls(this.canvas, this);
     this.canvas.addEventListener('webglcontextlost', event => { event.preventDefault(); this.onUpdate?.({ error: '画面暂时中断，请刷新页面恢复；已记录的探索进度不会丢失。' }); });
+  }
+
+  zoomView(factor) {
+    if (this.active && !this.paused && !this.contextFailed) scaleView(this.camera, factor);
+  }
+
+  resetZoom() {
+    if (this.active && !this.paused && !this.contextFailed) setFov(this.camera, DEFAULT_FOV);
   }
 
   setProgress(progress) {
@@ -344,6 +348,11 @@ export class Rainforest {
 
   resetPosition() { this.position.set(START.x, 0, START.z); this.yaw = -0.09; this.pitch = 0.035; this.notifyPosition(); }
 
+  addCollider(collider) {
+    this.colliders.push(collider);
+    this.recoverPosition();
+  }
+
   recoverPosition() {
     const free = (x, z) => {
       const floor = groundHeight(x, z);
@@ -369,7 +378,7 @@ export class Rainforest {
   animate = () => {
     requestAnimationFrame(this.animate);
     const delta = this.clock.getDelta();
-    if (document.hidden) return;
+    if (document.hidden || this.contextFailed) return;
     const dt = Math.min(delta, 0.75);
     this.elapsed += dt; const t = this.elapsed;
     if (!this.rainy && this.moisture > 0) this.moisture = Math.max(0, this.moisture - dt * 0.008);

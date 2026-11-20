@@ -1,6 +1,26 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { groundHeight, SPECIES } from './data.js';
+import { groundHeight, SPECIES, riverX, RIVER_LEVEL } from './data.js';
+
+export function crabBank(z) {
+  for (let distance = 5.5; distance <= 12; distance += .2) {
+    const x = riverX(z) - distance;
+    if (groundHeight(x, z) > RIVER_LEVEL + .09) return { x: x - .2, z };
+  }
+  return { x: riverX(z) - 12, z };
+}
+
+export function animalPlacements() {
+  return [
+    { kind: 'beetle', x: 1.55, z: 27.5, scale: 1.4 },
+    { kind: 'beetle', x: -1.5, z: -27, scale: 1.3 },
+    { kind: 'iguana', x: -1.9, z: 30, scale: 1, heading: .65, groundOffset: -.04 },
+    { kind: 'frog', x: 1.4, z: 25, scale: 1.25 },
+    { kind: 'frog', x: -.7, z: -9, scale: 1.2 },
+    { kind: 'crab', ...crabBank(-12), scale: 1.3, heading: .8 },
+    { kind: 'crab', ...crabBank(-48), scale: 1.3, heading: -.4 },
+  ];
+}
 
 export function poseButterfly(butterfly, time, perch) {
   const { group, wings, seed, resting, x, z } = butterfly;
@@ -38,7 +58,20 @@ export class Wildlife {
     }
   }
 
+  startAdditional() {
+    if (this.extraReady) return this.extraReady;
+    this.extraReady = new Promise(resolve => setTimeout(resolve, 0)).then(async () => {
+      const { loadCritters } = await import('./ground-critters.js');
+      this.critters = await loadCritters(this.world.scene, animalPlacements());
+      this.extraStartedAt = this.world.elapsed;
+      this.world.addCollider({ x: -1.9, z: 30, radius: .2 });
+      return this.critters;
+    }).catch(error => { this.extraError = String(error); console.warn('Additional wildlife unavailable:', error); });
+    return this.extraReady;
+  }
+
   update(time) {
+    this.critters?.update(time - this.extraStartedAt);
     for (const butterfly of this.butterflies) poseButterfly(butterfly, time, this.world.butterflyPerch);
   }
 }

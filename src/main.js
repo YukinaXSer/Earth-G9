@@ -1,6 +1,7 @@
 import './style.css';
 import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
+import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
 import { SPECIES, PLANT_SITES, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
@@ -45,7 +46,7 @@ app.innerHTML = `
       <p class="intro-description">把喧嚣留在世界之外。<br>沿着水声，走进一片自由生长的原生雨林。<br>发现微小的生命，也种下属于你的新生。</p>
       <button class="primary-button" id="enter"><span>进入 2 号地球</span>${icon('arrow')}</button>
       <div class="entry-note">无需安装 <i>·</i> 3D 自由漫游 <i>·</i> 进度自动保存</div>
-      <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 靠近光标按 E / 点按互动</p>
+      <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 滚轮 / 双指缩放<br>靠近光标按 E / 点按互动</p>
     </section>
     <div class="intro-aside" id="intro-aside"><span>让自然，做回自然。</span><small>THE FOREST IS ALIVE</small><div class="aside-line"></div><b>01°</b></div>
     <section class="mission compact hidden" id="mission" aria-label="探索任务">
@@ -58,6 +59,11 @@ app.innerHTML = `
       <p id="mission-hint">沿着林间小径，寻找微微发光的标记。</p>
     </section>
     <div class="crosshair hidden" id="crosshair" aria-hidden="true"></div>
+    <div class="zoom-controls hidden" id="zoom-controls" role="group" aria-label="场景视野缩放">
+      <button id="zoom-out" aria-label="拉远视野" title="拉远视野 · −">−</button>
+      <button id="zoom-reset" aria-label="恢复默认视野" title="恢复默认视野 · 0">1×</button>
+      <button id="zoom-in" aria-label="拉近视野" title="拉近视野 · +">+</button>
+    </div>
     <div class="game-notices">
       <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
       <button class="interaction hidden" id="interact"><span class="keycap">E</span><span id="interaction-label"></span>${icon('arrow')}</button>
@@ -126,7 +132,7 @@ function enterWorld() {
   entered = true; world.active = true;
   if (settings.sound) setAudio(true, false);
   ['#intro', '#intro-aside', '#intro-footer'].forEach(s => show(s, false));
-  ['#mission', '#crosshair', '#game-hint', '#touch-controls'].forEach(s => show(s, true));
+  ['#mission', '#crosshair', '#game-hint', '#touch-controls', '#zoom-controls'].forEach(s => show(s, true));
   document.body.classList.add('exploring');
   world.canvas.focus({ preventScroll: true });
   toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '记录 5 种生命，种下 3 株幼苗。靠近光标后按 E 或点按互动。');
@@ -169,10 +175,10 @@ function interact() {
 const modalHeader = (eyebrow, title, subtitle = '') => `<div class="modal-top"><span class="eyebrow">${eyebrow}</span><button class="icon-button close-modal" aria-label="关闭窗口">${icon('close')}</button></div><h2 id="modal-title">${title}</h2>${subtitle ? `<p class="modal-subtitle">${subtitle}</p>` : ''}`;
 
 function openModal(type, data) {
-  if (!world) return;
+  if (!world || world.contextFailed) return;
   if (modalType) { closeModal(false); }
   previousFocus = document.activeElement;
-  modalType = type; world.paused = true; world.keys.clear(); world.touchMove = null;
+  modalType = type; world.paused = true; world.keys.clear(); world.touchMove = null; world.cancelLook();
   show('#interact', false);
   const modal = $('#modal');
   modal.className = `modal modal-${type}`;
@@ -191,6 +197,7 @@ function openModal(type, data) {
   } else if (type === 'help') {
     modal.innerHTML = modalHeader('A QUIET ADVENTURE / 漫游指南', '不必赶路，森林会等你。') +
       `<div class="help-grid"><div><kbd>W A S D</kbd><h3>自由移动</h3><p>或使用方向键。按住 Shift 快步前行。</p></div><div>${icon('compass')}<h3>环顾四周</h3><p>按住鼠标拖动。手机上拖动画面，使用左下角摇杆移动。</p></div><div><kbd>E</kbd><h3>观察与种植</h3><p>靠近发光标记，按 E 或点击提示，记录物种或种下树苗。</p></div><div>${icon('map')}<h3>找到你的方向</h3><p>M 打开地图，J 打开图鉴，P 拍照，Esc 关闭窗口或暂停。</p></div></div><div class="help-note">目标：记录 5 种生命，种下 3 株幼苗。这是使用授权模型、实拍材质与扫描素材的单人 3D 雨林原型，不是完整地点的复原；环境声为合成声景。进度和位置只保存在当前浏览器。<br><a href="/ASSET-CREDITS.txt" target="_blank" rel="noopener">素材来源与许可</a></div><div class="help-actions"><button class="text-button" id="reset-progress">重新开始探索</button><button class="text-button" data-open="feedback">反馈与建议</button></div>`;
+    modal.innerHTML += `<div class="help-note"><strong>林间动物观察</strong><p>入口小径左侧的枯枝上有绿鬣蜥。小径上可近看金色箭毒蛙和华丽锯颚天牛，溪岸有淡水蟹。它们可自由观赏，不计入原有五项图鉴任务。</p><p>动物为真实标本或活体扫描，采用简化的整体位移动作，不是骨骼动画。</p></div>`;
   } else if (type === 'feedback') {
     modal.innerHTML = modalHeader('反馈与建议', '让这片森林继续生长。', '无需登录。写下遇到的问题，下载后交给分享游戏的人；这里不会自动发送或收集你的信息。') + `<label for="feedback-text">你的建议</label><textarea id="feedback-text" rows="6" maxlength="3000" placeholder="你遇到了什么？在哪个位置？希望怎样改进？"></textarea><button class="primary-button" id="download-feedback">下载反馈文本 ${icon('arrow')}</button><p id="feedback-status" role="status"></p>`;
   } else if (type === 'pause') {
@@ -333,6 +340,9 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
+    case 'zoom-in': world.zoomView(.85); break;
+    case 'zoom-out': world.zoomView(1 / .85); break;
+    case 'zoom-reset': world.resetZoom(); break;
     case 'nav-world': if (modalType) closeModal(); if (entered) toast('你正置身于雨林之境。按 M 打开地图。'); break;
     case 'interact': interact(); break;
     case 'weather': {
@@ -353,6 +363,7 @@ app.addEventListener('click', event => {
 
 $('#modal-overlay').addEventListener('click', event => { if (event.target === $('#modal-overlay')) closeModal(); });
 document.addEventListener('keydown', event => {
+  if (world?.contextFailed) return;
   if (event.repeat) return;
   if (event.target.closest('textarea,input') && event.code !== 'Escape' && event.code !== 'Tab') return;
   if (event.code === 'Escape') { modalType ? closeModal() : entered && openModal('pause'); }
@@ -385,6 +396,17 @@ syncProgress();
 syncAudio();
 setTimeout(async () => {
   const lowQuality = () => { const url = new URL(location.href); url.searchParams.set('quality', 'low'); location.assign(url); };
+  const showFailure = () => {
+    clearTimeout(slowTimer);
+    if (modalType) closeModal(false);
+    if (world) { world.contextFailed = true; world.active = false; world.paused = true; world.keys.clear(); world.touchMove = null; world.dragging = false; }
+    show('#loading', true);
+    $('#loading').setAttribute('aria-busy', 'false');
+    $('#loading').innerHTML = `${icon('leaf')}<h2>雨林暂时未能载入</h2><p>网络或设备准备耗时过长，或某个素材未能下载。</p><small>你的探索存档仍然保留。请检查网络后重试，也可选择流畅模式。</small><button class="primary-button" id="retry">重新加载</button><button class="text-button" id="retry-low">使用流畅模式重试</button>`;
+    $('#retry').addEventListener('click', () => location.reload());
+    $('#retry-low').addEventListener('click', lowQuality);
+    $('#retry').focus({ preventScroll: true });
+  };
   $('#loading-low').addEventListener('click', lowQuality);
   const slowTimer = setTimeout(() => show('#loading-low', true), 15000);
   try {
@@ -401,16 +423,24 @@ setTimeout(async () => {
         meter.removeAttribute('value');
       }
     });
+    bindGraphicsRecovery(world.canvas, {
+      lowDetail: world.lowDetail,
+      pause: () => {
+        world.contextFailed = true; world.active = false; world.paused = true;
+        world.keys.clear(); world.touchMove = null; world.cancelLook();
+      },
+      fallback: () => location.replace(compatibilityUrl(location.href)),
+      failure: showFailure,
+    });
     await withTimeout(world.ready, 90000);
+    if (world.contextFailed) return;
     applyWeather(settings.rainy);
     world.setProgress(progress);
     $('#loading').setAttribute('aria-busy', 'false');
     show('#loading', false);
+    if (new URLSearchParams(location.search).get('recovered') === '1') toast('已使用流畅模式，探索存档仍然保留。');
   } catch (error) {
     console.error('Rainforest initialization failed:', error);
-    $('#loading').setAttribute('aria-busy', 'false');
-    $('#loading').innerHTML = `${icon('leaf')}<h2>雨林暂时未能载入</h2><p>网络或设备准备耗时过长，或某个素材未能下载。</p><small>你的探索存档仍然保留。请检查网络后重试，也可选择流畅模式。</small><button class="primary-button" id="retry">重新加载</button><button class="text-button" id="retry-low">使用流畅模式重试</button>`;
-    $('#retry').addEventListener('click', () => location.reload());
-    $('#retry-low').addEventListener('click', lowQuality);
+    showFailure();
   } finally { clearTimeout(slowTimer); }
 }, 100);
