@@ -2,12 +2,22 @@ import * as THREE from 'three';
 import { Rainforest } from './world.js';
 import { BOUNDS,groundHeight,riverX } from './data.js';
 import { colliderContains } from './captured-collisions.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 export class XianxiaDemoRuntime extends Rainforest {
   constructor(...args){
     super(...args);
     this.animate=this.animateDemo.bind(this);
     this.demoSunOffset=this.sun.position.clone();
+    this.demoComposer=new EffectComposer(this.renderer);
+    this.demoRender=new RenderPass(this.scene,this.camera);this.demoFXAA=new ShaderPass(FXAAShader);
+    this.demoComposer.addPass(this.demoRender);this.demoComposer.addPass(new OutputPass());this.demoComposer.addPass(this.demoFXAA);
+    const resize=()=>{const ratio=this.renderer.getPixelRatio();this.demoComposer.setPixelRatio(ratio);this.demoComposer.setSize(innerWidth,innerHeight);this.demoFXAA.uniforms.resolution.value.set(1/(innerWidth*ratio),1/(innerHeight*ratio));};
+    resize();window.addEventListener('resize',resize);
   }
   moveDemo(dt){
     if(!this.active||this.paused)return false;
@@ -41,6 +51,6 @@ export class XianxiaDemoRuntime extends Rainforest {
       this.habitat.updateVisibility(this.camera.position);
       this.onUpdate?.({x:this.position.x,z:this.position.z,yaw:this.yaw,pitch:this.pitch,moving});this.lastUpdate=t;
     }
-    if(!this.initializing)this.renderer.render(this.worldLink?.update(this.position,t)??this.scene,this.camera);
+    if(!this.initializing){this.demoRender.scene=this.worldLink?.update(this.position,t)??this.scene;this.demoComposer.render();}
   }
 }

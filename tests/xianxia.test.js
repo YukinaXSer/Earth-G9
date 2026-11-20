@@ -70,10 +70,10 @@ test('resume runs before canvas dragging and does not reset input while already 
   const main=readFileSync(new URL('../src/xianxia-main.js',import.meta.url),'utf8');
   assert.ok(main.includes("if(started&&world?.paused&&!currentDialog&&!meditating)pause(false);},{capture:true})"));
 });
-test('floor interpolation matches the exact two terrain triangles, not an unrelated noise function',()=>{
+test('source capture sampling uses triangle interpolation before the render surface is ready',()=>{
   const world=Object.create(XianxiaWorld.prototype);world.vertexHeight=(x,z)=>x*z;
   assert.equal(world.groundHeight(.5,.5),0);assert.equal(world.groundHeight(1.5,1.5),2);
-  for(const route of [CAVE,TRAIL,BRANCH])for(const [x,,z]of route)assert.ok(Number.isFinite(XianxiaWorld.prototype.groundHeight.call({vertexHeight:(x,z)=>sampleMountain(x,z).height},x,z)));
+  for(const route of [CAVE,TRAIL,BRANCH])for(const [x,,z]of route)assert.ok(Number.isFinite(XianxiaWorld.prototype.sourceHeight.call({vertexHeight:(x,z)=>sampleMountain(x,z).height},x,z)));
 });
 test('scene selection occurs inside the dark bend and never mutates the shared player',()=>{
   const link=makeLink(),forestScene=new THREE.Scene();forestScene.background=new THREE.Color('#adbbaa');forestScene.fog=new THREE.FogExp2('#aabbcc',.0045);forestScene.environmentIntensity=.85;
@@ -83,7 +83,7 @@ test('scene selection occurs inside the dark bend and never mutates the shared p
 });
 test('both asset quality levels embed their geometry and textures locally, within transfer budgets',()=>{
   let total=0;
-  for(const level of ['', '-low'])for(const name of ['rock_face_01','rock_face_02','coastal_cliff_02']){
+  for(const level of ['', '-low'])for(const name of ['rock_face_01']){
     const data=readFileSync(new URL(`../public/xianxia/models/${name}${level}.glb`,import.meta.url));total+=data.length;
     assert.equal(data.toString('ascii',0,4),'glTF');const json=JSON.parse(data.toString('utf8',20,20+data.readUInt32LE(12)));
     assert.ok(json.meshes.length>0);assert.ok(json.images.every(i=>i.bufferView!==undefined));assert.ok(json.buffers.every(b=>!b.uri));
@@ -92,7 +92,7 @@ test('both asset quality levels embed their geometry and textures locally, withi
 });
 test('pine impostors retain complete detailed foliage, transparency and source dimensions',()=>{
   const dimensions=JSON.parse(readFileSync(new URL('../public/xianxia/tree-dimensions.json',import.meta.url)));
-  for(let i=0;i<3;i++){const data=readFileSync(new URL(`../public/xianxia/textures/pine-${i}.png`,import.meta.url));assert.equal(data.toString('ascii',1,4),'PNG');assert.equal(data[25],6);assert.equal(data.readUInt32BE(16),768);assert.ok(dimensions[i].height>7);assert.ok(dimensions[i].height<15);}
+  for(let i=0;i<3;i++){const data=readFileSync(new URL(`../public/xianxia/textures/pine-${i}.png`,import.meta.url));assert.equal(data.toString('ascii',1,4),'PNG');assert.equal(data[25],6);assert.equal(data.readUInt32BE(16),1536);assert.ok(dimensions[i].height>7);assert.ok(dimensions[i].height<15);}
 });
 test('continuous captured-relief enclosure has no overhead or side gaps throughout the interior',()=>{
   const geometry=capturedCaveGeometry((u,v)=>(Math.sin(u*3+v)+1)/2),mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({side:THREE.DoubleSide}));mesh.updateMatrixWorld(true);

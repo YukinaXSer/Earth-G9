@@ -8,7 +8,7 @@ Huangshan photographic distant environment
 Source: https://commons.wikimedia.org/wiki/File:Environment_of_huangshan.jpg
 License: Creative Commons Attribution 2.0 Generic
 https://creativecommons.org/licenses/by/2.0/
-Changes: downloaded 3840 px image; converted to WebP; mapped to distant cylindrical scenery, color-tinted and occluded by cave darkness. No claim of original photography.
+Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
 
 Poly Haven resources — CC0 1.0 Universal
 --------------------------------------
@@ -16,10 +16,8 @@ License: https://polyhaven.com/license
 Legal text: https://creativecommons.org/publicdomain/zero/1.0/
 rock_face_01 — Dario Barresi
 https://polyhaven.com/a/rock_face_01
-rock_face_02 — Dario Barresi; processing Rico Cilliers
-https://polyhaven.com/a/rock_face_02
-coastal_cliff_02 — Rob Tuytel
-https://polyhaven.com/a/coastal_cliff_02
+rock_moss_set_01 — Kless Gyzen
+https://polyhaven.com/a/rock_moss_set_01
 pine_sapling_medium — photography Rob Tuytel; modeling Rico Cilliers
 https://polyhaven.com/a/pine_sapling_medium
 rocky_trail — Amal Kumar
@@ -31,9 +29,9 @@ https://polyhaven.com/a/kiara_1_dawn
 
 Changes: rock GLTF converted to binary GLB; mesh welding, simplification, pruning and deduplication with glTF Transform and Meshoptimizer; textures converted to embedded WebP. Separate low-quality rock GLBs use further simplification and 512 px textures. Rock surfaces are repositioned, scaled and rotated to construct a fictional walkable cave and mountain trails. The cave wall scan is rebased to keep its solid side outside the collision corridor. Scenery is instanced and distance-culled. Rocky trail photographs supply color, normal and displacement textures.
 
-Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 768x1024 transparent PNG impostors. The original photographic alpha mask is restored before rendering. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
+Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
 
-A continuous cave backing uses rock_wall_02 photographed diffuse, normal, roughness and displacement maps, with relief sampled into the walkable tunnel enclosure. Authored tunnel cross-sections and bending are not a scan of an actual cave. This backing closes gaps behind individual scan meshes; the entrance massing uses the coastal_cliff_02 scan. The cave must not be represented as a survey or digital twin of a real location.
+A continuous cave backing uses rock_wall_02 photographed diffuse, normal, roughness and displacement maps, with relief sampled into the walkable tunnel enclosure. Authored tunnel cross-sections and bending are not a scan of an actual cave. This backing closes gaps behind individual scan meshes; the entrance massing uses six individually normalized whole rock_moss_set_01 boulders, reusing the rainforest's licensed source. Exterior trail edges have continuous authored rock terrain with photographed PBR and material displacement, not unsupported scan planes or a surveyed full mountain. The cave must not be represented as a survey or digital twin of a real location.
 
 Fonts
 -----
