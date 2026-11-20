@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const templates = new WeakMap(), STEP = .2;
+const templates = new WeakMap(), surfaces = new WeakMap(), refined = new WeakMap(), STEP = .2, SURFACE_CELL = .4;
 
 function clipHeight(polygon, height, above) {
   const result = [];
@@ -12,6 +12,73 @@ function clipHeight(polygon, height, above) {
     if (insideA !== insideB) result.push(a.clone().lerp(b, (height - a.y) / (b.y - a.y)));
   }
   return result;
+}
+
+function surfaceTemplate(variant) {
+  if (surfaces.has(variant)) return surfaces.get(variant);
+  const triangles = [], heights = [], cells = new Map(), bounds = new THREE.Box3();
+  for (const mesh of variant.children ?? []) {
+    const { position } = mesh.geometry.attributes, indices = mesh.geometry.index;
+    for (let i = 0; i < indices.count; i += 3) {
+      const vertices = [0, 1, 2].map(j => new THREE.Vector3().fromBufferAttribute(position, indices.getX(i + j)));
+      const id = triangles.length / 9, box = new THREE.Box3().setFromPoints(vertices);
+      for (const vertex of vertices) triangles.push(vertex.x, vertex.y, vertex.z);
+      heights.push(box.min.y, box.max.y);
+      bounds.union(box);
+      for (let z = Math.floor(box.min.z / SURFACE_CELL); z <= Math.floor(box.max.z / SURFACE_CELL); z++) {
+        for (let x = Math.floor(box.min.x / SURFACE_CELL); x <= Math.floor(box.max.x / SURFACE_CELL); x++) {
+          const key = `${x}:${z}`;
+          if (!cells.has(key)) cells.set(key, []);
+          cells.get(key).push(id);
+        }
+      }
+    }
+  }
+  const template = { triangles: new Float32Array(triangles), heights: new Float32Array(heights), cells, bounds };
+  surfaces.set(variant, template);
+  return template;
+}
+
+function polygonContains(polygon, x, z, radius) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[j], b = polygon[i], dx = b.x - a.x, dz = b.z - a.z, length = dx * dx + dz * dz;
+    const t = length ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / length)) : 0;
+    if ((x - a.x - t * dx) ** 2 + (z - a.z - t * dz) ** 2 < radius * radius) return true;
+    if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+function surfaceContains(surface, x, z, margin, groundY) {
+  const minY = groundY + .45, maxY = groundY + 2.05, box = new THREE.Box3(), point = new THREE.Vector3();
+  for (const px of [x - margin, x + margin]) for (const pz of [z - margin, z + margin]) for (const py of [minY, maxY]) {
+    box.expandByPoint(point.set(px, py, pz).applyMatrix4(surface.inverse));
+  }
+  const candidates = new Set(), { triangles, heights, cells } = surface.template, e = surface.matrix.elements;
+  for (let cz = Math.floor(box.min.z / SURFACE_CELL); cz <= Math.floor(box.max.z / SURFACE_CELL); cz++) {
+    for (let cx = Math.floor(box.min.x / SURFACE_CELL); cx <= Math.floor(box.max.x / SURFACE_CELL); cx++) {
+      for (const id of cells.get(`${cx}:${cz}`) ?? []) candidates.add(id);
+    }
+  }
+  for (const id of candidates) {
+    if (e[1] === 0 && e[9] === 0) {
+      const a = heights[id * 2] * e[5] + e[13], b = heights[id * 2 + 1] * e[5] + e[13];
+      if (Math.max(a, b) < minY || Math.min(a, b) > maxY) continue;
+    }
+    const polygon = [0, 1, 2].map(j => new THREE.Vector3().fromArray(triangles, id * 9 + j * 3).applyMatrix4(surface.matrix));
+    if (polygonContains(clipHeight(clipHeight(polygon, minY, true), maxY, false), x, z, margin)) return true;
+  }
+  return false;
+}
+
+export function refineCollider(collider, variant, matrix) {
+  const template = surfaceTemplate(variant), bounds = template.bounds.clone().applyMatrix4(matrix);
+  const previous = refined.get(collider), broadMinY = previous ? previous.broadMinY : collider.minY, broadMaxY = previous ? previous.broadMaxY : collider.maxY;
+  collider.minY = bounds.min.y;
+  collider.maxY = bounds.max.y;
+  refined.set(collider, { template, matrix: matrix.clone(), inverse: matrix.clone().invert(), broadMinY, broadMaxY });
+  return collider;
 }
 
 function woodColumns(variant) {
@@ -55,13 +122,21 @@ export function capturedCollider(variant, matrix) {
     point.set(column.x, 0, column.z).applyMatrix4(matrix);
     return { x: point.x, z: point.z, radius, minY: center.y + column.minY * scale.y, maxY: center.y + column.maxY * scale.y };
   });
-  return { x: center.x, z: center.z, radius: Math.max(0, ...parts.map(p => Math.hypot(p.x - center.x, p.z - center.z) + radius)), parts };
+  return refineCollider({ x: center.x, z: center.z, radius: Math.max(0, ...parts.map(p => Math.hypot(p.x - center.x, p.z - center.z) + radius)), parts }, variant, matrix);
+}
+
+export function colliderBoundsContain(collider, x, z, margin = .4, groundY) {
+  if (Math.hypot(x - collider.x, z - collider.z) >= collider.radius + margin) return false;
+  if (collider.parts) return collider.parts.some(part => colliderBoundsContain(part, x, z, margin, groundY));
+  const surface = refined.get(collider), minY = surface ? surface.broadMinY : collider.minY, maxY = surface ? surface.broadMaxY : collider.maxY;
+  return groundY === undefined || minY === undefined || maxY >= groundY + .45 && minY <= groundY + 2.05;
 }
 
 export function colliderContains(collider, x, z, margin = .4, groundY) {
-  if (Math.hypot(x - collider.x, z - collider.z) >= collider.radius + margin) return false;
-  if (collider.parts) return collider.parts.some(part => colliderContains(part, x, z, margin, groundY));
-  return groundY === undefined || collider.minY === undefined || collider.maxY >= groundY + .45 && collider.minY <= groundY + 2.05;
+  if (!colliderBoundsContain(collider, x, z, margin, groundY)) return false;
+  if (groundY !== undefined && collider.minY !== undefined && (collider.maxY < groundY + .45 || collider.minY > groundY + 2.05)) return false;
+  const surface = refined.get(collider);
+  return !surface || groundY === undefined || surfaceContains(surface, x, z, margin, groundY);
 }
 
 export function createColliderIndex(colliders, cellSize = 16) {
