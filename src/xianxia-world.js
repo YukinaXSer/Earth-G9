@@ -105,8 +105,16 @@ export class XianxiaWorld {
     const a=this.vertexHeight(x0,z0),b=this.vertexHeight(x0+step,z0),c=this.vertexHeight(x0,z0+step),d=this.vertexHeight(x0+step,z0+step);
     return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
   }
-  groundHeight(x,z){return (z>0&&z<132?this.caveFloorIndex?.heightAt(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
-  canWalkCave(x,z){return z<=1||z>=131?sampleRoute(CAVE,x,z).distance<6:this.caveFloorIndex?.heightAt(x,z)!=null;}
+  caveFootHeight(x,z){
+    const index=this.caveFloorIndex,height=index?.heightAt(x,z);if(height!=null)return height;
+    for(const radius of [.1,.25])for(let i=0;i<8;i++){
+      const angle=i*Math.PI/4,support=index?.heightAt(x+Math.cos(angle)*radius,z+Math.sin(angle)*radius);
+      if(support!=null)return support;
+    }
+    return null;
+  }
+  groundHeight(x,z){return (z>0&&z<132?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
+  canWalkCave(x,z){return z<=1||z>=131?sampleRoute(CAVE,x,z).distance<6:this.caveFootHeight(x,z)!=null;}
   caveDarkness(x,z){return this.caveFloorIndex&&!this.canWalkCave(x,z)?0:caveAmount(x,z,this.caveBounds?Math.max(Math.abs(this.caveBounds.min.x),Math.abs(this.caveBounds.max.x))+1:12);}
   supportHeight(x,z){
     return measuredTerrainHeight(x,z);

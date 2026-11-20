@@ -121,3 +121,16 @@ test('the captured lava tube, not a generated tunnel, supplies the roof and wall
   }
   const source=readFileSync(new URL('../src/xianxia-world.js',import.meta.url),'utf8');assert.doesNotMatch(source,/capturedCaveGeometry|TubeGeometry|SphereGeometry\(.*cave/);
 });
+test('a player-sized foot support crosses small scan seams when walking the entire cave in either direction',()=>{
+  const world=new XianxiaWorld(new THREE.Scene());
+  world.models={'cave-scan':capturedScanMeshes('cave-scan'),'cave-mouth-scan':capturedScanMeshes('cave-mouth-scan')};world.makeCave();
+  for(const z of [119.19,4.37,117.04666666666643])assert.ok(world.canWalkCave(0,z),'scan seam blocks at '+z);
+  for(const fps of [30,60,120])for(const speed of [4.6,8])for(const direction of [-1,1]){
+    for(let z=direction<0?131.9:.1;z>0&&z<132;z+=direction*speed/fps){
+      assert.ok(world.canWalkCave(0,z),'walking stopped at '+z);
+      assert.ok(Number.isFinite(world.groundHeight(0,z)));
+    }
+  }
+  const gap=Object.assign(Object.create(XianxiaWorld.prototype),{caveFloorIndex:{heightAt:(x,z)=>Math.abs(x)<.5&&Math.abs(z-80)<.5?null:3}});
+  assert.equal(gap.canWalkCave(0,80),false,'larger unsupported holes remain blocked');
+});
