@@ -11,7 +11,6 @@ export class XianxiaDemoRuntime extends Rainforest {
   constructor(...args){
     super(...args);
     this.camera.fov=60;this.camera.far=2800;this.camera.updateProjectionMatrix();
-    this.pixelRatio=()=>Math.min(devicePixelRatio,1.4,Math.sqrt((this.lowDetail?1200000:2100000)/(innerWidth*innerHeight)));this.renderer.setPixelRatio(this.pixelRatio());
     this.animate=this.animateDemo.bind(this);
     this.demoSunOffset=this.sun.position.clone();
     this.animate();
@@ -34,6 +33,22 @@ export class XianxiaDemoRuntime extends Rainforest {
       if(!blocked){this.position.x=x;this.position.z=z;}
     }
     return !!(forward||side);
+  }
+  async prepareDemo(scene){
+    await this.renderer.compileAsync(scene,this.camera);
+    this.renderer.render(scene,this.camera);
+    const gl=this.renderer.getContext(),fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);
+    if(!fence)throw new Error('Initial GPU upload unavailable');
+    gl.flush();
+    const start=performance.now();
+    try{
+      for(;;){
+        const status=gl.clientWaitSync(fence,0,0);
+        if(status===gl.ALREADY_SIGNALED||status===gl.CONDITION_SATISFIED)break;
+        if(status===gl.WAIT_FAILED||performance.now()-start>90000)throw new Error('Initial GPU upload did not complete');
+        await new Promise(requestAnimationFrame);
+      }
+    }finally{gl.deleteSync(fence);}
   }
   animateDemo(){
     requestAnimationFrame(this.animate);

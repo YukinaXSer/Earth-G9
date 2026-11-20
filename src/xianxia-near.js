@@ -21,9 +21,10 @@ export function gradeCaptureApproach(geometry){
   const normal=new THREE.Vector3(),targetNormal=new THREE.Vector3(-approach.grade,1,0).normalize();
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),y=positions.getY(i);
-    const distance=Math.max(entry.x-.35-x,x-approach.endX-.35,Math.abs(z-entry.z)-approach.width/2-.2);
-    const blend=1-THREE.MathUtils.smoothstep(distance,0,.6),target=entry.y+(x-entry.x)*approach.grade;
-    if(blend<=0||Math.abs(y-target)>.6)continue;
+    const distance=Math.max((entry.x-.45-x)/3,(x-approach.endX-.45)/3,Math.abs(z-entry.z)-approach.width/2-.45);
+    const target=entry.y+(x-entry.x)*approach.grade;
+    const blend=(1-THREE.MathUtils.smoothstep(distance,0,.6))*(1-THREE.MathUtils.smoothstep(Math.abs(y-target),.6,1.6));
+    if(blend<=0)continue;
     positions.setY(i,THREE.MathUtils.lerp(y,target,blend));
     normal.fromBufferAttribute(normals,i).lerp(targetNormal,blend).normalize();normals.setXYZ(i,normal.x,normal.y,normal.z);
   }

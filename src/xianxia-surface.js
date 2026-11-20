@@ -46,28 +46,39 @@ export async function loadPhotographicGround(renderer,{walls=false}={}){
 export function addPhotographicCapture(material,uniforms){
   uniforms.captureWorldToLocal??={value:new THREE.Matrix4()};
   uniforms.captureNormalToWorld??={value:new THREE.Matrix3()};
+  uniforms.captureReflectance??={value:new THREE.Vector2(.45,.38)};
+  uniforms.captureGroundProfile??={value:null};uniforms.captureUseProfile??={value:false};uniforms.captureProfileSize??={value:1};uniforms.captureCorridorOrigin??={value:new THREE.Vector2()};
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);
     shader.vertexShader='uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=(captureWorldToLocal*modelMatrix*vec4(position,1.)).xyz-patchOrigin;normM=mat3(captureWorldToLocal*modelMatrix)*normal;');
-    shader.fragmentShader='uniform mat3 captureNormalToWorld;\n'+photographicSurfaceGLSL+shader.fragmentShader;
+    shader.fragmentShader='uniform mat3 captureNormalToWorld; uniform vec2 captureReflectance; uniform sampler2D captureGroundProfile; uniform bool captureUseProfile; uniform float captureProfileSize; uniform vec2 captureCorridorOrigin;\n'+photographicSurfaceGLSL+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
-      vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
-      vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
       vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
-      float mask=smoothstep(-groundMixWidth*.5,groundMixWidth*.5,dot(vec4(posM,1.),groundRegion));if(forceMaterial>=0.)mask=forceMaterial;
+      vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
+      vec3 faceG=normalize(cross(photoDx,photoDy));if(dot(faceG,photoG)<0.)faceG=-faceG;
+      if(dot(faceG,photoG)<.7071)photoG=faceG;
+      vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
+      float region=dot(vec4(posM,1.),groundRegion);
+      if(captureUseProfile){
+        float station=mod(posM.x+captureCorridorOrigin.x,132.);if(station>66.)station=132.-station;
+        float u=station<2.?station*station*.25:station>64.?64.-(66.-station)*(66.-station)*.25:station-1.;
+        vec2 edges=texture2D(captureGroundProfile,vec2((u/64.*(captureProfileSize-1.)+.5)/captureProfileSize,.5)).rg*32.-16.;
+        float lateral=posM.z-captureCorridorOrigin.y;region=min(lateral-edges.x,edges.y-lateral);
+      }
+      float mask=smoothstep(-groundMixWidth*.5,groundMixWidth*.5,region);if(forceMaterial>=0.)mask=forceMaterial;
       Surface photoSurface;
-      if(mask>=.99999)photoSurface=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);
-      else if(mask<=.00001)photoSurface=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);
+      if(mask>=.99999){photoSurface=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);photoSurface.c*=captureReflectance.x;}
+      else if(mask<=.00001){photoSurface=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);photoSurface.c*=captureReflectance.y;}
       else{
         Surface a=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);
         Surface b=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);
-        photoSurface.c=mix(b.c,a.c,mask);photoSurface.n=normalize(mix(b.n,a.n,mask));photoSurface.r=mix(b.r,a.r,mask);
+        photoSurface.c=mix(b.c*captureReflectance.y,a.c*captureReflectance.x,mask);photoSurface.n=normalize(mix(b.n,a.n,mask));photoSurface.r=mix(b.r,a.r,mask);
       }
       diffuseColor.rgb*=photoSurface.c;
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v2';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v4';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){

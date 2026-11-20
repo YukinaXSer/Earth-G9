@@ -1,9 +1,9 @@
 {
   "method": "Full photographic meso + native grain for captured ground and wall. Offline GPU blocks, no runtime Basis/WASM/eval. Geometry unchanged.",
   "groundMean": [
-    0.2931936528798581,
-    0.22073095604865658,
-    0.14898463597857975
+    0.34320953706812707,
+    0.2308328807707476,
+    0.1283438297978928
   ],
   "wallMean": [
     0.28449111122855875,
@@ -18,10 +18,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 699536,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 0.25,
+          "physicalTileMeters": 0.2674999535083771,
           "sourceRectPixels": [
             4096,
             4096,
@@ -29,22 +29,22 @@
             5120
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "etc-rgb",
-          "sha256": "d6a15e45e3f9e8990f0204ef3e5f7655e13754f1e083df74a37f422d14c6f8b4",
-          "gzipBytes": 429453,
+          "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+          "gzipBytes": 659708,
           "vkFormat": 148,
           "supercompression": 0
         },
         "groundMesoColor": {
           "file": "etc2-ground-full-color.ktx2",
-          "width": 4096,
-          "height": 4096,
-          "bytes": 11185344,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 2796712,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 2,
+          "physicalTileMeters": 2.1399996280670166,
           "sourceRectPixels": [
             0,
             0,
@@ -52,10 +52,10 @@
             8192
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "etc-rgb",
-          "sha256": "a5402e437ee035865b2baf23077e2556f145bd09056f797d9d780af5a9dca867",
-          "gzipBytes": 7123784,
+          "sha256": "e16f6fe7be154fed9220d0417575f44b9cd24d0b9a48264b5bc7995e6a813534",
+          "gzipBytes": 2627950,
           "vkFormat": 148,
           "supercompression": 0
         },
@@ -64,10 +64,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 1398624,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 0.25,
+          "physicalTileMeters": 0.2674999535083771,
           "sourceRectPixels": [
             4096,
             4096,
@@ -75,11 +75,11 @@
             5120
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "etc-rgba",
-          "sha256": "c007351d385eedae486ec7fadc7cf76dd9d7ea93021fab4a77aa7c59228cbcd9",
+          "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
           "roughnessSourcePixels": 256,
-          "gzipBytes": 1106833,
+          "gzipBytes": 1098516,
           "vkFormat": 151,
           "supercompression": 0
         },
@@ -88,10 +88,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 1398624,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 2,
+          "physicalTileMeters": 2.1399996280670166,
           "sourceRectPixels": [
             0,
             0,
@@ -99,10 +99,10 @@
             8192
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "etc-rgba",
-          "sha256": "34213c3b9be8acb7734fa9826b2356a6e42620a11fdb6c0f59ce6f20ee0a6f87",
-          "gzipBytes": 1291066,
+          "sha256": "12c5c7850a97f4285d17f99e0c5f328c52504254e9a9306fb94505e9178e3cc4",
+          "gzipBytes": 1207757,
           "vkFormat": 151,
           "supercompression": 0
         },
@@ -200,8 +200,8 @@
           "supercompression": 0
         }
       },
-      "textureFileBytes": 29364256,
-      "gzipTextureBytes": 19838460
+      "textureFileBytes": 20975624,
+      "gzipTextureBytes": 15481255
     },
     "s3tc": {
       "textures": {
@@ -210,10 +210,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 699536,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 0.25,
+          "physicalTileMeters": 0.2674999535083771,
           "sourceRectPixels": [
             4096,
             4096,
@@ -221,22 +221,22 @@
             5120
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "bc1",
-          "sha256": "d6a15e45e3f9e8990f0204ef3e5f7655e13754f1e083df74a37f422d14c6f8b4",
-          "gzipBytes": 433021,
+          "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+          "gzipBytes": 651267,
           "vkFormat": 132,
           "supercompression": 0
         },
         "groundMesoColor": {
           "file": "s3tc-ground-full-color.ktx2",
-          "width": 4096,
-          "height": 4096,
-          "bytes": 11185344,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 2796712,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 2,
+          "physicalTileMeters": 2.1399996280670166,
           "sourceRectPixels": [
             0,
             0,
@@ -244,10 +244,10 @@
             8192
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "bc1",
-          "sha256": "a5402e437ee035865b2baf23077e2556f145bd09056f797d9d780af5a9dca867",
-          "gzipBytes": 7143428,
+          "sha256": "e16f6fe7be154fed9220d0417575f44b9cd24d0b9a48264b5bc7995e6a813534",
+          "gzipBytes": 2594802,
           "vkFormat": 132,
           "supercompression": 0
         },
@@ -256,10 +256,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 1398624,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 0.25,
+          "physicalTileMeters": 0.2674999535083771,
           "sourceRectPixels": [
             4096,
             4096,
@@ -267,11 +267,11 @@
             5120
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "bc3",
-          "sha256": "c007351d385eedae486ec7fadc7cf76dd9d7ea93021fab4a77aa7c59228cbcd9",
+          "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
           "roughnessSourcePixels": 256,
-          "gzipBytes": 1113334,
+          "gzipBytes": 1126556,
           "vkFormat": 137,
           "supercompression": 0
         },
@@ -280,10 +280,10 @@
           "width": 1024,
           "height": 1024,
           "bytes": 1398624,
-          "source": "rocky_trail",
-          "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
           "license": "CC0",
-          "physicalTileMeters": 2,
+          "physicalTileMeters": 2.1399996280670166,
           "sourceRectPixels": [
             0,
             0,
@@ -291,10 +291,10 @@
             8192
           ],
           "sourcePixels": 8192,
-          "sourcePhysicalMeters": 2,
+          "sourcePhysicalMeters": 2.1399996280670166,
           "encoding": "bc3",
-          "sha256": "34213c3b9be8acb7734fa9826b2356a6e42620a11fdb6c0f59ce6f20ee0a6f87",
-          "gzipBytes": 1295906,
+          "sha256": "12c5c7850a97f4285d17f99e0c5f328c52504254e9a9306fb94505e9178e3cc4",
+          "gzipBytes": 1227042,
           "vkFormat": 137,
           "supercompression": 0
         },
@@ -392,8 +392,8 @@
           "supercompression": 0
         }
       },
-      "textureFileBytes": 29364256,
-      "gzipTextureBytes": 19876756
+      "textureFileBytes": 20975624,
+      "gzipTextureBytes": 15490734
     }
   },
   "textures": {
@@ -402,10 +402,10 @@
       "width": 1024,
       "height": 1024,
       "bytes": 699536,
-      "source": "rocky_trail",
-      "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
       "license": "CC0",
-      "physicalTileMeters": 0.25,
+      "physicalTileMeters": 0.2674999535083771,
       "sourceRectPixels": [
         4096,
         4096,
@@ -413,22 +413,22 @@
         5120
       ],
       "sourcePixels": 8192,
-      "sourcePhysicalMeters": 2,
+      "sourcePhysicalMeters": 2.1399996280670166,
       "encoding": "etc-rgb",
-      "sha256": "d6a15e45e3f9e8990f0204ef3e5f7655e13754f1e083df74a37f422d14c6f8b4",
-      "gzipBytes": 429453,
+      "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+      "gzipBytes": 659708,
       "vkFormat": 148,
       "supercompression": 0
     },
     "groundMesoColor": {
       "file": "etc2-ground-full-color.ktx2",
-      "width": 4096,
-      "height": 4096,
-      "bytes": 11185344,
-      "source": "rocky_trail",
-      "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 2796712,
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
       "license": "CC0",
-      "physicalTileMeters": 2,
+      "physicalTileMeters": 2.1399996280670166,
       "sourceRectPixels": [
         0,
         0,
@@ -436,10 +436,10 @@
         8192
       ],
       "sourcePixels": 8192,
-      "sourcePhysicalMeters": 2,
+      "sourcePhysicalMeters": 2.1399996280670166,
       "encoding": "etc-rgb",
-      "sha256": "a5402e437ee035865b2baf23077e2556f145bd09056f797d9d780af5a9dca867",
-      "gzipBytes": 7123784,
+      "sha256": "e16f6fe7be154fed9220d0417575f44b9cd24d0b9a48264b5bc7995e6a813534",
+      "gzipBytes": 2627950,
       "vkFormat": 148,
       "supercompression": 0
     },
@@ -448,10 +448,10 @@
       "width": 1024,
       "height": 1024,
       "bytes": 1398624,
-      "source": "rocky_trail",
-      "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
       "license": "CC0",
-      "physicalTileMeters": 0.25,
+      "physicalTileMeters": 0.2674999535083771,
       "sourceRectPixels": [
         4096,
         4096,
@@ -459,11 +459,11 @@
         5120
       ],
       "sourcePixels": 8192,
-      "sourcePhysicalMeters": 2,
+      "sourcePhysicalMeters": 2.1399996280670166,
       "encoding": "etc-rgba",
-      "sha256": "c007351d385eedae486ec7fadc7cf76dd9d7ea93021fab4a77aa7c59228cbcd9",
+      "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
       "roughnessSourcePixels": 256,
-      "gzipBytes": 1106833,
+      "gzipBytes": 1098516,
       "vkFormat": 151,
       "supercompression": 0
     },
@@ -472,10 +472,10 @@
       "width": 1024,
       "height": 1024,
       "bytes": 1398624,
-      "source": "rocky_trail",
-      "sourceUrl": "https://polyhaven.com/a/rocky_trail",
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
       "license": "CC0",
-      "physicalTileMeters": 2,
+      "physicalTileMeters": 2.1399996280670166,
       "sourceRectPixels": [
         0,
         0,
@@ -483,10 +483,10 @@
         8192
       ],
       "sourcePixels": 8192,
-      "sourcePhysicalMeters": 2,
+      "sourcePhysicalMeters": 2.1399996280670166,
       "encoding": "etc-rgba",
-      "sha256": "34213c3b9be8acb7734fa9826b2356a6e42620a11fdb6c0f59ce6f20ee0a6f87",
-      "gzipBytes": 1291066,
+      "sha256": "12c5c7850a97f4285d17f99e0c5f328c52504254e9a9306fb94505e9178e3cc4",
+      "gzipBytes": 1207757,
       "vkFormat": 151,
       "supercompression": 0
     },

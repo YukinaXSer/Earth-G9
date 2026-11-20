@@ -49,7 +49,14 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   });
   t.mock.method(GLTFLoader.prototype,'loadAsync',async()=>{
     const scene=new THREE.Group();
-    for(let i=0;i<3;i++)scene.add(new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),new THREE.MeshStandardMaterial()));
+    for(let i=0;i<3;i++){
+      const geometry=new THREE.BoxGeometry(.1,.1,.1);
+      if(i===1){
+        const data=new THREE.InterleavedBuffer(geometry.attributes.position.array.slice(),3);
+        geometry.setAttribute('position',new THREE.InterleavedBufferAttribute(data,3,0));
+      }
+      scene.add(new THREE.Mesh(geometry,new THREE.MeshStandardMaterial()));
+    }
     return {scene};
   });
   const renderer={capabilities:{maxTextureSize:4096,getMaxAnisotropy:()=>8},extensions:{has:name=>name==='WEBGL_compressed_texture_etc'},toneMapping:THREE.ACESFilmicToneMapping,toneMappingExposure:.96,outputColorSpace:THREE.SRGBColorSpace};
@@ -62,14 +69,29 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   assert.equal(host.background,background);assert.equal(host.environment,environment);assert.equal(host.fog,fog);
   assert.deepEqual(renderer,original);assert.equal(mountain.world.horizon,undefined);
   assert.ok(requested.every(url=>url.startsWith('/xianxia/surface/')));
+  assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,2);
+  assert.equal(requested.filter(url=>url.endsWith('-far.bin')).length,4);
+  assert.equal(mountain.groundHeight(1e6,1e6),null);
   const mesh=mountain.world.ground;host.updateMatrixWorld(true);mesh.onBeforeRender();
   const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
   mesh.material.onBeforeCompile(shader);
+  assert.deepEqual(shader.uniforms.captureReflectance.value.toArray(),[.35,.38]);
   const inverse=shader.uniforms.captureWorldToLocal.value;
   const point=new THREE.Vector3(104,1,-115.2),worldPoint=point.clone().applyMatrix4(mesh.matrixWorld);
   assert.ok(worldPoint.applyMatrix4(inverse).distanceTo(point)<1e-6);
   assert.match(shader.vertexShader,/captureWorldToLocal\*modelMatrix/);
   assert.match(shader.fragmentShader,/captureNormalToWorld\*photoSurface.n/);
+  const count=requested.length;
+  await mountain.world.updateMountain(100.5);
+  assert.equal(requested.length,count);
+  await mountain.world.updateMountain(135);
+  assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,4);
+  const resident=mountain.world.floorIndex.tiles.size;
+  await mountain.world.updateMountain(4000);
+  assert.ok(mountain.world.floorIndex.tiles.size<=resident);
+  assert.equal(mountain.world.floorIndex.heightAt(100.5,-115.1),null);
+  assert.ok(mountain.world.floorIndex.heightAt(4000,-115.1)!=null);
+  assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,4);
 });
 
 test('lighting export follows the live rainforest HDR/ACES contract',()=>{

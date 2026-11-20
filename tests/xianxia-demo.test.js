@@ -27,3 +27,22 @@ test('demo normalizes keyboard and touch input speed',()=>{
   const world=explorer();world.position.set(0,0,0);world.keys.add('KeyD');world.touchMove={x:1,y:1};
   world.moveDemo(.5);assert.ok(Math.abs(Math.hypot(world.position.x,world.position.z)-2.15)<1e-6);
 });
+test('demo waits for the initial real-frame GPU upload before enabling entry',async t=>{
+  const calls=[],fence={},statuses=[1,2],previous=globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame=callback=>queueMicrotask(callback);
+  t.after(()=>{if(previous)globalThis.requestAnimationFrame=previous;else delete globalThis.requestAnimationFrame;});
+  const gl={SYNC_GPU_COMMANDS_COMPLETE:0,ALREADY_SIGNALED:3,CONDITION_SATISFIED:2,WAIT_FAILED:4,
+    fenceSync:()=>{calls.push('fence');return fence;},flush:()=>calls.push('flush'),
+    clientWaitSync:()=>statuses.shift(),deleteSync:value=>{assert.equal(value,fence);calls.push('delete');}};
+  const world=explorer();world.renderer={compileAsync:async()=>calls.push('compile'),render:()=>calls.push('render'),getContext:()=>gl};
+  await world.prepareDemo({});
+  assert.deepEqual(calls,['compile','render','fence','flush','delete']);
+});
+test('demo reports a failed GPU fence and releases it',async()=>{
+  const world=explorer();let deleted=false;
+  world.renderer={compileAsync:async()=>{},render:()=>{},getContext:()=>({
+    fenceSync:()=>({}),flush:()=>{},clientWaitSync:()=>4,WAIT_FAILED:4,
+    deleteSync:()=>{deleted=true;}
+  })};
+  await assert.rejects(world.prepareDemo({}),/GPU upload/);assert.equal(deleted,true);
+});

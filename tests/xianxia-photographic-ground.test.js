@@ -18,7 +18,7 @@ test('native variant requires sRGB S3TC for color and regular S3TC for normal up
   }
 });
 
-test('ground keeps the whole 2m photograph and native quarter-metre detail within its real transfer payload',()=>{
+test('ground keeps the full forest-floor photograph and native detail crop within its real transfer payload',()=>{
   let bytes=0;
   for(const [id,row]of Object.entries(manifest.textures)){
     const data=readFileSync(new URL(`../public/xianxia/surface/${row.file}`,import.meta.url));
@@ -26,10 +26,11 @@ test('ground keeps the whole 2m photograph and native quarter-metre detail withi
     assert.equal(data.readUInt32LE(20),row.width);assert.equal(data.readUInt32LE(24),row.height);
     assert.equal(data.readUInt32LE(40),Math.log2(row.width)+1);assert.equal(data.length,row.bytes);bytes+=data.length;
     assert.notEqual(data.readUInt32LE(12),0);assert.equal(data.readUInt32LE(44),0);
-    assert.equal(row.physicalTileMeters,id.startsWith('ground')?(id.includes('Meso')?2:.25):(id.includes('Meso')?1.8:.225));
+    const meters=id.startsWith('ground')?2.1399996280670166:1.8;
+    assert.ok(Math.abs(row.physicalTileMeters-meters/(id.includes('Meso')?1:8))<1e-8);
   }
   assert.equal(bytes,manifest.variants.etc2.textureFileBytes);assert.ok(bytes<30e6);
-  assert.equal(manifest.textures.groundMesoColor.width,4096);
+  assert.equal(manifest.textures.groundMesoColor.width,2048);
 });
 
 test('both GPU variants parse without Basis workers, WASM or dynamic code, preserving every mip and roughness alpha',()=>{
@@ -47,6 +48,22 @@ test('a capture without normal attributes gains finite unit normals without alte
   ensureSurfaceNormals(geometry);
   assert.deepEqual(geometry.attributes.position.array,original);assert.deepEqual(geometry.index.array,indices);
   for(let i=0;i<geometry.attributes.normal.count;i++)assert.ok(Math.abs(new THREE.Vector3().fromBufferAttribute(geometry.attributes.normal,i).length()-1)<1e-6);
+});
+
+test('the taller pine uses three-dimensional wood and needle geometry, not whole-tree cards',()=>{
+  const data=readFileSync(new URL('../public/xianxia/surface/pine-medium.glb',import.meta.url));
+  const source=JSON.parse(data.subarray(20,20+data.readUInt32LE(12)).toString());
+  assert.ok(source.materials.some(m=>m.name.includes('bark')));
+  assert.ok(source.materials.some(m=>m.name.includes('twig')));
+  const foliage=source.meshes.flatMap(mesh=>mesh.primitives).filter(p=>source.materials[p.material].name.includes('twig'));
+  assert.ok(foliage.reduce((count,p)=>count+source.accessors[p.indices].count/3,0)>200000);
+  assert.ok(source.materials.every(m=>!m.alphaMode||m.alphaMode==='OPAQUE'));
+  assert.ok(data.byteLength<10000000);
+  for(const mesh of source.meshes)for(const primitive of mesh.primitives){
+    const p=source.accessors[primitive.attributes.POSITION];
+    assert.ok(p.max.every((value,i)=>value>p.min[i]));
+  }
+  assert.ok(!source.extensionsUsed.includes('EXT_meshopt_compression'));
 });
 
 test('standard lighting receives photographic color, roughness and correctly view-transformed normals',()=>{

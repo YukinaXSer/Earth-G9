@@ -3,7 +3,15 @@ import { XianxiaDemoRuntime } from './xianxia-demo-runtime.js';
 import { groundHeight,BOUNDS } from './data.js';
 import { XianxiaLink } from './xianxia-link.js';
 import { withTimeout } from './loading.js';
-import { LOCATIONS,TRAIL,BRANCH,CAVE,nearestLocation,routeLength,canWalkMountain,regionLabel } from './xianxia-route.js';
+import {MOUNTAIN_ENTRANCE} from './xianxia-mountain.js';
+import {LOCATIONS as STORIES,routeLength} from './xianxia-route.js';
+import {mountainRoute,mountainRoutePoint} from './xianxia-mountain-route.js';
+
+const TRAIL=mountainRoute();
+const BRANCH=[],CAVE=[];
+const LOCATIONS=STORIES.map((p,i)=>({...p,point:mountainRoutePoint(TRAIL,i/(STORIES.length-1))}));
+const nearestLocation=(x,z)=>LOCATIONS.find(p=>Math.hypot(x-p.point[0],z-p.point[2])<6);
+const regionLabel=()=> '青岚山径';
 
 const $=s=>document.querySelector(s),STORE='earth2.xianxia.v1';
 const mountainIcon='<svg viewBox="0 0 48 40" fill="none" aria-hidden="true"><path d="m3 33 12-22 9 15 7-23 14 30M9 23l6-3 4 4m8-8 4-3 5 10" stroke="currentColor" stroke-width="1.3"/></svg>';
@@ -17,7 +25,7 @@ $('#app').innerHTML=`
 <main id="intro" class="intro"><div class="eyebrow"><span></span>贰号地球 · 仙侠独立试玩</div><p class="small-heading">山水之间，另有天地</p><h1>青岚<span>境</span><b>山</b></h1><p class="intro-copy">穿过雨林深处的山洞，循松风而上。<br>不必赶路，这一路的云与山，都在等你。</p><div class="intro-actions"><button class="primary" id="enter" disabled>正在唤醒山林 <span id="percent">0%</span></button><button class="text-button" id="forest-start" disabled>从雨林洞口出发 ${icon('arrow')}</button></div><p id="continue-note" class="muted">黄山实拍与扫描松岩 · 正式雨林入口待接入</p><div class="loadtrack"><span id="loadbar"></span></div><p id="load-status" role="status">正在加载真实场景素材，请稍候</p></main>
 <aside class="poem"><span>行到水穷处</span><span>坐看云起时</span><small>王维 · 终南别业</small><b>青<br>岚</b></aside>
 <div class="vignette"></div><div id="crosshair" hidden></div>
-<section class="minimap" aria-label="附近山径"><div class="minimap-top"><span>青岚 · 山行</span><span id="bearing">北 N</span></div><canvas id="mini" width="256" height="180"></canvas><div class="minimap-bottom"><span id="elevation">海拔 7 m</span><span>实景取材</span></div></section>
+<section class="minimap" aria-label="附近山径"><div class="minimap-top"><span>青岚 · 山行</span><span id="bearing">北 N</span></div><canvas id="mini" width="256" height="180"></canvas><div class="minimap-bottom"><span id="elevation">海拔 7 m</span><span id="walked">已行 0 m</span></div></section>
 <div id="place-label" class="place-label"><span>初入青岚</span><h2 id="place-name">两界洞</h2><p id="place-poem">一洞隔尘世，松风入青岚</p></div>
 <div id="interaction" class="interaction" hidden><button id="interact"><kbd>E</kbd><span id="interact-label">驻足听松</span><span>↗</span></button></div>
 <div id="meditation" class="meditation" hidden><span class="breath"></span><p>一呼，一吸。</p><span>松风与云，皆不催人。</span><button id="leave-meditation">结束静坐 <kbd>Esc</kbd></button></div>
@@ -34,7 +42,7 @@ $('#close-panel').onclick=closePanel;$('#panel').addEventListener('cancel',e=>{e
 
 function drawMap(canvas,local,all=false){
   const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);
-  const points=[...TRAIL,...CAVE,...BRANCH],minX=Math.min(...points.map(p=>p[0]))-30,maxX=Math.max(...points.map(p=>p[0]))+30,minZ=Math.min(...points.map(p=>p[2]))-30,maxZ=160;
+  const points=[...TRAIL,...CAVE,...BRANCH],minX=Math.min(...points.map(p=>p[0]))-30,maxX=Math.max(...points.map(p=>p[0]))+30,minZ=Math.min(...points.map(p=>p[2]))-30,maxZ=Math.max(...points.map(p=>p[2]))+30;
   const scale=all?Math.min((w-100)/(maxX-minX),(h-100)/(maxZ-minZ)):.75;
   const cx=all?(minX+maxX)/2:local.x,cz=all?(minZ+maxZ)/2:local.z;
   const point=p=>[w/2+(p[0]-cx)*scale,h/2+(p[2]-cz)*scale];
@@ -45,7 +53,7 @@ function drawMap(canvas,local,all=false){
   for(const place of LOCATIONS){const [x,y]=point(place.point);ctx.beginPath();ctx.arc(x,y,all?4:2.5,0,Math.PI*2);ctx.fillStyle=progress.visited.includes(place.id)?'#b88d55':all?'#58715e':'#a5b69d';ctx.fill();if(all){ctx.fillStyle='#394f40';ctx.fillText(place.name,x+(place.id==='pine'?30:0),y-12);}}
   const [x,y]=point([local.x,0,local.z]);ctx.save();ctx.translate(x,y);ctx.rotate(-world.yaw);ctx.fillStyle=all?'#b26c3e':'#f0deab';ctx.shadowColor='#eedca2';ctx.shadowBlur=8;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(-4,5);ctx.lineTo(0,3);ctx.lineTo(4,5);ctx.closePath();ctx.fill();ctx.restore();
 }
-function map(){if(!ready)return;openPanel('山行图','青岚山志 · 路不尽于眼前',`<p class="panel-lead">沿石径步行，六处山景待你发现。虚线为通往雨林的两界洞。</p><canvas id="big-map" width="760" height="760" aria-label="青岚境路线与当前位置"></canvas><div class="map-key"><span>─ 山径</span><span>┄ 山洞</span><span>● 已至之处</span><span>▲ 此刻所在</span></div><p class="footnote">山径约 ${(routeLength(TRAIL)/1000).toFixed(1)} 公里，另有回响谷支路。此图仅作指路，没有传送。</p>`,'map');drawMap($('#big-map'),link.local(world.position.x,world.position.z),true);}
+function map(){if(!ready)return;openPanel('山行图','青岚山志 · 入口近景验收中',`<p class="panel-lead">当前只验收山侧入口的真实岩体与地表。完整山路和雨林山洞仍在制作。</p><canvas id="big-map" width="760" height="760" aria-label="青岚境路线与当前位置"></canvas><div class="map-key"><span>─ 山径</span><span>● 已至之处</span><span>▲ 此刻所在</span></div><p class="footnote">山径约 ${(routeLength(TRAIL)/1000).toFixed(1)} 公里，尚未实走验收。此图没有传送。</p>`,'map');drawMap($('#big-map'),link.local(world.position.x,world.position.z),true);}
 function journal(){openPanel('山中手记',`行过的山，记得的风 · ${progress.visited.length} / ${LOCATIONS.length}`,`<p class="panel-lead">不设倒计时，也不必收集一切。走近一处风景，它便留在这里。</p><div class="journal-grid">${LOCATIONS.map((p,i)=>{const visited=progress.visited.includes(p.id);return `<article class="journal-card ${visited?'visited':''}"><span>0${i+1} <i>${visited?'已到访':'尚未到访'}</i></span><h3>${visited?p.name:'山中未识'}</h3><p>${visited?p.subtitle:'沿着山径，等一次偶然相逢。'}</p>${visited?`<blockquote>${p.verse??p.subtitle}</blockquote><small>${p.author??'两界相连，循径可返'}</small>`:'<small>步履未至，山景待寻</small>'}</article>`;}).join('')}</div><p class="footnote">探索记录保存在当前浏览器，刷新后可续行。</p>`,'journal');}
 function interact(){if(!nearby||!started||currentDialog)return;const p=nearby;if(p.id==='cave'){toast('沿洞内石径继续步行，即可往返雨林。');return;}openPanel(p.name,p.subtitle,`<blockquote class="verse">${p.verse}</blockquote><p class="verse-author">${p.author}</p><p class="story">${p.story}</p><button id="sit" class="primary dark">在此静坐 ${icon('arrow')}</button>`,'place');$('#sit').onclick=()=>{closePanel();meditating=true;pause(true);$('#meditation').hidden=false;document.body.classList.add('sitting');};}
 function leaveMeditation(){meditating=false;$('#meditation').hidden=true;document.body.classList.remove('sitting');pause(!started);}
@@ -61,7 +69,7 @@ document.addEventListener('visibilitychange',()=>{save();if(document.hidden){if(
 function update(state){
   if(state.error){toast(state.error);pause(true);return;}if(!ready||!world)return;
   const local=link.local(state.x,state.z),p=nearestLocation(local.x,local.z);
-  $('#region').textContent=regionLabel(local.z);
+  $('#region').textContent=regionLabel(local.z);$('#walked').textContent='已行 '+Math.round(distance)+' m';
   $('#elevation').textContent=`海拔 ${Math.round(link.owns(state.x,state.z)?link.groundHeight(state.x,state.z):0)} m`;
   const deg=((Math.round(-state.yaw*180/Math.PI)%360)+360)%360;$('#bearing').textContent=`${deg}° ${deg<45||deg>=315?'北 N':deg<135?'东 E':deg<225?'南 S':'西 W'}`;
   drawMap($('#mini'),local);
@@ -85,8 +93,8 @@ async function boot(){try{
   world.canvas.setAttribute('aria-label','青岚境与雨林连续山境：WASD 行走，鼠标拖动环顾，M 山行图，E 驻足');
   await withTimeout(world.ready,120000);world.initializing=true;
   link=new XianxiaLink(world,{nearOnly:true,clearApproach:false,anchor:{x:0,y:groundHeight(0,-90),z:-90},onProgress:p=>{$('#percent').textContent=`${Math.round(65+p*30)}%`;$('#loadbar').style.width=`${65+p*30}%`;$('#load-status').textContent='正在铺展松岩与云海';}});
-  await withTimeout(link.ready,90000);world.worldLink=link;world.position.set(link.offset.x+TRAIL[3][0],0,link.offset.z+TRAIL[3][2]);world.yaw=-1.7;world.pitch=.015;world.camera.position.set(world.position.x,link.groundHeight(world.position.x,world.position.z)+1.85,world.position.z);
-  await world.renderer.compileAsync(link.scene,world.camera);world.initializing=false;ready=true;$('#loadbar').style.width='100%';$('#enter').disabled=false;$('#forest-start').hidden=true;$('#enter').innerHTML=`${progress.position?'继续山行':'入山，听风'} ${icon('arrow')}`;$('#load-status').textContent='山林已就绪';$('#count').textContent=`${progress.visited.length}/6`;$('#continue-note').textContent='近山实景 · 山洞暂不启用';
+  await withTimeout(link.ready,90000);world.worldLink=link;world.position.set(link.offset.x+MOUNTAIN_ENTRANCE.position.x,0,link.offset.z+MOUNTAIN_ENTRANCE.position.z);world.yaw=MOUNTAIN_ENTRANCE.yaw;world.pitch=.015;world.camera.position.set(world.position.x,link.groundHeight(world.position.x,world.position.z)+1.85,world.position.z);
+  await world.prepareDemo(link.scene);world.initializing=false;ready=true;$('#loadbar').style.width='100%';$('#enter').disabled=false;$('#forest-start').hidden=true;$('#enter').innerHTML=`${progress.position?'继续山行':'入山，听风'} ${icon('arrow')}`;$('#load-status').textContent='山林已就绪';$('#count').textContent=`${progress.visited.length}/6`;$('#continue-note').textContent='入口近景验收中 · 完整山路和山洞暂不开放';
   update({x:world.position.x,z:world.position.z,yaw:world.yaw});
 }catch(error){console.error(error);$('#load-status').textContent='素材加载未完成，请刷新后重试。';$('#enter').textContent='重新加载';$('#enter').disabled=false;$('#enter').onclick=()=>location.reload();}}
 boot();

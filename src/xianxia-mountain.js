@@ -31,6 +31,9 @@ export class XianxiaMountain {
     this.loading??=this.world.load().then(()=>this);
     return this.loading;
   }
+  async prepare(camera){
+    await this.load();await this.world.prepareMountain?.(camera);return this;
+  }
   frame(){
     this.group.updateWorldMatrix(true,false);
     this.origin.setFromMatrixPosition(this.group.matrixWorld);
@@ -48,6 +51,7 @@ export class XianxiaMountain {
     this.frame();
     this.from.set(fromX,this.origin.y,fromZ).applyMatrix4(this.inverse);
     this.to.set(toX,this.origin.y,toZ).applyMatrix4(this.inverse);
+    if(this.world.floorIndex.heightAt(this.from.x,this.from.z)!=null)this.world.updateMountain?.(this.from.x);
     return this.world.floorIndex.canMove(this.from.x,this.from.z,this.to.x,this.to.z);
   }
 }

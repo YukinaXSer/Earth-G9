@@ -76,37 +76,49 @@ export function routeRibbonGeometry(route,height,width=p=>p.width+1.6,step=1.5,c
 }
 
 export function createFloorIndex(geometries,size=12){
-  const cells=new Map();
+  const cells=new Map(),count=geometries.reduce((sum,g)=>sum+(g.index?.count??g.attributes.position.count)/3,0),positions=new Float32Array(count*9),barycentric=new Float64Array(count*6);
+  let triangle=0;
   for(const geometry of geometries){
     const p=geometry.attributes.position,index=geometry.index,count=index?index.count:p.count;
     for(let i=0;i<count;i+=3){
-      const tri=[0,1,2].map(j=>{const k=index?index.getX(i+j):i+j;return{x:p.getX(k),y:p.getY(k),z:p.getZ(k)};});
-      for(let x=Math.floor(Math.min(...tri.map(v=>v.x))/size);x<=Math.floor(Math.max(...tri.map(v=>v.x))/size);x++)for(let z=Math.floor(Math.min(...tri.map(v=>v.z))/size);z<=Math.floor(Math.max(...tri.map(v=>v.z))/size);z++){
-        const key=`${x},${z}`;if(!cells.has(key))cells.set(key,[]);cells.get(key).push(tri);
+      const start=triangle*9;
+      for(let j=0;j<3;j++){const k=index?index.getX(i+j):i+j;positions[start+j*3]=p.getX(k);positions[start+j*3+1]=p.getY(k);positions[start+j*3+2]=p.getZ(k);}
+      const ax=positions[start],az=positions[start+2],bx=positions[start+3],bz=positions[start+5],cx=positions[start+6],cz=positions[start+8];
+      const denominator=(bz-cz)*(ax-cx)+(cx-bx)*(az-cz),b=triangle*6;
+      if(Math.abs(denominator)>=1e-9){
+        barycentric[b]=(bz-cz)/denominator;barycentric[b+1]=(cx-bx)/denominator;barycentric[b+2]=-(barycentric[b]*cx+barycentric[b+1]*cz);
+        barycentric[b+3]=(cz-az)/denominator;barycentric[b+4]=(ax-cx)/denominator;barycentric[b+5]=-(barycentric[b+3]*cx+barycentric[b+4]*cz);
+      }else barycentric[b]=NaN;
+      for(let x=Math.floor(Math.min(ax,bx,cx)/size);x<=Math.floor(Math.max(ax,bx,cx)/size);x++)for(let z=Math.floor(Math.min(az,bz,cz)/size);z<=Math.floor(Math.max(az,bz,cz)/size);z++){
+        const key=`${x},${z}`;if(!cells.has(key))cells.set(key,[]);cells.get(key).push(triangle);
       }
+      triangle++;
     }
   }
+  for(const[key,ids]of cells)cells.set(key,new Uint32Array(ids));
   const clip=(polygon,height,above)=>polygon.flatMap((a,i)=>{
     const b=polygon[(i+1)%polygon.length],inside=above?a.y>=height:a.y<=height,next=above?b.y>=height:b.y<=height,out=inside?[a]:[];
     if(inside!==next){const t=(height-a.y)/(b.y-a.y);out.push({x:a.x+(b.x-a.x)*t,y:height,z:a.z+(b.z-a.z)*t});}return out;
   });
   const index={geometries,heightAt(x,z){
     let height=-Infinity;
-    for(const[a,b,c]of cells.get(`${Math.floor(x/size)},${Math.floor(z/size)}`)??[]){
-      const denominator=(b.z-c.z)*(a.x-c.x)+(c.x-b.x)*(a.z-c.z);if(Math.abs(denominator)<1e-9)continue;
-      const u=((b.z-c.z)*(x-c.x)+(c.x-b.x)*(z-c.z))/denominator,v=((c.z-a.z)*(x-c.x)+(a.x-c.x)*(z-c.z))/denominator;
-      if(u>=-1e-5&&v>=-1e-5&&u+v<=1+1e-5)height=Math.max(height,a.y*u+b.y*v+c.y*(1-u-v));
+    for(const id of cells.get(`${Math.floor(x/size)},${Math.floor(z/size)}`)??[]){
+      const b=id*6,u=barycentric[b]*x+barycentric[b+1]*z+barycentric[b+2],v=barycentric[b+3]*x+barycentric[b+4]*z+barycentric[b+5];
+      if(u>=-1e-5&&v>=-1e-5&&u+v<=1+1e-5){const p=id*9;height=Math.max(height,positions[p+1]*u+positions[p+4]*v+positions[p+7]*(1-u-v));}
     }
     return Number.isFinite(height)?height:null;
-  },canMove(fromX,fromZ,x,z,radius=.35){
-    const floor=index.heightAt(x,z),previous=index.heightAt(fromX,fromZ);
+  },canMove(fromX,fromZ,x,z,radius=.35,heightAt=index.heightAt){
+    const floor=heightAt(x,z),previous=heightAt(fromX,fromZ);
     if(floor==null||previous==null||floor-previous>.35||previous-floor>.65)return false;
     for(const[dx,dz]of[[radius,0],[-radius,0],[0,radius],[0,-radius]]){
-      const support=index.heightAt(x+dx,z+dz);if(support==null||Math.abs(support-floor)>.45)return false;
+      const support=heightAt(x+dx,z+dz);if(support==null||Math.abs(support-floor)>.45)return false;
     }
     const candidates=new Set();
     for(let ix=Math.floor((x-radius)/size);ix<=Math.floor((x+radius)/size);ix++)for(let iz=Math.floor((z-radius)/size);iz<=Math.floor((z+radius)/size);iz++)for(const tri of cells.get(`${ix},${iz}`)??[])candidates.add(tri);
-    for(const tri of candidates){
+    for(const id of candidates){
+      const p=id*9,ay=positions[p+1],by=positions[p+4],cy=positions[p+7];
+      if(Math.max(ay,by,cy)<floor+.35||Math.min(ay,by,cy)>floor+1.85)continue;
+      const tri=[{x:positions[p],y:ay,z:positions[p+2]},{x:positions[p+3],y:by,z:positions[p+5]},{x:positions[p+6],y:cy,z:positions[p+8]}];
       const polygon=clip(clip(tri,floor+.35,true),floor+1.85,false);if(!polygon.length)continue;
       let winding=false;
       for(let i=0;i<polygon.length;i++){
@@ -130,7 +142,7 @@ export class XianxiaWorld {
     this.sectors=[];this.colliders=[];this.loader=new GLTFLoader();this.textureLoader=new THREE.TextureLoader();
   }
   async load() {
-    if(this.nearOnly){const {loadNearCapture}=await import('./xianxia-near.js');return loadNearCapture(this);}
+    if(this.nearOnly){const {loadMountainField}=await import('./xianxia-mountain-field.js');return loadMountainField(this);}
     this.photographicGround=await loadPhotographicGround(this.renderer);
     const files=['cave-scan','terrain-scan'];
     let loaded=0;
@@ -184,7 +196,7 @@ export class XianxiaWorld {
     }
     return null;
   }
-  groundHeight(x,z){return (z>0&&z<CAVE_LENGTH?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
+  groundHeight(x,z){if(this.nearOnly)return this.floorIndex?.heightAt(x,z)??null;return (z>0&&z<CAVE_LENGTH?this.caveFootHeight(x,z):this.floorIndex?.heightAt(x,z))??this.sourceHeight(x,z);}
   canWalkGround(x,z,fromX=x,fromZ=z){return this.floorIndex?.canMove(fromX,fromZ,x,z)??false;}
   canWalkCave(x,z){
     if(z<=1||z>=CAVE_LENGTH-1)return sampleRoute(CAVE,x,z).distance<6;
