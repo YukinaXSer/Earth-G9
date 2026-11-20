@@ -17,12 +17,19 @@ export function nativeGroundTexture(buffer,row){
   const texture=new THREE.CompressedTexture(mipmaps,row.width,row.height,format);texture.needsUpdate=true;return texture;
 }
 
+export function nativeGroundVariant(extensions){
+  if(extensions.has('WEBGL_compressed_texture_etc'))return 'etc2';
+  if(extensions.has('WEBGL_compressed_texture_s3tc')&&extensions.has('WEBGL_compressed_texture_s3tc_srgb'))return 's3tc';
+  return null;
+}
+
 export async function loadPhotographicGround(renderer,{walls=false}={}){
   if(renderer.capabilities.maxTextureSize<4096)throw new Error('Photographic ground requires 4096px texture support');
+  const variant=nativeGroundVariant(renderer.extensions);
+  if(!variant)throw new Error('Photographic ground requires ETC2 or S3TC with sRGB support');
   const root='/xianxia/surface/',response=await fetch(`${root}manifest.json`);
   if(!response.ok)throw new Error('Photographic ground manifest unavailable');
-  const source=await response.json(),variant=renderer.extensions.has('WEBGL_compressed_texture_etc')?'etc2':renderer.extensions.has('WEBGL_compressed_texture_s3tc')?'s3tc':null;
-  if(!variant)throw new Error('Photographic ground requires ETC2 or S3TC GPU textures');
+  const source=await response.json();
   const manifest={...source,...source.variants[variant],variant};
   const textures=Object.fromEntries(await Promise.all(Object.entries(manifest.textures).filter(([id])=>walls||id.startsWith('ground')).map(async([id,row])=>{
     const response=await fetch(root+row.file);if(!response.ok)throw new Error(`Ground texture unavailable: ${id}`);

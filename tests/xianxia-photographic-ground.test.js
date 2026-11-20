@@ -3,10 +3,20 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {createFloorIndex,XianxiaWorld} from '../src/xianxia-world.js';
-import {addPhotographicGround,ensureSurfaceNormals,nativeGroundTexture} from '../src/xianxia-surface.js';
+import {addPhotographicGround,ensureSurfaceNormals,nativeGroundTexture,nativeGroundVariant,loadPhotographicGround} from '../src/xianxia-surface.js';
 
 const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/manifest.json',import.meta.url)));
 const textures=Object.fromEntries(Object.keys(manifest.textures).map(id=>[id,new THREE.Texture()]));
+
+test('native variant requires sRGB S3TC for color and regular S3TC for normal uploads',async()=>{
+  const ext=(...available)=>({has:name=>available.includes(name)}),s3tc='WEBGL_compressed_texture_s3tc',srgb='WEBGL_compressed_texture_s3tc_srgb';
+  assert.equal(nativeGroundVariant(ext('WEBGL_compressed_texture_etc',s3tc,srgb)),'etc2');
+  assert.equal(nativeGroundVariant(ext(s3tc,srgb)),'s3tc');
+  for(const extensions of [ext(s3tc),ext(srgb),ext()]){
+    assert.equal(nativeGroundVariant(extensions),null);
+    await assert.rejects(loadPhotographicGround({capabilities:{maxTextureSize:4096},extensions}),/S3TC with sRGB support/);
+  }
+});
 
 test('ground keeps the whole 2m photograph and native quarter-metre detail within its real transfer payload',()=>{
   let bytes=0;
