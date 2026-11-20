@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import { CAVE,CAVE_LENGTH,TRAIL,BRANCH,LOCATIONS,sampleRoute,sampleMountain,canWalkMountain,caveAmount,routeLength,nearestLocation } from '../src/xianxia-route.js';
+import { CAVE,CAVE_LENGTH,TRAIL,BRANCH,LOCATIONS,sampleRoute,sampleMountain,canWalkMountain,caveAmount,routeLength,nearestLocation,regionLabel } from '../src/xianxia-route.js';
 import { XianxiaLink } from '../src/xianxia-link.js';
 import { XianxiaWorld,addCapturedRockDetail } from '../src/xianxia-world.js';
 import caveCaptures from '../src/xianxia-cave-captures.json' with {type:'json'};
@@ -13,6 +13,13 @@ test('the entire main trail, cave and branch are continuously walkable in either
     for(let d=0;d<=length;d+=.35){const t=d/length,x=a[0]+(b[0]-a[0])*t,z=a[2]+(b[2]-a[2])*t;assert.ok(canWalkMountain(x,z),`blocked at ${x},${z}`);assert.ok(Number.isFinite(sampleMountain(x,z).height));}
   }
   assert.ok(routeLength(TRAIL)>2400);assert.ok(routeLength(CAVE)>40);
+});
+test('region labels follow the captured cave length at the normal rainforest start and both boundaries',()=>{
+  assert.equal(regionLabel(CAVE_LENGTH+48),'雨林 · 北部山径');
+  assert.equal(regionLabel(CAVE_LENGTH+.01),'雨林 · 北部山径');
+  assert.equal(regionLabel(CAVE_LENGTH-.01),'两界洞 · 洞中');
+  assert.equal(regionLabel(4.01),'两界洞 · 洞中');
+  assert.equal(regionLabel(0),'云海山径');
 });
 test('route sampling clamps endpoints and keeps falls and remote void out of walking bounds',()=>{
   assert.equal(sampleRoute([[0,0,0,4],[0,8,-10,4]],0,5).height,0);

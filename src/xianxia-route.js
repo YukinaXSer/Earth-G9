@@ -46,6 +46,7 @@ export function caveAmount(x,z,width=12) {
   const [exit,entrance]=caveCaptures.enclosedRange,fade=Math.min(10,(entrance-exit)*.3);
   return smooth(Math.max(0,Math.min(1,(z-exit)/fade)))*smooth(Math.max(0,Math.min(1,(entrance-z)/fade)));
 }
+export function regionLabel(z){return z>CAVE_LENGTH?'雨林 · 北部山径':z>4?'两界洞 · 洞中':'云海山径';}
 export function routeLength(route) {
   return route.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-route[i][0],p[1]-route[i][1],p[2]-route[i][2]),0);
 }

@@ -3,7 +3,7 @@ import { XianxiaDemoRuntime } from './xianxia-demo-runtime.js';
 import { groundHeight,BOUNDS } from './data.js';
 import { XianxiaLink } from './xianxia-link.js';
 import { withTimeout } from './loading.js';
-import { LOCATIONS,TRAIL,BRANCH,CAVE,nearestLocation,routeLength,canWalkMountain } from './xianxia-route.js';
+import { LOCATIONS,TRAIL,BRANCH,CAVE,nearestLocation,routeLength,canWalkMountain,regionLabel } from './xianxia-route.js';
 
 const $=s=>document.querySelector(s),STORE='earth2.xianxia.v1';
 const mountainIcon='<svg viewBox="0 0 48 40" fill="none" aria-hidden="true"><path d="m3 33 12-22 9 15 7-23 14 30M9 23l6-3 4 4m8-8 4-3 5 10" stroke="currentColor" stroke-width="1.3"/></svg>';
@@ -60,8 +60,8 @@ document.addEventListener('visibilitychange',()=>{save();if(document.hidden){if(
 
 function update(state){
   if(state.error){toast(state.error);pause(true);return;}if(!ready||!world)return;
-  const local=link.local(state.x,state.z),p=nearestLocation(local.x,local.z),inForest=local.z>132;
-  $('#region').textContent=inForest?'雨林 · 北部山径':local.z>4?'两界洞 · 洞中':'云海山径';
+  const local=link.local(state.x,state.z),p=nearestLocation(local.x,local.z);
+  $('#region').textContent=regionLabel(local.z);
   $('#elevation').textContent=`海拔 ${Math.round(link.owns(state.x,state.z)?link.groundHeight(state.x,state.z):0)} m`;
   const deg=((Math.round(-state.yaw*180/Math.PI)%360)+360)%360;$('#bearing').textContent=`${deg}° ${deg<45||deg>=315?'北 N':deg<135?'东 E':deg<225?'南 S':'西 W'}`;
   drawMap($('#mini'),local);
