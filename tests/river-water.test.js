@@ -69,10 +69,16 @@ test('both qualities reflect the local scene with bounded render targets, distan
     water.material.uniforms.time.value = .21;
     water.onBeforeRender(renderer, scene, camera);
     assert.equal(calls.length, lowDetail ? 2 : 3);
+    water.material.uniforms.time.value = .5;
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, lowDetail ? 2 : 4);
+    water.material.uniforms.time.value = .51;
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, lowDetail ? 3 : 5);
     camera.position.x = 100; camera.updateMatrixWorld();
     water.material.uniforms.time.value = 1;
     water.onBeforeRender(renderer, scene, camera);
-    assert.equal(calls.length, lowDetail ? 2 : 3);
+    assert.equal(calls.length, lowDetail ? 3 : 5);
     assert.equal(water.material.uniforms.sceneReflection.value, 0);
     assert.ok(water.material.uniforms.eye.value.equals(camera.position));
   }

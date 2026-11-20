@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { RIVER_LEVEL, riverX } from './data.js';
 
-export function createRiverWater(geometry, normalMap, lowDetail = false) {
+export function createRiverWater(geometry, normalMap, lowDetail = false, renderReflection = render => render()) {
   geometry.translate(0, -RIVER_LEVEL, 0).rotateX(Math.PI / 2);
   const water = new Water(geometry, {
     waterNormals: normalMap,
@@ -64,21 +64,25 @@ export function createRiverWater(geometry, normalMap, lowDetail = false) {
       gl_FragColor = vec4(outgoingLight, mix(.2, .94, absorption) * shoreFade * meshEdge);`);
   const reflectScene = water.onBeforeRender;
   const reflectionCamera = new THREE.PerspectiveCamera();
-  let lastReflection = -Infinity;
+  let lastReflection = -Infinity, framesSinceReflection = 2;
   water.onBeforeRender = (renderer, scene, camera) => {
     const eye = material.uniforms.eye.value;
     eye.setFromMatrixPosition(camera.matrixWorld);
     const nearRiver = Math.abs(eye.x - riverX(eye.z)) < (lowDetail ? 35 : 70);
     material.uniforms.sceneReflection.value = Number(nearRiver);
     const time = material.uniforms.time.value;
-    if (nearRiver && (!lowDetail || time - lastReflection >= .2)) {
-      if (camera.isPerspectiveCamera) {
-        reflectionCamera.copy(camera, false);
-        reflectionCamera.far = Math.min(camera.far, lowDetail ? 48 : 80);
-        reflectionCamera.updateProjectionMatrix();
-        reflectScene(renderer, scene, reflectionCamera);
-      } else reflectScene(renderer, scene, camera);
+    framesSinceReflection++;
+    if (nearRiver && (!lowDetail || (time - lastReflection >= .2 && framesSinceReflection >= 2))) {
+      renderReflection(() => {
+        if (camera.isPerspectiveCamera) {
+          reflectionCamera.copy(camera, false);
+          reflectionCamera.far = Math.min(camera.far, lowDetail ? 48 : 80);
+          reflectionCamera.updateProjectionMatrix();
+          reflectScene(renderer, scene, reflectionCamera);
+        } else reflectScene(renderer, scene, camera);
+      });
       lastReflection = time;
+      framesSinceReflection = 0;
     }
   };
   water.userData.reflectionMode = lowDetail ? 'local-planar-throttled' : 'local-planar';

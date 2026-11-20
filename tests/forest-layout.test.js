@@ -163,3 +163,19 @@ test('captured soil skirts stay below terrain consistently in near and distant t
   assert.equal(habitat.place('broadleaf', -43, 37, 1)[0].matrix.elements[13], groundHeight(-43, 37));
   assert.equal(habitat.place('forest', -43, 37, 5, 0, 0, -2)[0].matrix.elements[13], -2);
 });
+
+test('LOW river reflections bound foliage submissions without changing main visibility, including on failure', () => {
+  for (const lowDetail of [true, false]) {
+    const makeCell = (x, visible) => ({ visible, boundingSphere: new THREE.Sphere(new THREE.Vector3(x, 0, 0), 2) });
+    const cells = [makeCell(10, true), makeCell(21, true), makeCell(30, true), makeCell(10, false)];
+    const habitat = { world: { lowDetail, position: new THREE.Vector3() }, cells };
+    const draw = () => {
+      assert.deepEqual(cells.map(m => m.visible), [true, true, !lowDetail, false]);
+      return 'drawn';
+    };
+    assert.equal(Habitat.prototype.renderWaterReflection.call(habitat, draw), 'drawn');
+    assert.deepEqual(cells.map(m => m.visible), [true, true, true, false]);
+    assert.throws(() => Habitat.prototype.renderWaterReflection.call(habitat, () => { draw(); throw new Error('render failed'); }), /render failed/);
+    assert.deepEqual(cells.map(m => m.visible), [true, true, true, false]);
+  }
+});

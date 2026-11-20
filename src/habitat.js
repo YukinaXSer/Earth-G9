@@ -391,6 +391,14 @@ export class Habitat {
     return mesh;
   }
 
+  renderWaterReflection(render) {
+    if (!this.world.lowDetail) return render();
+    const hidden = this.cells.filter(mesh => mesh.visible && mesh.boundingSphere.center.distanceTo(this.world.position) - mesh.boundingSphere.radius > 20);
+    for (const mesh of hidden) mesh.visible = false;
+    try { return render(); }
+    finally { for (const mesh of hidden) mesh.visible = true; }
+  }
+
   updateVisibility(position) {
     for (const mesh of this.cells) {
       const distance = mesh.boundingSphere.center.distanceTo(position) - mesh.boundingSphere.radius;

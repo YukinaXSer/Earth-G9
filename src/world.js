@@ -188,7 +188,7 @@ export class Rainforest {
     waterGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(waterUvs, 2));
     waterGeometry.setAttribute('waterDepth', new THREE.Float32BufferAttribute(depths, 1));
     waterGeometry.setIndex(indices); waterGeometry.computeVertexNormals();
-    this.water = createRiverWater(waterGeometry, this.waterNormals, this.lowDetail);
+    this.water = createRiverWater(waterGeometry, this.waterNormals, this.lowDetail, render => this.habitat.renderWaterReflection(render));
     this.waterMaterial = this.water.material;
     this.scene.add(this.water);
   }
