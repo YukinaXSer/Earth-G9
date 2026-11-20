@@ -46,7 +46,7 @@ app.innerHTML = `
       <p class="intro-description">把喧嚣留在世界之外。<br>沿着水声，走进一片自由生长的原生雨林。<br>发现微小的生命，也种下属于你的新生。</p>
       <button class="primary-button" id="enter"><span>进入 2 号地球</span>${icon('arrow')}</button>
       <div class="entry-note">无需安装 <i>·</i> 3D 自由漫游 <i>·</i> 进度自动保存</div>
-      <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 靠近光标按 E / 点按互动</p>
+      <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 滚轮 / 双指缩放<br>靠近光标按 E / 点按互动</p>
     </section>
     <div class="intro-aside" id="intro-aside"><span>让自然，做回自然。</span><small>THE FOREST IS ALIVE</small><div class="aside-line"></div><b>01°</b></div>
     <section class="mission compact hidden" id="mission" aria-label="探索任务">
@@ -59,6 +59,11 @@ app.innerHTML = `
       <p id="mission-hint">沿着林间小径，寻找微微发光的标记。</p>
     </section>
     <div class="crosshair hidden" id="crosshair" aria-hidden="true"></div>
+    <div class="zoom-controls hidden" id="zoom-controls" role="group" aria-label="场景视野缩放">
+      <button id="zoom-out" aria-label="拉远视野" title="拉远视野 · −">−</button>
+      <button id="zoom-reset" aria-label="恢复默认视野" title="恢复默认视野 · 0">1×</button>
+      <button id="zoom-in" aria-label="拉近视野" title="拉近视野 · +">+</button>
+    </div>
     <div class="game-notices">
       <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
       <button class="interaction hidden" id="interact"><span class="keycap">E</span><span id="interaction-label"></span>${icon('arrow')}</button>
@@ -127,7 +132,7 @@ function enterWorld() {
   entered = true; world.active = true;
   if (settings.sound) setAudio(true, false);
   ['#intro', '#intro-aside', '#intro-footer'].forEach(s => show(s, false));
-  ['#mission', '#crosshair', '#game-hint', '#touch-controls'].forEach(s => show(s, true));
+  ['#mission', '#crosshair', '#game-hint', '#touch-controls', '#zoom-controls'].forEach(s => show(s, true));
   document.body.classList.add('exploring');
   world.canvas.focus({ preventScroll: true });
   toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '记录 5 种生命，种下 3 株幼苗。靠近光标后按 E 或点按互动。');
@@ -173,7 +178,7 @@ function openModal(type, data) {
   if (!world || world.contextFailed) return;
   if (modalType) { closeModal(false); }
   previousFocus = document.activeElement;
-  modalType = type; world.paused = true; world.keys.clear(); world.touchMove = null;
+  modalType = type; world.paused = true; world.keys.clear(); world.touchMove = null; world.cancelLook();
   show('#interact', false);
   const modal = $('#modal');
   modal.className = `modal modal-${type}`;
@@ -335,6 +340,9 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
+    case 'zoom-in': world.zoomView(.85); break;
+    case 'zoom-out': world.zoomView(1 / .85); break;
+    case 'zoom-reset': world.resetZoom(); break;
     case 'nav-world': if (modalType) closeModal(); if (entered) toast('你正置身于雨林之境。按 M 打开地图。'); break;
     case 'interact': interact(); break;
     case 'weather': {
@@ -419,7 +427,7 @@ setTimeout(async () => {
       lowDetail: world.lowDetail,
       pause: () => {
         world.contextFailed = true; world.active = false; world.paused = true;
-        world.keys.clear(); world.touchMove = null; world.dragging = false;
+        world.keys.clear(); world.touchMove = null; world.cancelLook();
       },
       fallback: () => location.replace(compatibilityUrl(location.href)),
       failure: showFailure,

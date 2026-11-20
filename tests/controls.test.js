@@ -43,3 +43,27 @@ test('movement keys leave paused, editable and modified input untouched', () => 
     else globalThis.window = previous;
   }
 });
+
+test('keyboard lens zoom respects editing, modifier and pause guards and does not hold movement keys', () => {
+  const previous = globalThis.window, listeners = {};
+  globalThis.window = { addEventListener: (name, listener) => { listeners[name] = listener; } };
+  try {
+    const camera = { fov: 60, updateProjectionMatrix() {} };
+    const world = { active: true, paused: false, keys: new Set(), camera, canvas: { addEventListener() {} } };
+    world.zoomView = factor => Rainforest.prototype.zoomView.call(world, factor);
+    world.resetZoom = () => Rainforest.prototype.resetZoom.call(world);
+    Rainforest.prototype.setupControls.call(world);
+    const press = (code, extra = {}) => listeners.keydown({ code, target: { closest: () => null }, preventDefault() {}, ...extra });
+    press('Equal'); assert.ok(camera.fov < 60);
+    press('Digit0'); assert.equal(camera.fov, 60);
+    press('NumpadSubtract'); assert.ok(camera.fov > 60);
+    press('Numpad0'); assert.equal(camera.fov, 60);
+    press('Equal', { ctrlKey: true }); assert.equal(camera.fov, 60);
+    press('Equal', { target: { closest: () => true } }); assert.equal(camera.fov, 60);
+    world.paused = true; press('Minus'); assert.equal(camera.fov, 60);
+    assert.equal(world.keys.size, 0);
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
+});

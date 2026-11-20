@@ -363,6 +363,16 @@ kbd { font-family: inherit; border: 1px solid var(--border); padding: 4px 6px; b
 }
 
 .game-notices { position: absolute; right: 4.2%; bottom: 132px; width: max-content; max-width: min(400px, 55%); display: flex; flex-direction: column; align-items: flex-end; gap: 12px; }
+.zoom-controls { position: absolute; right: 4.2%; top: 151px; display: flex; background: #142d24cc; border: 1px solid var(--border); border-radius: var(--radius); pointer-events: auto; touch-action: none; }
+.zoom-controls button { width: 44px; height: 44px; font-size: 20px; }
+.zoom-controls button:nth-child(2) { font: 13px ui-monospace, monospace; }
+.zoom-controls button:hover { background: #def1bb22; }
+@media (max-width: 700px) {
+  .zoom-controls { right: 5%; top: 140px; flex-direction: column; }
+}
+@media (max-height: 500px) and (max-width: 1000px) {
+  .zoom-controls { right: 4%; top: 70px; flex-direction: row; }
+}
 .game-notices > .interaction, .game-notices > .toast { position: static; transform: none; max-width: 100%; }
 @media (any-pointer: coarse), (max-width: 700px) {
   .game-notices { right: 5%; bottom: 152px; max-width: 54%; }
