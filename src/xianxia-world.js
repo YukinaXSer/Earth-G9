@@ -123,8 +123,8 @@ export function createFloorIndex(geometries,size=12){
 
 
 export class XianxiaWorld {
-  constructor(scene,{offset=new THREE.Vector3(),quality='high',renderer,nearOnly=false,onProgress=()=>{}}={}) {
-    this.nearOnly=nearOnly;
+  constructor(scene,{offset=new THREE.Vector3(),quality='high',renderer,nearOnly=false,renderHorizon=true,onProgress=()=>{}}={}) {
+    this.nearOnly=nearOnly;this.renderHorizon=renderHorizon;
     this.scene=scene;this.offset=offset;this.quality=quality;this.renderer=renderer;this.onProgress=onProgress;
     this.root=new THREE.Group();this.root.name='青岚境';this.root.position.copy(offset);scene.add(this.root);
     this.sectors=[];this.colliders=[];this.loader=new GLTFLoader();this.textureLoader=new THREE.TextureLoader();

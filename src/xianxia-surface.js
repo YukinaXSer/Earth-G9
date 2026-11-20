@@ -44,10 +44,12 @@ export async function loadPhotographicGround(renderer,{walls=false}={}){
 }
 
 export function addPhotographicCapture(material,uniforms){
+  uniforms.captureWorldToLocal??={value:new THREE.Matrix4()};
+  uniforms.captureNormalToWorld??={value:new THREE.Matrix3()};
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);
-    shader.vertexShader='uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=(modelMatrix*vec4(position,1.)).xyz-patchOrigin;normM=mat3(modelMatrix)*normal;');
-    shader.fragmentShader=photographicSurfaceGLSL+shader.fragmentShader;
+    shader.vertexShader='uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=(captureWorldToLocal*modelMatrix*vec4(position,1.)).xyz-patchOrigin;normM=mat3(captureWorldToLocal*modelMatrix)*normal;');
+    shader.fragmentShader='uniform mat3 captureNormalToWorld;\n'+photographicSurfaceGLSL+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
       vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
@@ -63,9 +65,9 @@ export function addPhotographicCapture(material,uniforms){
       }
       diffuseColor.rgb*=photoSurface.c;
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
-      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*photoSurface.n);');
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v1';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v2';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){

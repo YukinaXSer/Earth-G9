@@ -1,5 +1,28 @@
 # 青岚境：独立试玩与接入边界
 
+## 正式单场景接入接口（山洞会话使用）
+
+只使用 `src/xianxia-mountain.js` 的 `XianxiaMountain`；下方旧 `XianxiaLink` 演示的场景切换**不能**用于正式穿洞。
+
+```js
+import {XianxiaMountain,MOUNTAIN_ENTRANCE,MOUNTAIN_LIGHTING} from './src/xianxia-mountain.js';
+const mountain=new XianxiaMountain({renderer:rainforest.renderer,quality:rainforest.lowDetail?'low':'high'});
+mountain.group.position.set(offset.x,offset.y,offset.z);
+// 可设置 group.rotation.y；保持单位缩放，不做俯仰/翻滚。
+rainforest.scene.add(mountain.group);
+await mountain.load(); // 幂等；请在到洞口前提前完成下载、GPU上传和宿主 compileAsync。
+const y=mountain.groundHeight(worldX,worldZ); // 宿主世界坐标；缺面/未加载返回 null，不回退隐藏地面。
+const allowed=mountain.canMove(fromWorldX,fromWorldZ,toWorldX,toWorldZ);
+```
+
+- `group` 仅包含山体和道具，不创建 renderer、camera 或 Scene，不改宿主环境、背景、雾或灯光，不加载山洞、雨林资源或全景球。
+- `load()` 返回同一个 Promise；完成后返回 mountain。`groundHeight` 和 `canMove` 查询可见地表及实体石块的最终三角网格，支持宿主父节点平移和 yaw。
+- `MOUNTAIN_ENTRANCE` 是**山本地坐标**：脚底 `(100.5, 0.49862106783051635, -115.1)`；离洞入山向 `+X`，yaw `-Math.PI/2`（相机向前为 `-Z`）。它不是旧 XianxiaLink 的全局坐标。用 `mountain.group.localToWorld(...)` 得到宿主坐标，入口方向也随 group 的 yaw 旋转。
+- 洞口前 `8 × 1.2m` 已在同一可见扫描网格内整坡，末端 `(108.5, 0.90559662697416, -115.1)`，坡度约 `5.09%`，不是水平平板；外围 0.6m 平滑衔接。没有第二层路面、碰撞平面或缩放整个扫描。边缘和完整山路仍在修，不能把本接口交接视为画面/穿洞验收通过。
+- `MOUNTAIN_LIGHTING` 导出雨林共享配置：sRGB、ACESFilmic、曝光 `.96`；环境 `/textures/rainforest-light.hdr`（晴 `.85` / 雨 `.45`）；太阳 `#fff0ce`（晴 `3` / 雨 `.75`），相对玩家 `(-24,30,12)`；半球光 `#b8cda4 / #65503b`（LOW `1.35` / HIGH `.85`）；LOW Ambient `#dbe2d3 / 1.1`。雾基数晴 `.0045` / 雨 `.007`，湿度另加 `moisture*.006`，色值与显示天空路径/强度/旋转也在常量中。
+- 灯光权威实现仍是 `src/world.js` 的 `makeLighting / setWeather / updateSky` 及 renderer 初始化；山适配器**不重新应用或覆盖**它们。宿主只保留同一个 renderer/Scene，天气变化跟随宿主，不另建一套山灯光。材质米制坐标、区域遮罩和法线使用山本地帧，整体平移/yaw 不会改变材质类别或法线朝向。
+- 这里冻结的是洞口位置、朝向及接口；山路扩展不得悄悄改变它们。若必须调整，先通知主会话和洞穴会话。
+
 ## 本次范围
 基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
 

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createFloorIndex} from './xianxia-world.js';
 import {loadPhotographicGround,ensureSurfaceNormals,addPhotographicCapture} from './xianxia-surface.js';
+import {MOUNTAIN_ENTRANCE} from './xianxia-mountain.js';
 
 export const CAPTURE_START=new THREE.Vector3(-34,.8390662814617365,.7618861259964369);
 export const CAPTURE_SHIFT=new THREE.Vector3(104-CAPTURE_START.x,0,-115.2-CAPTURE_START.z);
@@ -12,6 +13,21 @@ export function captureGeometry(bytes){
   geometry.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(bytes,8+count*12,count*3),3));
   geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(bytes,8+count*24,length),1));
   geometry.translate(CAPTURE_SHIFT.x,CAPTURE_SHIFT.y,CAPTURE_SHIFT.z);geometry.computeBoundingBox();geometry.computeBoundingSphere();
+  return geometry;
+}
+
+export function gradeCaptureApproach(geometry){
+  const {position:entry,approach}=MOUNTAIN_ENTRANCE,positions=geometry.attributes.position,normals=geometry.attributes.normal;
+  const normal=new THREE.Vector3(),targetNormal=new THREE.Vector3(-approach.grade,1,0).normalize();
+  for(let i=0;i<positions.count;i++){
+    const x=positions.getX(i),z=positions.getZ(i),y=positions.getY(i);
+    const distance=Math.max(entry.x-.35-x,x-approach.endX-.35,Math.abs(z-entry.z)-approach.width/2-.2);
+    const blend=1-THREE.MathUtils.smoothstep(distance,0,.6),target=entry.y+(x-entry.x)*approach.grade;
+    if(blend<=0||Math.abs(y-target)>.6)continue;
+    positions.setY(i,THREE.MathUtils.lerp(y,target,blend));
+    normal.fromBufferAttribute(normals,i).lerp(targetNormal,blend).normalize();normals.setXYZ(i,normal.x,normal.y,normal.z);
+  }
+  positions.needsUpdate=true;normals.needsUpdate=true;geometry.computeBoundingBox();geometry.computeBoundingSphere();
   return geometry;
 }
 
@@ -31,11 +47,12 @@ export function groundProp(geometry,index,x,z,rotation,{sink=.025}={}){
 export async function loadNearCapture(world){
   const root='/xianxia/surface/',[resources,response]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),fetch(root+'capture.bin')]);
   if(!response.ok)throw new Error('Captured near ground unavailable');
-  const geometry=captureGeometry(await response.arrayBuffer()),origin=CAPTURE_SHIFT.clone().add(world.offset);
-  const uniforms={patchOrigin:{value:origin},forceMaterial:{value:-1},stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.225)},groundMean:{value:new THREE.Vector3(...resources.manifest.groundMean)},wallMean:{value:new THREE.Vector3(...resources.manifest.wallMean)},groundRegion:{value:new THREE.Vector4(0,0,1,1.7)},groundMixWidth:{value:.05}};
+  const geometry=gradeCaptureApproach(captureGeometry(await response.arrayBuffer()));
+  const uniforms={patchOrigin:{value:CAPTURE_SHIFT.clone()},captureWorldToLocal:{value:new THREE.Matrix4()},captureNormalToWorld:{value:new THREE.Matrix3()},forceMaterial:{value:-1},stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.225)},groundMean:{value:new THREE.Vector3(...resources.manifest.groundMean)},wallMean:{value:new THREE.Vector3(...resources.manifest.wallMean)},groundRegion:{value:new THREE.Vector4(0,0,1,1.7)},groundMixWidth:{value:.05}};
+  const updateFrame=()=>{uniforms.captureWorldToLocal.value.copy(world.root.matrixWorld).invert();uniforms.captureNormalToWorld.value.getNormalMatrix(world.root.matrixWorld);};
   for(const [key,value]of Object.entries(resources.textures))uniforms[key]={value};
   const material=addPhotographicCapture(new THREE.MeshStandardMaterial({side:THREE.DoubleSide,roughness:1,envMapIntensity:.22}),uniforms);
-  const mesh=new THREE.Mesh(geometry,material);mesh.name='coastal-cliff-04-native-capture';mesh.receiveShadow=true;mesh.castShadow=true;world.root.add(mesh);
+  const mesh=new THREE.Mesh(geometry,material);mesh.name='coastal-cliff-04-native-capture';mesh.receiveShadow=true;mesh.castShadow=true;mesh.onBeforeRender=updateFrame;world.root.add(mesh);
   world.ground=mesh;world.foreground=mesh;world.surfaceMeshes=[mesh];world.terrainIndex=createFloorIndex([geometry],2);world.photographicGround=resources;
   const physical=[geometry];world.propMeshes=[];world.propSupport=[];
   const loader=new GLTFLoader();
@@ -52,7 +69,7 @@ export async function loadNearCapture(world){
   const rockMaterial=addPhotographicCapture(material.clone(),{...uniforms,forceMaterial:{value:0}});
   function place(template,x,z,rotation,rock=true){
     const geo=groundProp(template.geometry.clone(),world.terrainIndex,x+CAPTURE_SHIFT.x,z+CAPTURE_SHIFT.z,rotation,{sink:rock?.04:.012});if(!geo)return;
-    const prop=new THREE.Mesh(geo,rock?rockMaterial:template.material);prop.name=rock?'capture-grounded-rock':'capture-grounded-fern';prop.receiveShadow=true;prop.castShadow=true;
+    const prop=new THREE.Mesh(geo,rock?rockMaterial:template.material);prop.name=rock?'capture-grounded-rock':'capture-grounded-fern';prop.receiveShadow=true;prop.castShadow=true;prop.onBeforeRender=updateFrame;
     world.root.add(prop);world.propMeshes.push(prop);
     if(rock)physical.push(geo);
     world.propSupport.push({mesh:prop,scale:1});
@@ -65,7 +82,10 @@ export async function loadNearCapture(world){
   }
   [[-35.1,-1.55,1.1],[-34.2,-1.65,2.4],[-33.3,-1.6,.4],[-32.5,-1.8,3.7]].forEach(([x,z,ry],i)=>place(sources[3][i%sources[3].length],x,z,ry,false));
   world.foregroundIndex=world.terrainIndex;world.floorIndex=createFloorIndex(physical,2);world.floorIndex.meshes=[mesh,...world.propMeshes.filter(m=>m.name==='capture-grounded-rock')];
-  world.panorama=await world.textureLoader.loadAsync('/xianxia/textures/huangshan.webp');world.panorama.colorSpace=THREE.SRGBColorSpace;
-  world.makeHorizon();world.horizon.position.set(104,-110,-115.2);world.onProgress(1);
+  if(world.renderHorizon){
+    world.panorama=await world.textureLoader.loadAsync('/xianxia/textures/huangshan.webp');world.panorama.colorSpace=THREE.SRGBColorSpace;
+    world.makeHorizon();world.horizon.position.set(104,-110,-115.2);
+  }
+  world.onProgress(1);
   return world;
 }
