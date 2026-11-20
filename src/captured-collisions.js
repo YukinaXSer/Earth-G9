@@ -63,3 +63,28 @@ export function colliderContains(collider, x, z, margin = .4, groundY) {
   if (collider.parts) return collider.parts.some(part => colliderContains(part, x, z, margin, groundY));
   return groundY === undefined || collider.minY === undefined || collider.maxY >= groundY + .45 && collider.minY <= groundY + 2.05;
 }
+
+export function createColliderIndex(colliders, cellSize = 16) {
+  const cells = new Map(), cell = value => Math.floor(value / cellSize);
+  for (const collider of colliders) {
+    const radius = collider.radius ?? 0;
+    for (let z = cell(collider.z - radius); z <= cell(collider.z + radius); z++) {
+      for (let x = cell(collider.x - radius); x <= cell(collider.x + radius); x++) {
+        const key = `${x}:${z}`;
+        if (!cells.has(key)) cells.set(key, []);
+        cells.get(key).push(collider);
+      }
+    }
+  }
+  return {
+    query(x, z, radius = .4) {
+      const x0 = cell(x - radius), x1 = cell(x + radius), z0 = cell(z - radius), z1 = cell(z + radius);
+      if (x0 === x1 && z0 === z1) return cells.get(`${x0}:${z0}`) ?? [];
+      const nearby = new Set();
+      for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) {
+        for (const collider of cells.get(`${cx}:${cz}`) ?? []) nearby.add(collider);
+      }
+      return [...nearby];
+    },
+  };
+}

@@ -17,7 +17,7 @@ test('scene preparation waits for environment and terrain downloads, not only mo
   let finishEnvironment, finishTexture;
   const phases = [], frames = [];
   const world = {
-    habitat: { load: () => Promise.resolve(), compose() {}, flush() {} },
+    habitat: { load: () => Promise.resolve(), compose() {}, flush() {}, updateVisibility: () => frames.push('cull') },
     wildlife: { load: () => Promise.resolve() },
     environmentReady: new Promise(resolve => { finishEnvironment = resolve; }),
     textureLoads: [new Promise(resolve => { finishTexture = resolve; })],
@@ -35,6 +35,6 @@ test('scene preparation waits for environment and terrain downloads, not only mo
   finishTexture();
   await ready;
   assert.deepEqual(phases, ['compose', 'prepare']);
-  assert.deepEqual(frames, ['frame']);
+  assert.deepEqual(frames, ['cull', 'frame']);
   assert.equal(world.initializing, false);
 });

@@ -6,6 +6,7 @@ import { Habitat, modelVariantId } from '../src/habitat.js';
 import * as THREE from 'three';
 import { groundHeight, RIVER_LEVEL } from '../src/data.js';
 import { capturedRelief } from '../src/ground-relief.js';
+import { createColliderIndex } from '../src/captured-collisions.js';
 
 test('numeric rock-set objects remain individual grounded variants, not one floating six-rock collection', () => {
   assert.notEqual(modelVariantId('rock', 'rock_moss_set_01_rock01'), modelVariantId('rock', 'rock_moss_set_01_rock02'));
@@ -36,10 +37,11 @@ test('both quality levels populate the full map and preserve the river, trail an
 test('eligible ground samples across both river banks have local understory, not just the entrance strip', () => {
   for (const lowDetail of [false, true]) {
     const layout = createForestLayout(lowDetail);
+    const index = createColliderIndex(layout.understory);
     for (let z = BOUNDS.minZ; z <= BOUNDS.maxZ; z += 4) for (let x = BOUNDS.minX; x <= BOUNDS.maxX; x += 4) {
       if (!vegetationAllowed(x, z, 'understory')) continue;
-      const distance = Math.min(...layout.understory.map(p => Math.hypot(p.x - x, p.z - z)));
-      assert.ok(distance < (lowDetail ? 4.2 : 3.6), `unplanted ground at ${x},${z}: ${distance}`);
+      const radius = lowDetail ? 4.2 : 3.6;
+      assert.ok(index.query(x, z, radius).some(p => Math.hypot(p.x - x, p.z - z) < radius), `unplanted ground at ${x},${z}`);
     }
   }
 });
@@ -102,8 +104,8 @@ test('background canopy and low foliage surround every map edge, not only rings 
   const backdrop = createBackdropLayout();
   assert.ok(backdrop.canopy.length > 1300);
   assert.ok(backdrop.subcanopy.length > 1500);
-  for (const [x, z] of [[-52, -111], [0, -111], [52, -111], [-52, 51], [0, 51], [52, 51]]) {
-    const dx = x ? Math.sign(x) : 0, dz = z < 0 ? -1 : 1;
+  for (const [x, z] of [[BOUNDS.minX, BOUNDS.minZ], [0, BOUNDS.minZ], [BOUNDS.maxX, BOUNDS.minZ], [BOUNDS.minX, BOUNDS.maxZ], [0, BOUNDS.maxZ], [BOUNDS.maxX, BOUNDS.maxZ]]) {
+    const dx = x ? Math.sign(x) : 0, dz = z === BOUNDS.minZ ? -1 : 1;
     for (const distance of [40, 80, 140, 200]) {
       const px = x + dx * distance * .7, pz = z + dz * distance * .7;
       assert.ok(Math.min(...backdrop.canopy.map(p => Math.hypot(p.x - px, p.z - pz))) < 20, `missing distant canopy past ${x},${z}`);
@@ -130,11 +132,22 @@ test('large traversable trees retain the complete captured trunk and its native 
     models: new Map([['distant', [{ userData: { height: 3.4 } }]], ['rooted', [{ userData: { height: 12 } }]]]),
   };
   Habitat.prototype.backgroundTree.call(habitat, -44, 40, 4.5, .3);
-  assert.deepEqual(placed, [['rooted', -44, 40, 4.5 * 3.4 / 12, .3]]);
+  assert.deepEqual(placed, [['rooted', -44, 40, 4.5 * 3.4 / 12, .3], ['rooted-far', -44, 40, 4.5 * 3.4 / 12, .3]]);
   assert.equal(habitat.lodTrees.length, 0);
   placed.length = 0;
   Habitat.prototype.backgroundTree.call(habitat, -200, -200, 4.5, .3, true);
   assert.deepEqual(placed.map(p => p[0]), ['horizon']);
+});
+
+test('captured tree near and distant batches switch together without drawing both or leaving a gap', () => {
+  const center = new THREE.Vector3(50, 8, 0), radius = 12;
+  const near = { boundingSphere: new THREE.Sphere(center, radius), userData: { viewDistance: 36, minViewDistance: -Infinity } };
+  const far = { boundingSphere: near.boundingSphere.clone(), userData: { viewDistance: 240, minViewDistance: 36 } };
+  const habitat = { cells: [near, far], lodTrees: [] };
+  for (const x of [0, 1, 10, 30, 60, 100, 180]) {
+    Habitat.prototype.updateVisibility.call(habitat, new THREE.Vector3(x, 0, 0));
+    assert.notEqual(near.visible, far.visible);
+  }
 });
 
 test('captured soil skirts stay below terrain consistently in near and distant tree LODs', () => {
@@ -149,4 +162,20 @@ test('captured soil skirts stay below terrain consistently in near and distant t
   assert.ok(habitat.place('rooted', -43, 37, 1)[0].matrix.elements[13] <= groundHeight(-43, 37) - 1.3);
   assert.equal(habitat.place('broadleaf', -43, 37, 1)[0].matrix.elements[13], groundHeight(-43, 37));
   assert.equal(habitat.place('forest', -43, 37, 5, 0, 0, -2)[0].matrix.elements[13], -2);
+});
+
+test('LOW river reflections bound foliage submissions without changing main visibility, including on failure', () => {
+  for (const lowDetail of [true, false]) {
+    const makeCell = (x, visible) => ({ visible, boundingSphere: new THREE.Sphere(new THREE.Vector3(x, 0, 0), 2) });
+    const cells = [makeCell(10, true), makeCell(21, true), makeCell(30, true), makeCell(10, false)];
+    const habitat = { world: { lowDetail, position: new THREE.Vector3() }, cells };
+    const draw = () => {
+      assert.deepEqual(cells.map(m => m.visible), [true, true, !lowDetail, false]);
+      return 'drawn';
+    };
+    assert.equal(Habitat.prototype.renderWaterReflection.call(habitat, draw), 'drawn');
+    assert.deepEqual(cells.map(m => m.visible), [true, true, true, false]);
+    assert.throws(() => Habitat.prototype.renderWaterReflection.call(habitat, () => { draw(); throw new Error('render failed'); }), /render failed/);
+    assert.deepEqual(cells.map(m => m.visible), [true, true, true, false]);
+  }
 });

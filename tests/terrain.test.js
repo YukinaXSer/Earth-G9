@@ -2,10 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { Rainforest } from '../src/world.js';
-import { groundHeight, riverX, RIVER_LEVEL, BOUNDS } from '../src/data.js';
+import { groundHeight, riverX, RIVER_LEVEL, BOUNDS, FORDS, VIEWPOINTS, WALKING_ROUTES, distanceToTrail, isWalkableGround, mapProjection, loadView } from '../src/data.js';
 import { TERRAIN } from '../src/ground-relief.js';
 
 test('river and captured terrain extend beyond every playable boundary through the camera view distance', () => {
+  assert.ok(TERRAIN.width / 2 + BOUNDS.minX >= 220);
+  assert.ok(TERRAIN.width / 2 - BOUNDS.maxX >= 220);
+  assert.ok(BOUNDS.minZ - (TERRAIN.centerZ - TERRAIN.depth / 2) >= 220);
+  assert.ok(TERRAIN.centerZ + TERRAIN.depth / 2 - BOUNDS.maxZ >= 220);
   const world = { lowDetail: true, scene: new THREE.Scene(), rand: (min, max) => (min + max) / 2, floorMap: null, floorNormal: null, floorRoughness: null };
   Rainforest.prototype.makeTerrain.call(world);
   assert.equal(world.ground.material.envMapIntensity, .22);
@@ -19,20 +23,60 @@ test('river and captured terrain extend beyond every playable boundary through t
   }
 });
 
+test('expanded forest has connected dry routes and shallow crossings without permitting deep-water walking', () => {
+  assert.equal(BOUNDS.maxX - BOUNDS.minX, 312);
+  assert.equal(BOUNDS.maxZ - BOUNDS.minZ, 486);
+  for (const ford of FORDS) for (const dz of [-2, 0, 2]) {
+    const z = ford.z + dz;
+    for (let x = riverX(z) - 14; x <= riverX(z) + 14; x += .25) assert.ok(isWalkableGround(x, z), `blocked ford at ${x},${z}`);
+  }
+  for (const z of [-240, -100, 0, 60, 190]) assert.ok(!isWalkableGround(riverX(z), z));
+  for (const route of WALKING_ROUTES) for (let i = 1; i < route.points.length; i++) {
+    const [ax, az] = route.points[i - 1], [bx, bz] = route.points[i];
+    const steps = Math.ceil(Math.hypot(bx - ax, bz - az));
+    for (let j = 0; j <= steps; j++) {
+      const x = ax + (bx - ax) * j / steps, z = az + (bz - az) * j / steps;
+      assert.ok(isWalkableGround(x, z));
+      assert.ok(distanceToTrail(x, z) < .1);
+    }
+  }
+  for (const point of VIEWPOINTS) {
+    assert.ok(point.x > BOUNDS.minX && point.x < BOUNDS.maxX && point.z > BOUNDS.minZ && point.z < BOUNDS.maxZ);
+    assert.ok(distanceToTrail(point.x, point.z) < .1);
+    assert.ok(isWalkableGround(point.x, point.z));
+    assert.ok(Math.abs(point.x) > 52 || point.z < -111 || point.z > 51);
+  }
+});
+
+test('map projection preserves physical aspect ratio and includes new edges, trails and east-bank saved views', () => {
+  for (const [w, h] of [[540, 560], [300, 500]]) {
+    const { project, scale } = mapProjection(w, h);
+    for (const x of [BOUNDS.minX, BOUNDS.maxX]) for (const z of [BOUNDS.minZ, BOUNDS.maxZ]) {
+      const p = project(x, z); assert.ok(p.x >= 24 && p.x <= w - 24 && p.y >= 24 && p.y <= h - 24);
+    }
+    assert.ok(Math.abs((project(10, 0).x - project(0, 0).x) - (project(0, 10).y - project(0, 0).y)) < 1e-10);
+    assert.ok(scale > 0);
+  }
+  const view = { x: 105, z: -218, yaw: .3, pitch: .1 };
+  assert.deepEqual(loadView({ getItem: () => JSON.stringify(view) }), view);
+});
+
 test('water reaches the terrain-defined shoreline and fades with physical depth instead of a narrow ribbon edge', () => {
   const world = { lowDetail: true, scene: new THREE.Scene(), rand: (min, max) => (min + max) / 2, floorMap: null, floorNormal: null, floorRoughness: null };
   Rainforest.prototype.makeTerrain.call(world);
   const water = world.scene.children.find(node => node.material === world.waterMaterial);
   const positions = water.geometry.attributes.position, depth = water.geometry.attributes.waterDepth;
+  water.updateMatrixWorld();
   for (let i = 0; i < positions.count; i += 37) {
-    const x = positions.getX(i), z = positions.getZ(i);
-    assert.ok(Math.abs(positions.getY(i) - RIVER_LEVEL) < 1e-6);
+    const p = new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(water.matrixWorld);
+    const x = p.x, z = p.z;
+    assert.ok(Math.abs(p.y - RIVER_LEVEL) < 1e-6);
     assert.ok(Math.abs(depth.getX(i) - (RIVER_LEVEL - groundHeight(x, z))) < 1e-5);
   }
   for (let z = BOUNDS.minZ; z <= BOUNDS.maxZ; z += 2) for (const side of [-1, 1]) {
     assert.ok(groundHeight(riverX(z) + side * 9, z) > RIVER_LEVEL + .2);
   }
-  assert.match(world.waterMaterial.fragmentShader, /smoothstep\(0\.,\.1,vWaterDepth\)/);
+  assert.match(world.waterMaterial.fragmentShader, /smoothstep\(0\., \.14, vWaterDepth\)/);
 });
 
 test('wet litter keeps roughness variation and applies canopy occlusion to reflections', () => {
@@ -46,6 +90,10 @@ test('wet litter keeps roughness variation and applies canopy occlusion to refle
       world.ground.material.onBeforeCompile(shader);
       assert.match(shader.fragmentShader, /forestOcclusion = clamp\(texture2D\(forestShade, vForestUv\)\.r, 0\.55, 1\.0\)/);
       assert.match(shader.fragmentShader, /diffuseColor\.rgb \*= forestOcclusion/);
+      assert.match(shader.fragmentShader, /float submerged = shoreWetness \* smoothstep/);
+      assert.match(shader.fragmentShader, /saturatedBed \* vec3\(\.48, \.56, \.38\)/);
+      assert.match(shader.fragmentShader, /roughnessFactor = mix\(roughnessFactor, \.98, submerged\)/);
+      assert.match(shader.fragmentShader, /reflectedLight\.directSpecular \*= mix\(1\., \.08, submerged\)/);
       assert.match(shader.fragmentShader, /clamp\(roughnessFactor \* \.85, \.62, \.85\)/);
       assert.match(shader.fragmentShader, /reflectedLight\.indirectSpecular \*= forestOcclusion/);
       assert.equal(shader.fragmentShader.includes('reflectedLight.directSpecular *= forestOcclusion;'), lowDetail);

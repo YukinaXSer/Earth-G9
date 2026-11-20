@@ -164,11 +164,13 @@ kbd { font-family: inherit; border: 1px solid var(--border); padding: 4px 6px; b
 .species-detail-footer .primary-button { min-height: 45px; padding: 12px 16px; font-size: 11px; }
 .map-layout { display: grid; grid-template-columns: 1.35fr 1fr; gap: 30px; }
 .map-canvas-wrap { position: relative; border: 1px solid var(--paper-border); overflow: hidden; border-radius: 4px; }
-#map-canvas { display: block; width: 100%; height: 100%; max-height: 480px; object-fit: cover; }
+#map-canvas { display: block; width: 100%; height: auto; max-height: 480px; object-fit: contain; }
 .map-north { position: absolute; right: 18px; top: 15px; font-family: Georgia, serif; font-size: 14px; }
 .map-legend { position: absolute; bottom: 15px; left: 18px; display: flex; gap: 18px; font-size: 8px; }
 .map-legend i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #6a8759; margin-right: 4px; }
 .map-legend i.gold { background: #b48c42; }
+.map-legend i.landscape { border: 1px solid var(--ink); border-radius: 0; background: transparent; }
+.map-places { max-height: 480px; overflow-y: auto; }
 .map-places h3 { font-size: 10px; font-weight: 400; letter-spacing: 3px; margin: 2px 0 15px; color: var(--muted-ink); }
 .map-place { width: 100%; display: flex; align-items: center; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--paper-border); text-align: left; }
 .map-place:hover { background: #e6e8dc; }

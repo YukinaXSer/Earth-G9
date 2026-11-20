@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { Habitat } from './habitat.js';
 import { Wildlife } from './wildlife.js';
+import { createRiverWater } from './river-water.js';
 import { TERRAIN } from './ground-relief.js';
-import { colliderContains } from './captured-collisions.js';
+import { colliderContains, createColliderIndex } from './captured-collisions.js';
 import { DEFAULT_FOV, setFov, scaleView, bindLookControls } from './view-controls.js';
-import { SPECIES, PLANT_SITES, START, BOUNDS, groundHeight, riverX, RIVER_LEVEL } from './data.js';
+import { SPECIES, PLANT_SITES, VIEWPOINTS, START, BOUNDS, distanceToTrail, isWalkableGround, groundHeight, riverX, RIVER_LEVEL } from './data.js';
 
 function seededRandom(seed = 2718) {
   return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -84,6 +85,8 @@ export class Rainforest {
     this.floorMap = texture('wet-floor.jpg', true);
     this.floorNormal = texture('wet-floor-normal.jpg');
     this.floorRoughness = texture('forest-litter-roughness.jpg');
+    this.waterNormals = texture('water-normals.jpg');
+    this.waterNormals.repeat.set(1, 1);
   }
 
   async loadHabitat() {
@@ -93,7 +96,9 @@ export class Rainforest {
     this.habitat.compose();
     this.habitat.flush();
     this.makeLandmarks();
+    this.colliderIndex = createColliderIndex(this.colliders ?? []);
     this.makeGroundShadows();
+    this.habitat.updateVisibility(this.position);
     this.onLoading?.({ phase: 'prepare' });
     await this.renderer.compileAsync(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
@@ -106,17 +111,19 @@ export class Rainforest {
     if (this.lowDetail) this.scene.add(new THREE.AmbientLight('#dbe2d3', 1.1));
     this.sun = new THREE.DirectionalLight('#fff0ce', 3);
     this.sun.position.set(-24, 30, 12);
+    this.sunOffset = this.sun.position.clone();
     this.sun.castShadow = !this.lowDetail;
     Object.assign(this.sun.shadow.camera, { left: -50, right: 50, top: 55, bottom: -70, near: 1, far: 150 });
     this.sun.shadow.mapSize.set(1024, 1024);
     this.sun.shadow.bias = -0.001;
-    this.scene.add(this.sun);
+    this.scene.add(this.sun, this.sun.target);
     const hdrLoader = new HDRLoader(this.loadingManager);
     this.environmentReady = Promise.all([
       hdrLoader.loadAsync('/textures/rainforest-light.hdr'),
       hdrLoader.loadAsync('/textures/overcast-sky.hdr'),
       hdrLoader.loadAsync('/textures/sunny-sky.hdr'),
     ]).then(([hdr, sky, sunnySky]) => {
+      this.waterMaterial.uniforms.environmentSampler.value = hdr;
       hdr.mapping = THREE.EquirectangularReflectionMapping;
       this.scene.environment = hdr; this.scene.environmentIntensity = this.rainy ? .45 : .85;
       sky.mapping = THREE.EquirectangularReflectionMapping;
@@ -152,13 +159,12 @@ export class Rainforest {
     geometry.rotateX(-Math.PI / 2);
     const positions = geometry.attributes.position;
     const colors = [];
-    const forest = new THREE.Color('#ded2b6'), path = new THREE.Color('#c7bca4');
+    const forest = new THREE.Color('#ded2b6'), path = new THREE.Color('#c7bca4'), colorRandom = seededRandom(61491);
     for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i), z = positions.getZ(i) + TERRAIN.centerZ;
       positions.setZ(i, z); positions.setY(i, groundHeight(x, z));
-      const pathX = Math.sin(z * 0.06) * 1.4;
-      const mix = Math.max(0, 1 - Math.abs(x - pathX) / 1.2);
-      const color = forest.clone().lerp(path, mix * 0.7).multiplyScalar(this.rand(0.9, 1.05));
+      const mix = Math.max(0, 1 - distanceToTrail(x, z) / 1.2);
+      const color = forest.clone().lerp(path, mix * 0.7).multiplyScalar(.9 + colorRandom() * .15);
       colors.push(color.r, color.g, color.b);
     }
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geometry.computeVertexNormals();
@@ -182,32 +188,9 @@ export class Rainforest {
     waterGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(waterUvs, 2));
     waterGeometry.setAttribute('waterDepth', new THREE.Float32BufferAttribute(depths, 1));
     waterGeometry.setIndex(indices); waterGeometry.computeVertexNormals();
-    this.waterMaterial = new THREE.ShaderMaterial({
-      uniforms: { time: { value: 0 }, rain: { value: 0 }, fogColor: { value: new THREE.Color('#9eafa4') } },
-      transparent: true,
-      vertexShader: 'attribute float waterDepth; varying float vWaterDepth; varying vec3 vPos; varying vec2 vUv; varying float vDepth; void main(){vWaterDepth=waterDepth;vPos=position;vUv=uv;vec4 mv=modelViewMatrix*vec4(position,1.);vDepth=-mv.z;gl_Position=projectionMatrix*mv;}',
-      fragmentShader: `uniform float time; uniform float rain; uniform vec3 fogColor;
-        varying vec3 vPos; varying vec2 vUv; varying float vDepth; varying float vWaterDepth;
-        float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);}
-        void main(){
-          vec2 flow=vPos.xz*vec2(1.7,.55)+vec2(0.,time*.55);
-          float n=noise(flow)+noise(flow*2.13+3.1)*.5;
-          float streak=pow(max(0.,sin(n*12.+vPos.z*.9+time*1.2)),16.);
-          vec3 c=mix(vec3(.065,.12,.09),vec3(.21,.29,.22),n*.6)+streak*.065;
-          vec2 cell=floor(vPos.xz*1.2),local=fract(vPos.xz*1.2);
-          float age=fract(time*1.1+hash(cell));
-          float d=length(local-vec2(hash(cell+3.),hash(cell+7.)));
-          float ring=(1.-smoothstep(.012,.035,abs(d-age*.65)))*(1.-age)*rain;
-          c+=ring*.15;
-          float bank=1.-smoothstep(.03,.3,vWaterDepth);
-          c=mix(c,vec3(.19,.17,.11),bank*.55);
-          float f=1.-exp(-.000324*vDepth*vDepth);
-          float edgeFade=1.-smoothstep(.46,.5,abs(vUv.x-.5));
-          gl_FragColor=vec4(mix(c,fogColor,f),mix(.94,.4,bank)*smoothstep(0.,.1,vWaterDepth)*edgeFade);
-        }`,
-    });
-    this.scene.add(new THREE.Mesh(waterGeometry, this.waterMaterial));
+    this.water = createRiverWater(waterGeometry, this.waterNormals, this.lowDetail, render => this.habitat.renderWaterReflection(render));
+    this.waterMaterial = this.water.material;
+    this.scene.add(this.water);
   }
 
   makeGroundShadows() {
@@ -233,17 +216,22 @@ export class Rainforest {
         float riverDistance = abs(vForestGround.x - (24. + sin(vForestGround.z * .036) * 8.));
         float shoreWetness = (1. - smoothstep(10., 12., riverDistance)) * (1. - smoothstep(.02, .48, vForestGround.y - (${RIVER_LEVEL})));
         diffuseColor.rgb *= mix(vec3(1.), vec3(.62, .58, .48), shoreWetness);
+        float submerged = shoreWetness * smoothstep(0., .18, (${RIVER_LEVEL}) - vForestGround.y);
+        float bedLuminance = dot(diffuseColor.rgb, vec3(.2126, .7152, .0722));
+        vec3 saturatedBed = max(vec3(0.), mix(vec3(bedLuminance), diffuseColor.rgb, 1.2));
+        diffuseColor.rgb = mix(diffuseColor.rgb, saturatedBed * vec3(.48, .56, .38), submerged);
         float forestOcclusion = clamp(texture2D(forestShade, vForestUv).r, 0.55, 1.0);
-        diffuseColor.rgb *= forestOcclusion;`).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, clamp(roughnessFactor * .85, .62, .85), shoreWetness);')
+        diffuseColor.rgb *= forestOcclusion;`).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, clamp(roughnessFactor * .85, .62, .85), shoreWetness);\nroughnessFactor = mix(roughnessFactor, .98, submerged);')
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-        reflectedLight.indirectSpecular *= forestOcclusion;
+        reflectedLight.indirectSpecular *= forestOcclusion * mix(1., .08, submerged);
+        reflectedLight.directSpecular *= mix(1., .08, submerged);
         ${this.lowDetail ? 'reflectedLight.directSpecular *= forestOcclusion;' : ''}`);
     };
   }
 
   makeLandmarks() {
     for (const point of SPECIES.filter(s => ['fern', 'flower'].includes(s.id))) this.colliders.push({ x: point.x, z: point.z, radius: 1.1 });
-    for (const point of [...SPECIES, ...PLANT_SITES]) {
+    for (const point of [...SPECIES, ...PLANT_SITES, ...VIEWPOINTS]) {
       const isSeed = point.id.startsWith('seed');
       const group = new THREE.Group();
       group.position.set(point.x, groundHeight(point.x, point.z), point.z);
@@ -332,6 +320,8 @@ export class Rainforest {
     this.sunRays.visible = !rainy && !this.lowDetail;
     this.waterMaterial.uniforms.fogColor.value.copy(this.scene.fog.color);
     this.waterMaterial.uniforms.rain.value = Number(rainy);
+    this.waterMaterial.uniforms.sunColor?.value.set(rainy ? '#8eaa99' : '#fff0ce');
+    if (this.waterMaterial.uniforms.reflectionGain) this.waterMaterial.uniforms.reflectionGain.value = rainy ? .45 : .85;
     this.ground.material.roughness = rainy ? .55 : .9;
     this.ground.material.envMapIntensity = rainy ? .4 : .22;
     this.ground.material.color.set(rainy ? '#a1aaa0' : '#ffffff');
@@ -350,18 +340,19 @@ export class Rainforest {
 
   addCollider(collider) {
     this.colliders.push(collider);
+    this.colliderIndex = createColliderIndex(this.colliders);
     this.recoverPosition();
   }
 
   recoverPosition() {
     const free = (x, z) => {
       const floor = groundHeight(x, z);
-      return !this.colliders.some(c => colliderContains(c, x, z, .4, floor));
+      return x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ && isWalkableGround(x, z) && !(this.colliderIndex?.query(x, z) ?? this.colliders).some(c => colliderContains(c, x, z, .4, floor));
     };
     if (free(this.position.x, this.position.z)) return;
     for (let radius = .5; radius <= 12; radius += .5) for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 12) {
       const x = this.position.x + Math.sin(angle) * radius, z = this.position.z + Math.cos(angle) * radius;
-      if (x < BOUNDS.minX || x > Math.min(BOUNDS.maxX, riverX(z) - 5.3) || z < BOUNDS.minZ || z > BOUNDS.maxZ || !free(x, z)) continue;
+      if (!free(x, z)) continue;
       this.position.set(x, 0, z); return;
     }
     this.resetPosition();
@@ -393,17 +384,19 @@ export class Rainforest {
       const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 8 : 4.3) * dt / length;
       const steps = Math.ceil(dt / 0.035);
       for (let step = 0; step < steps; step++) {
-        const nx = this.position.x + (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * speed / steps;
-        const nz = this.position.z + (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side) * speed / steps;
+        const nx = THREE.MathUtils.clamp(this.position.x + (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * speed / steps, BOUNDS.minX, BOUNDS.maxX);
+        const nz = THREE.MathUtils.clamp(this.position.z + (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side) * speed / steps, BOUNDS.minZ, BOUNDS.maxZ);
         const floor = groundHeight(nx, nz);
-        const blocked = this.colliders.some(c => colliderContains(c, nx, nz, .4, floor));
+        const blocked = !isWalkableGround(nx, nz) || this.colliderIndex.query(nx, nz).some(c => colliderContains(c, nx, nz, .4, floor));
         if (!blocked) {
-          this.position.x = THREE.MathUtils.clamp(nx, BOUNDS.minX, Math.min(BOUNDS.maxX, riverX(nz) - 5.3));
-          this.position.z = THREE.MathUtils.clamp(nz, BOUNDS.minZ, BOUNDS.maxZ);
+          this.position.x = nx;
+          this.position.z = nz;
         }
       }
       moving = !!(forward || side);
     }
+    this.sun.position.copy(this.position).add(this.sunOffset);
+    this.sun.target.position.copy(this.position);
     this.camera.position.set(this.position.x, groundHeight(this.position.x, this.position.z) + 1.85 + (moving ? Math.sin(t * 9) * 0.035 : Math.sin(t * 0.8) * 0.012), this.position.z);
     const introYaw = !this.active ? Math.sin(t * 0.09) * 0.075 : 0;
     this.camera.rotation.set(this.pitch, this.yaw + introYaw, 0, 'YXZ');
