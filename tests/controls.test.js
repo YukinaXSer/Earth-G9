@@ -64,6 +64,9 @@ test('keyboard lens zoom respects editing, modifier and pause guards and does no
     listeners.keyup({ code: 'Equal' });
     press('Slash', { key: '-' }); assert.ok(camera.fov > 60);
     press('Digit0');
+    press('KeyA', { key: '-' }); assert.equal(camera.fov, 60); assert.ok(world.keys.has('KeyA'));
+    listeners.keyup({ code: 'KeyA' });
+    press('KeyP', { key: '+' }); assert.equal(camera.fov, 60);
     press('Equal', { ctrlKey: true }); assert.equal(camera.fov, 60);
     press('Equal', { target: { closest: () => true } }); assert.equal(camera.fov, 60);
     world.paused = true; press('Minus'); assert.equal(camera.fov, 60);
