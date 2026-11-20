@@ -53,11 +53,17 @@ test('keyboard lens zoom respects editing, modifier and pause guards and does no
     world.zoomView = factor => Rainforest.prototype.zoomView.call(world, factor);
     world.resetZoom = () => Rainforest.prototype.resetZoom.call(world);
     Rainforest.prototype.setupControls.call(world);
-    const press = (code, extra = {}) => listeners.keydown({ code, target: { closest: () => null }, preventDefault() {}, ...extra });
+    const press = (code, extra = {}) => listeners.keydown({ code, key: { Equal: '=', Digit0: '0', NumpadSubtract: '-', Numpad0: '0', Minus: '-' }[code], target: { closest: () => null }, preventDefault() {}, ...extra });
     press('Equal'); assert.ok(camera.fov < 60);
     press('Digit0'); assert.equal(camera.fov, 60);
     press('NumpadSubtract'); assert.ok(camera.fov > 60);
     press('Numpad0'); assert.equal(camera.fov, 60);
+    press('BracketRight', { key: '+' }); assert.ok(camera.fov < 60);
+    press('Digit0');
+    press('Equal', { key: 'Dead' }); assert.equal(camera.fov, 60);
+    listeners.keyup({ code: 'Equal' });
+    press('Slash', { key: '-' }); assert.ok(camera.fov > 60);
+    press('Digit0');
     press('Equal', { ctrlKey: true }); assert.equal(camera.fov, 60);
     press('Equal', { target: { closest: () => true } }); assert.equal(camera.fov, 60);
     world.paused = true; press('Minus'); assert.equal(camera.fov, 60);

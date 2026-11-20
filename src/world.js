@@ -282,9 +282,9 @@ export class Rainforest {
     window.addEventListener('keydown', event => {
       if (!this.active || this.paused || event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable || event.target.closest?.('input,textarea,select')) return;
       if (event.target.closest?.('button') && event.code === 'Space') return;
-      const factor = { Equal: .85, NumpadAdd: .85, Minus: 1 / .85, NumpadSubtract: 1 / .85 }[event.code];
+      const factor = { '+': .85, '=': .85, '-': 1 / .85 }[event.key];
       if (factor) { event.preventDefault(); this.zoomView(factor); return; }
-      if (['Digit0', 'Numpad0'].includes(event.code)) { event.preventDefault(); this.resetZoom(); return; }
+      if (event.key === '0') { event.preventDefault(); this.resetZoom(); return; }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) event.preventDefault();
       this.keys.add(event.code);
     });
