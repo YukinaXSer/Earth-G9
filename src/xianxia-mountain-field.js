@@ -4,7 +4,7 @@ import {createFloorIndex} from './xianxia-world.js';
 import {loadPhotographicGround,ensureSurfaceNormals,addPhotographicCapture} from './xianxia-surface.js';
 import {CAPTURE_SHIFT,gradeCaptureApproach,groundProp} from './xianxia-near.js';
 import {MOUNTAIN_ENTRANCE} from './xianxia-mountain.js';
-import {decodeMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD} from './xianxia-mountain-geometry.js';
+import {decodeMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainCell} from './xianxia-mountain-geometry.js';
 import {MountainTileSurface} from './xianxia-mountain-surface.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {mountainPathDistance} from './xianxia-mountain-route.js';
@@ -81,15 +81,14 @@ export async function loadMountainField(world){
     uniforms.captureNormalToWorld.value.getNormalMatrix(world.root.matrixWorld);
   };
   const material=addPhotographicCapture(new THREE.MeshStandardMaterial({side:THREE.DoubleSide,roughness:1,envMapIntensity:.22}),uniforms);
-  const surface=new MountainTileSurface(),groups=new Map(),cache=new Map();
+  const surface=new MountainTileSurface(),cache=new Map(),native=new Map();
   world.floorIndex=world.terrainIndex=world.foregroundIndex=surface;
   world.photographicGround=resources;world.surfaceMeshes=[];world.propMeshes=[];
-  function addBlock(block){
-    const group=new THREE.Group(),mirrored=Math.abs(block%2)===1;
-    group.position.x=mirrored?2*MOUNTAIN_BASE_X+(block+1)*MOUNTAIN_PERIOD:block*MOUNTAIN_PERIOD;
-    group.scale.x=mirrored?-1:1;world.root.add(group);groups.set(block,group);
+  const matrix=new THREE.Matrix4(),translation=new THREE.Vector3(),scale=new THREE.Vector3(),rotation=new THREE.Quaternion();
+  function cellMatrix(block,band){
+    const cell=mountainCell(block,band);
+    return matrix.compose(translation.set(cell.x,0,cell.z),rotation,scale.set(cell.scaleX,1,cell.scaleZ));
   }
-  for(let block=-8;block<=8;block++)addBlock(block);
   async function tile(phase,lod){
     const key=phase+':'+lod;
     if(!cache.has(key))cache.set(key,(async()=>{
@@ -98,6 +97,7 @@ export async function loadMountainField(world){
       const geometry=decodeMountainGeometry(await response.arrayBuffer());
       if(phase===0)gradeCaptureApproach(geometry);
       const data={phase,lod,geometry,index:createFloorIndex([geometry],2)};
+      if(lod==='near'||!native.has(phase))native.set(phase,data.index);
       return data;
     })());
     return cache.get(key);
@@ -105,7 +105,11 @@ export async function loadMountainField(world){
   const slots=new Map();
   const rockMaterial=addPhotographicCapture(material.clone(),{...uniforms,forceMaterial:{value:0}});
   function decorate(phase,data){
-    const rocks=[],trees=[],floor={heightAt:(x,z)=>data.index.heightAt(x,z)??surface.heightAt(x,z)};
+    const rocks=[],trees=[],floor={heightAt:(x,z)=>{
+      const height=data.index.heightAt(x,z);if(height!=null)return height;
+      let h=-Infinity;for(const index of native.values())h=Math.max(h,index.heightAt(x,z)??-Infinity);
+      return Number.isFinite(h)?h:null;
+    }};
     const placeRock=(template,x,z,sink,rotation)=>{
       const box=template.boundingBox;
       const radius=Math.hypot(box.max.x-box.min.x,box.max.z-box.min.z)/2;
@@ -173,49 +177,65 @@ export async function loadMountainField(world){
       if(wood.length){const index=createFloorIndex(wood,2);data.propIndices.push({geometries:wood,heightAt:()=>null,canMove:(...args)=>index.canMove(...args)});}
     }
   }
-  function show(block,phase,data,lod){
-    const key=block+':'+phase,slot=slots.get(key)??{};
+  function show(block,band,phase,data,lod){
+    const slot=slots.get(block+':'+band+':'+phase);
     if(slot.lod===lod)return;
     if(lod==='near'&&!data.props)decorate(phase,data);
-    if(slot.mesh)slot.mesh.removeFromParent();
-    slot.props?.removeFromParent();
-    const mesh=new THREE.Mesh(data.geometry,material);
-    mesh.name='native-mountain';mesh.onBeforeRender=frame;
-    mesh.receiveShadow=true;mesh.castShadow=true;groups.get(block).add(mesh);
-    const props=data.props?.clone();if(props)groups.get(block).add(props);
-    slots.set(key,{mesh,lod,props});surface.set(block,phase,[data.index,...(data.propIndices??[])]);
-    if(block===0&&phase===0)world.ground=world.foreground=mesh;
+    slot.group?.removeFromParent();slot.group=null;
+    slot.batch.mesh.setVisibleAt(slot.id,lod==='far');
+    if(lod==='near'){
+      const group=new THREE.Group();group.applyMatrix4(cellMatrix(block,band));
+      const mesh=new THREE.Mesh(data.geometry,material);mesh.name='native-mountain';mesh.onBeforeRender=frame;
+      mesh.receiveShadow=true;mesh.castShadow=true;group.add(mesh);
+      if(data.props)group.add(data.props.clone());world.root.add(group);slot.group=group;
+      if(block===0&&band===0&&phase===0)world.ground=world.foreground=mesh;
+    }
+    slot.lod=lod;surface.set(block,phase,[data.index,...(data.propIndices??[])],band);
   }
   const far=await Promise.all(manifest.tiles.map((_,phase)=>tile(phase,'far')));
-  for(const b of groups.keys())for(let p=0;p<4;p++)show(b,p,far[p],'far');
+  const extentX=8,extentZ=16,batches=far.map(data=>Array.from({length:4},(_,mirror)=>{
+    const mesh=new THREE.BatchedMesh((extentX+1)*(extentZ+1),data.geometry.attributes.position.count,data.geometry.index.count,material);
+    const geometry=mesh.addGeometry(data.geometry),before=mesh.onBeforeRender;
+    mesh.scale.set(mirror%2?-1:1,1,mirror>=2?-1:1);
+    mesh.name='native-mountain-far';mesh.frustumCulled=false;mesh.receiveShadow=true;
+    mesh.onBeforeRender=function(...args){frame();before.apply(this,args);};world.root.add(mesh);
+    return {mesh,geometry};
+  }));
+  let windowBlock,windowBand;
+  function windowAt(block,band){
+    if(block===windowBlock&&band===windowBand)return;
+    for(const[key,slot]of slots)if(Math.abs(slot.block-block)>extentX||Math.abs(slot.band-band)>extentZ){
+      slot.group?.removeFromParent();slot.batch.mesh.deleteInstance(slot.id);
+      surface.delete(slot.block,slot.phase,slot.band);slots.delete(key);
+    }
+    for(let b=block-extentX;b<=block+extentX;b++)for(let r=band-extentZ;r<=band+extentZ;r++)for(let p=0;p<4;p++){
+      const key=b+':'+r+':'+p;if(slots.has(key))continue;
+      const cell=mountainCell(b,r),batch=batches[p][Math.abs(b%2)+Math.abs(r%2)*2],id=batch.mesh.addInstance(batch.geometry);
+      batch.mesh.setMatrixAt(id,matrix.makeTranslation(cell.x*cell.scaleX,0,cell.z*cell.scaleZ));
+      slots.set(key,{block:b,band:r,phase:p,id,batch});show(b,r,p,far[p],'far');
+    }
+    windowBlock=block;windowBand=band;
+  }
+  windowAt(0,0);
   const [first,next]=await Promise.all([tile(0,'near'),tile(1,'near')]);
-  surface.set(0,0,[first.index]);surface.set(0,1,[next.index]);
-  show(0,1,next,'near');show(0,0,first,'near');
-  show(-1,0,first,'near');show(-1,1,next,'near');
+  show(0,0,1,next,'near');show(0,0,0,first,'near');
+  show(-1,0,0,first,'near');show(-1,0,1,next,'near');
   let pending=Promise.resolve();const queued=new Set();
-  world.updateMountain=x=>{
-    if(!Number.isSafeInteger(Math.round(x)))return Promise.reject(new Error('Invalid mountain position'));
-    const station=(x-MOUNTAIN_BASE_X)/MOUNTAIN_PERIOD;
-    const current=Math.floor(station);
-    for(let b=current-8;b<=current+8;b++)if(!groups.has(b)){
-      addBlock(b);for(let p=0;p<4;p++)show(b,p,far[p],'far');
-    }
-    for(const [b,group]of groups)if(Math.abs(b-current)>8){
-      group.removeFromParent();groups.delete(b);
-      for(let p=0;p<4;p++){surface.delete(b,p);slots.delete(b+':'+p);}
-    }
-    for(const [b,group]of groups)for(let p=0;p<4;p++){
-      const center=group.position.x+group.scale.x*(MOUNTAIN_BASE_X+mountainStation(p*16+8));
-      if(Math.abs(center-x)>60&&slots.get(b+':'+p)?.lod==='near')show(b,p,far[p],'far');
-    }
-    for(let b=current-1;b<=current+1;b++)for(let p=0;p<4;p++){
-      const group=groups.get(b),center=group.position.x+group.scale.x*(MOUNTAIN_BASE_X+mountainStation(p*16+8));
-      const key=b+':'+p;
-      if(Math.abs(center-x)>60){if(slots.get(key)?.lod==='near')show(b,p,far[p],'far');continue;}
-      if(Math.abs(center-x)>32||slots.get(key)?.lod==='near'||queued.has(key))continue;
+  world.updateMountain=(x,z=MOUNTAIN_ENTRANCE.position.z)=>{
+    if(!Number.isSafeInteger(Math.round(x))||!Number.isSafeInteger(Math.round(z)))return Promise.reject(new Error('Invalid mountain position'));
+    const current=Math.floor((x-MOUNTAIN_BASE_X)/MOUNTAIN_PERIOD),band=Math.floor((z-MOUNTAIN_BASE_Z+MOUNTAIN_WIDTH/2)/MOUNTAIN_WIDTH);
+    windowAt(current,band);
+    const distance=(b,r,p)=>{
+      const cell=mountainCell(b,r),cx=cell.x+cell.scaleX*(MOUNTAIN_BASE_X+mountainStation(p*16+8)),cz=cell.z+cell.scaleZ*MOUNTAIN_BASE_Z;
+      return Math.max(Math.abs(cx-x),Math.max(0,Math.abs(cz-z)-MOUNTAIN_WIDTH/2));
+    };
+    for(const slot of slots.values())if(slot.lod==='near'&&distance(slot.block,slot.band,slot.phase)>60)show(slot.block,slot.band,slot.phase,far[slot.phase],'far');
+    for(let b=current-1;b<=current+1;b++)for(let r=band-1;r<=band+1;r++)for(let p=0;p<4;p++){
+      const key=b+':'+r+':'+p;
+      if(distance(b,r,p)>32||slots.get(key)?.lod==='near'||queued.has(key))continue;
       queued.add(key);
       pending=pending.then(async()=>{
-        const data=await tile(p,'near');await warm(data);if(groups.has(b))show(b,p,data,'near');
+        const data=await tile(p,'near');await warm(data);if(slots.has(key))show(b,r,p,data,'near');
       }).catch(error=>{world.streamingError=error;}).finally(()=>queued.delete(key));
     }
     return pending;

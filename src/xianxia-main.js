@@ -97,8 +97,8 @@ async function boot(){try{
   let spawn={x:link.offset.x+MOUNTAIN_ENTRANCE.position.x,z:link.offset.z+MOUNTAIN_ENTRANCE.position.z,yaw:MOUNTAIN_ENTRANCE.yaw,pitch:.015};
   if(progress.position){
     const saved=progress.position,local=link.local(saved.x,saved.z);
-    if(Number.isSafeInteger(Math.round(local.x))){
-      await withTimeout(link.world.updateMountain(local.x),90000);
+    if(Number.isSafeInteger(Math.round(local.x))&&Number.isSafeInteger(Math.round(local.z))){
+      await withTimeout(link.world.updateMountain(local.x,local.z),90000);
       if(link.world.streamingError)throw link.world.streamingError;
       if(link.canWalk(saved.x,saved.z))spawn=saved;
       else await withTimeout(link.world.updateMountain(MOUNTAIN_ENTRANCE.position.x),90000);

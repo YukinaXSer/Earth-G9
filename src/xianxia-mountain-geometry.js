@@ -3,6 +3,16 @@ import * as THREE from 'three';
 export const MOUNTAIN_PERIOD=66;
 export const MOUNTAIN_BASE_X=97;
 export const MOUNTAIN_BASE_Z=-108.96188612599644;
+export const MOUNTAIN_WIDTH=32;
+
+export function mountainCell(block,band=0){
+  const scaleX=Math.abs(block%2)===1?-1:1,scaleZ=Math.abs(band%2)===1?-1:1;
+  return {
+    scaleX,scaleZ,
+    x:block*MOUNTAIN_PERIOD+(scaleX<0?2*MOUNTAIN_BASE_X+MOUNTAIN_PERIOD:0),
+    z:band*MOUNTAIN_WIDTH+(1-scaleZ)*MOUNTAIN_BASE_Z,
+  };
+}
 
 export function mountainStation(u){
   return u<1?2*Math.sqrt(Math.max(0,u)):u>63?66-2*Math.sqrt(Math.max(0,64-u)):u+1;

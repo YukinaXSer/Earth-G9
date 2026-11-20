@@ -79,8 +79,18 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   const inverse=shader.uniforms.captureWorldToLocal.value;
   const point=new THREE.Vector3(104,1,-115.2),worldPoint=point.clone().applyMatrix4(mesh.matrixWorld);
   assert.ok(worldPoint.applyMatrix4(inverse).distanceTo(point)<1e-6);
-  assert.match(shader.vertexShader,/captureWorldToLocal\*modelMatrix/);
+  assert.match(shader.vertexShader,/captureWorldToLocal\*photoModelMatrix/);
+  assert.match(shader.vertexShader,/photoModelMatrix\*=batchingMatrix/);
+  assert.match(shader.vertexShader,/photoModelMatrix\*=instanceMatrix/);
   assert.match(shader.fragmentShader,/captureNormalToWorld\*photoSurface.n/);
+  const batches=[];mountain.group.traverse(object=>{if(object.isBatchedMesh)batches.push(object);});
+  assert.equal(batches.length,16);
+  for(const batch of batches){
+    const matrix=new THREE.Matrix4();batch.getMatrixAt(0,matrix);
+    assert.equal(matrix.determinant(),1);
+    assert.ok(batch.perObjectFrustumCulled);
+  }
+  assert.notEqual(mountain.world.floorIndex.heightAt(151.147,-85),null);
   const count=requested.length;
   assert.equal(mountain.world.floorIndex.heightAt(798,-110.9),null);
   await mountain.world.updateMountain(798);
@@ -93,6 +103,11 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   await mountain.world.updateMountain(135);
   assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,4);
   await assert.rejects(mountain.world.updateMountain(1e100),/Invalid mountain position/);
+  await assert.rejects(mountain.world.updateMountain(100.5,1e100),/Invalid mountain position/);
+  await mountain.world.updateMountain(798,4000);
+  assert.notEqual(mountain.world.floorIndex.heightAt(798,4000),null);
+  assert.equal(mountain.world.floorIndex.heightAt(798,-110.9),null);
+  await mountain.world.updateMountain(798);
   const resident=mountain.world.floorIndex.tiles.size;
   await mountain.world.updateMountain(4000);
   assert.ok(mountain.world.floorIndex.tiles.size<=resident);

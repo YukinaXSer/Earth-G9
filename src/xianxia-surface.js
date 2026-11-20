@@ -50,7 +50,16 @@ export function addPhotographicCapture(material,uniforms){
   uniforms.captureGroundProfile??={value:null};uniforms.captureUseProfile??={value:false};uniforms.captureProfileSize??={value:1};uniforms.captureCorridorOrigin??={value:new THREE.Vector2()};
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);
-    shader.vertexShader='uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nposM=(captureWorldToLocal*modelMatrix*vec4(position,1.)).xyz-patchOrigin;normM=mat3(captureWorldToLocal*modelMatrix)*normal;');
+    shader.vertexShader='uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      mat4 photoModelMatrix=modelMatrix;
+      #ifdef USE_BATCHING
+        photoModelMatrix*=batchingMatrix;
+      #endif
+      #ifdef USE_INSTANCING
+        photoModelMatrix*=instanceMatrix;
+      #endif
+      posM=(captureWorldToLocal*photoModelMatrix*vec4(position,1.)).xyz-patchOrigin;
+      normM=mat3(captureWorldToLocal*photoModelMatrix)*normal;`);
     shader.fragmentShader='uniform mat3 captureNormalToWorld; uniform vec2 captureReflectance; uniform sampler2D captureGroundProfile; uniform bool captureUseProfile; uniform float captureProfileSize; uniform vec2 captureCorridorOrigin;\n'+photographicSurfaceGLSL+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
@@ -63,7 +72,8 @@ export function addPhotographicCapture(material,uniforms){
         float station=mod(posM.x+captureCorridorOrigin.x,132.);if(station>66.)station=132.-station;
         float u=station<2.?station*station*.25:station>64.?64.-(66.-station)*(66.-station)*.25:station-1.;
         vec2 edges=texture2D(captureGroundProfile,vec2((u/64.*(captureProfileSize-1.)+.5)/captureProfileSize,.5)).rg*32.-16.;
-        float lateral=posM.z-captureCorridorOrigin.y;region=min(lateral-edges.x,edges.y-lateral);
+        float lateral=mod(posM.z-captureCorridorOrigin.y+16.,64.);if(lateral>32.)lateral=64.-lateral;lateral-=16.;
+        region=min(lateral-edges.x,edges.y-lateral);
       }
       float mask=smoothstep(-groundMixWidth*.5,groundMixWidth*.5,region);if(forceMaterial>=0.)mask=forceMaterial;
       Surface photoSurface;
@@ -78,7 +88,7 @@ export function addPhotographicCapture(material,uniforms){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v4';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v5';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){

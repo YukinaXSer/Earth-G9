@@ -82,7 +82,7 @@ export class XianxiaLink {
   canWalk(x,z,fromX=x,fromZ=z) {const p=this.local(x,z),from=this.local(fromX,fromZ);if(this.nearOnly)return this.world.canWalkGround(p.x,p.z,from.x,from.z);return p.z>CAVE_LENGTH&&p.z<CAVE_LENGTH+14&&Math.abs(p.x)<3.5||(p.z>0&&p.z<CAVE_LENGTH&&this.world.canWalkCave?this.world.canWalkCave(p.x,p.z):canWalkMountain(p.x,p.z)&&this.world.canWalkGround(p.x,p.z,from.x,from.z));}
   groundHeight(x,z){const p=this.local(x,z);return p.z>CAVE_LENGTH&&this.approachFloorIndex?(this.approachFloorIndex.heightAt(x,z)??this.world.groundHeight(p.x,p.z)+this.offset.y):this.world.groundHeight(p.x,p.z)+this.offset.y;}
   update(position,time) {
-    if(this.nearOnly){this.world.updateMountain?.(position.x-this.offset.x);this.sun.position.copy(this.forest.sun.position);this.sun.target.position.copy(this.forest.sun.target.position);return this.scene;}
+    if(this.nearOnly){this.world.updateMountain?.(position.x-this.offset.x,position.z-this.offset.z);this.sun.position.copy(this.forest.sun.position);this.sun.target.position.copy(this.forest.sun.target.position);return this.scene;}
     const p=this.local(position.x,position.z),mountain=p.z<CAVE_LENGTH*.53;
     const dark=this.world.caveDarkness?this.world.caveDarkness(p.x,p.z):caveAmount(p.x,p.z);
     if(dark>0&&!this.forestState){const s=this.forest.scene;this.forestState={background:s.background,environment:s.environmentIntensity,color:s.fog.color.clone(),density:s.fog.density,lights:this.forestLights.map(light=>[light,light.intensity])};}

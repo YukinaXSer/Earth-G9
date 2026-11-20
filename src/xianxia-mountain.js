@@ -51,7 +51,7 @@ export class XianxiaMountain {
     this.frame();
     this.from.set(fromX,this.origin.y,fromZ).applyMatrix4(this.inverse);
     this.to.set(toX,this.origin.y,toZ).applyMatrix4(this.inverse);
-    if(this.world.floorIndex.heightAt(this.from.x,this.from.z)!=null)this.world.updateMountain?.(this.from.x);
+    if(this.world.floorIndex.heightAt(this.from.x,this.from.z)!=null)this.world.updateMountain?.(this.from.x,this.from.z);
     return this.world.floorIndex.canMove(this.from.x,this.from.z,this.to.x,this.to.z);
   }
 }
