@@ -1,7 +1,7 @@
 # 青岚境：独立试玩与接入边界
 
 ## 本次范围
-基于 Earth-G9 稳定原地图，不启用正式主入口洞穴。src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
+基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
 
 Node 24：`npm ci && npm test && npm run build`，`npm run dev` 后打开 /xianxia.html。原 / 仍是原雨林，未接洞。生产服务沿用 server.js；用 PORT、STATIC_DIR 指向隔离的构建快照。
 
@@ -10,7 +10,8 @@ Node 24：`npm ci && npm test && npm run build`，`npm run dev` 后打开 /xianx
 演示锚点显式选在稳定图内 (0,-90)，y 来自原 groundHeight。这不是已批准的正式洞口；原扩图建议的 (72,-230) 在稳定图界外，不应启用。正式入口和固定雨林网址仍由雨林方整合发布。
 
 ## 模块
-- xianxia-world.js：完整苔石、摄影岩壁连续山体、摄影材质松树模型烘焙景片、实拍 PBR/位移、黄山远景。
+- xianxia-world.js：黄山实测山体、摄影材质松树模型烘焙景片、实拍 PBR、摄影远景；旧洞口仍在替换。
+- xianxia-terrain.js / xianxia-terrain-data.json：黄山 SRTM 实测高程与原始瓦片校验；约 30 m 原生采样、12 m 插值渲染，不夸称近地扫描。
 - xianxia-route.js：约 2.6 km 主径、支路、约 140 m 双向洞穴、六处手记地标。
 - xianxia-link.js：可换锚点的场景、地面、碰撞适配器。
 - xianxia-demo-runtime.js：独立演示循环，非正式雨林主循环。
@@ -43,4 +44,6 @@ clearApproach:true 只修改启用模块的场景实例：隐藏局部植被与 
 演示子类是可运行参考，不是应覆盖正式循环的整文件补丁。正式锚点还需现场核对地形、净空、河道及恢复位置逻辑。
 
 ## 真实来源与边界
-黄山远景为授权摄影，不可走近；近景为真实扫描资源重新布局。洞口用完整苔石模型重新布局，洞内连续底壳用摄影岩壁 PBR/真实位移并叠加扫描岩体，并非完整实洞扫描。松树为完整摄影材质模型离线烘焙透明景片，并非整树原始照片。路线是人工设计的虚构仙山，不声称还原黄山或武当。来源/作者/改制见 public/xianxia/ASSET-CREDITS.txt；原雨林全部许可保留。运行时无外部 CDN 或下载凭证。
+黄山远景为授权摄影，不可走近；整片山体来自黄山 SRTM 实测高程，不再根据路线距离制造坡壁。原生横向分辨率约 30 m，仅做插值、相对高度平移，没有纵向夸张；近地岩面细节仍由实拍材质和扫描资源补充。EOX 2016 Sentinel-2 影像按真实地理坐标铺设，使用允许商业使用的 CC BY 4.0 版本。
+
+旧叠石洞口和洞内摄影材质底壳仍在替换，尚未通过新一轮画面验收。松树为完整摄影材质模型离线烘焙透明景片，并非整树原始照片。路线是人工设计，不声称还原真实黄山步道。来源、作者、改制和重建脚本见 public/xianxia/ASSET-CREDITS.txt；原雨林全部许可保留。运行时无外部 CDN 或下载凭证。

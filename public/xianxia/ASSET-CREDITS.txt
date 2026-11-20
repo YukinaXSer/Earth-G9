@@ -1,6 +1,31 @@
 青岚境 / Earth 2 Xianxia — material provenance
 ===========================================
-This is an interpreted, fictional walkable landscape, NOT a survey or digital twin of Huangshan or Wudang. Route layout, camera, placement, collisions and cave arrangement are authored. The background photograph is not walkable geometry. Photographed material displacement adds local trail relief; it does not represent surveyed mountain elevations. The cave uses repeated scanned rock surfaces, not a measured cave scan.
+This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Mountain elevations now come from measured Huangshan terrain, not profiles invented around the route. The background photograph is not walkable geometry. The cave is still being replaced; its current backing is NOT a measured cave scan.
+
+Measured Huangshan landscape and georeferenced imagery
+-----------------------------------------------------
+Terrain elevations: USGS SRTM, approximately 30 m native horizontal resolution,
+distributed by Mapzen Terrain Tiles (public-domain USGS data; retain attribution).
+https://registry.opendata.aws/terrain-tiles/
+https://github.com/tilezen/joerd/tree/master/docs
+AOI origin: 30.119 N, 118.161 E, Huangshan, China. Local datum is translated to
+7 m at the cave exit without vertical exaggeration. Native elevation samples
+are cropped, quantized to 0.125 m, interpolated and meshed at 12 m. This does
+NOT make the source a 12 m survey, nor resolve near-ground rocks or overhangs.
+The authored hiking ribbon follows that measured surface; it does not define
+or deform the surrounding hills. No noise-based or route-distance mountains.
+Source tile URLs and SHA-256 hashes: src/xianxia-terrain-data.json.
+Reproducer: scripts/import-xianxia-terrain.py EXISTING_DOWNLOAD_CACHE_DIRECTORY
+(Python dependencies: numpy, Pillow, requests).
+
+EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)
+https://cloudless.eox.at/
+https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml
+2016 layer: s2cloudless_3857. Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+Changes: four georeferenced tiles mosaicked to a local WebP, overlaid with the
+licensed Poly Haven near-surface rock detail and normal textures below.
+Later EOX annual layers have DIFFERENT licenses; they are not used here.
 
 Huangshan photographic distant environment
 ------------------------------------------
@@ -31,7 +56,7 @@ Changes: rock GLTF converted to binary GLB; mesh welding, simplification, prunin
 
 Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
 
-A continuous cave backing uses rock_wall_02 photographed diffuse, normal, roughness and displacement maps, with relief sampled into the walkable tunnel enclosure. Authored tunnel cross-sections and bending are not a scan of an actual cave. This backing closes gaps behind individual scan meshes; the entrance massing uses six individually normalized whole rock_moss_set_01 boulders, reusing the rainforest's licensed source. Exterior trail edges have continuous authored rock terrain with photographed PBR and material displacement, not unsupported scan planes or a surveyed full mountain. The cave must not be represented as a survey or digital twin of a real location.
+A continuous cave backing currently uses rock_wall_02 photographed diffuse, normal, roughness and displacement maps, with relief sampled into the walkable tunnel enclosure. Authored tunnel cross-sections and bending are not a scan of an actual cave. This backing and the old stacked-boulder entrance are still pending replacement and visual acceptance. They must not be represented as a survey or digital twin of a real location. The former route-profile exterior support mesh has been removed in favor of measured Huangshan elevations above.
 
 Fonts
 -----

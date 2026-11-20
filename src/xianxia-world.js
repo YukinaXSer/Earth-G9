@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { TRAIL,CAVE,BRANCH,LOCATIONS,sampleMountain,sampleRoute,caveAmount } from './xianxia-route.js';
+import { measuredTerrainHeight,measuredTerrainGeometry,TERRAIN_SOURCE } from './xianxia-terrain.js';
 
 const clamp=THREE.MathUtils.clamp;
 const seeded=(seed)=>()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;};
@@ -102,6 +103,7 @@ export class XianxiaWorld {
     for(const t of [this.diffuse,this.normal]){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(.17,.17);t.anisotropy=4;}
     const img=textures[2].image,canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
     const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);this.heightPixels=ctx.getImageData(0,0,img.width,img.height);textures[2].dispose();
+    this.satellite=await this.textureLoader.loadAsync(asset('textures/huangshan-satellite.webp'));this.satellite.colorSpace=THREE.SRGBColorSpace;this.satellite.anisotropy=4;
     this.makeGround();this.makeHorizon();this.makeScenery();this.makeCave();this.makeLandmarks();this.onProgress(1);
     return this;
   }
@@ -111,20 +113,16 @@ export class XianxiaWorld {
     const ix=((Math.floor(x*12)%width)+width)%width,iz=((Math.floor(z*12)%height)+height)%height;
     return (data[(iz*width+ix)*4]/255-.5)*.2;
   }
-  vertexHeight(x,z) {return sampleMountain(x,z).height+this.capturedDisplacement(x,z);}
+  vertexHeight(x,z) {return z<=0?measuredTerrainHeight(x,z):sampleMountain(x,z).height+this.capturedDisplacement(x,z);}
   sourceHeight(x,z) {
+    if(z<=0)return measuredTerrainHeight(x,z);
     const step=2,x0=Math.floor(x/step)*step,z0=Math.floor(z/step)*step,u=(x-x0)/step,v=(z-z0)/step;
     const a=this.vertexHeight(x0,z0),b=this.vertexHeight(x0+step,z0),c=this.vertexHeight(x0,z0+step),d=this.vertexHeight(x0+step,z0+step);
     return u+v<=1?a+(b-a)*u+(c-a)*v:d+(c-d)*(1-u)+(b-d)*(1-v);
   }
   groundHeight(x,z){return this.floorIndex?.heightAt(x,z)??this.sourceHeight(x,z);}
   supportHeight(x,z){
-    const p=sampleMountain(x,z),a=p.route[p.index],b=p.route[p.index+1],length=Math.hypot(b[0]-a[0],b[2]-a[2]);
-    const side=((x-p.x)*-(b[2]-a[2])+(z-p.z)*(b[0]-a[0]))/length,excess=Math.max(0,p.distance-p.width-1.6);
-    const profile=side<0||z>-30?[[0,-.3],[4,3],[10,9],[18,5],[35,-40],[100,-170]]:[[0,-.3],[5,-4],[15,-28],[35,-100],[100,-170]];
-    let drop=profile.at(-1)[1];
-    for(let i=1;i<profile.length;i++)if(excess<=profile[i][0]){const a=profile[i-1],b=profile[i],t=THREE.MathUtils.smoothstep(excess,a[0],b[0]);drop=a[1]+(b[1]-a[1])*t;break;}
-    return p.height+drop+this.capturedDisplacement(x*.3,z*.3)*5*THREE.MathUtils.smoothstep(excess,1,12);
+    return measuredTerrainHeight(x,z);
   }
   makeGround() {
     const inside={pos:[],uv:[]};
@@ -136,13 +134,17 @@ export class XianxiaWorld {
     }
     const material=new THREE.MeshStandardMaterial({map:this.diffuse,normalMap:this.normal,normalScale:new THREE.Vector2(.7,.7),roughness:.96,color:0xc5c4ac});
     const make=data=>{const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(data.pos,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(data.uv,2));geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,material);mesh.receiveShadow=true;return mesh;};
-    this.ground=new THREE.Mesh(mergeGeometries([TRAIL,BRANCH].map(route=>routeRibbonGeometry(route,(x,z)=>this.sourceHeight(x,z),p=>p.width+1.6+Math.max(0,1+p.z/12)*7))),material);this.ground.name='实拍位移山径';this.root.add(this.ground);this.caveGround=make(inside);
-    const wallMaps=[this.caveDiffuse,this.caveNormal,this.caveRough].map(source=>{const t=source.clone();t.repeat.set(.14,.14);return t;});
-    const wallMaterial=new THREE.MeshStandardMaterial({map:wallMaps[0],normalMap:wallMaps[1],roughnessMap:wallMaps[2],roughness:1,color:0xadb1a3});
-    const profiles=[-1,-.55,-.24,-.12,-.06,-.02,0,.02,.06,.12,.24,.55,1];
-    this.support=new THREE.Mesh(mergeGeometries([[[0,7,20,10],...TRAIL],BRANCH].map(route=>routeRibbonGeometry(route,(x,z)=>this.supportHeight(x,z),()=>100,5,profiles))),wallMaterial);
-    this.support.name='摄影岩壁材质连续山体基座';this.root.add(this.support);
-    this.supportIndex=createFloorIndex([this.support.geometry]);
+    this.ground=new THREE.Mesh(mergeGeometries([TRAIL,BRANCH].map(route=>routeRibbonGeometry(route,(x,z)=>this.sourceHeight(x,z)+.04,p=>p.width+.4,1.5,[-1,-.75,-.5,-.25,0,.25,.5,.75,1]))),material);this.ground.name='实拍位移山径';this.root.add(this.ground);this.caveGround=make(inside);
+    const detailNormal=this.caveNormal.clone();detailNormal.repeat.set(TERRAIN_SOURCE.satellite.size*.17,TERRAIN_SOURCE.satellite.size*.17);
+    const terrainMaterial=new THREE.MeshStandardMaterial({map:this.satellite,normalMap:detailNormal,normalScale:new THREE.Vector2(.6,.6),roughness:1});
+    terrainMaterial.onBeforeCompile=shader=>{
+      shader.uniforms.terrainDetail={value:this.caveDiffuse};
+      shader.vertexShader='varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTerrainMeters=position.xz; vTerrainSlope=1.-abs(normal.y); vTerrainDistance=length((modelViewMatrix*vec4(position,1.)).xyz);');
+      shader.fragmentShader='uniform sampler2D terrainDetail; varying vec2 vTerrainMeters; varying float vTerrainSlope; varying float vTerrainDistance;\n'+shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\nvec3 stone=texture2D(terrainDetail,vTerrainMeters*.17).rgb; float nearDetail=1.-smoothstep(50.,180.,vTerrainDistance); diffuseColor.rgb=mix(diffuseColor.rgb,stone,nearDetail*(.18+.6*smoothstep(.12,.5,vTerrainSlope)));');
+    };
+    this.support=new THREE.Mesh(measuredTerrainGeometry((x,z)=>z>0&&sampleRoute(CAVE,x,z).distance<sampleRoute(CAVE,x,z).width+4),terrainMaterial);
+    this.support.name='Huangshan surveyed SRTM relief';this.root.add(this.support);
+    this.supportIndex={heightAt:measuredTerrainHeight};
     const alpha=[];for(let i=0;i<this.caveGround.geometry.attributes.position.count;i++){
       const positions=this.caveGround.geometry.attributes.position,x=positions.getX(i),z=positions.getZ(i),p=sampleRoute(CAVE,x,z);
       alpha.push(z<124?1:clamp((140-z)/12,0,1)*clamp((p.width+1.2-p.distance)/1.5,0,1));

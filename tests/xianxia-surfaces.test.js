@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { photographicHorizonGeometry,routeRibbonGeometry,createFloorIndex,XianxiaWorld } from '../src/xianxia-world.js';
 import { TRAIL,BRANCH,sampleMountain,canWalkMountain } from '../src/xianxia-route.js';
+import { measuredTerrainHeight,measuredTerrainGeometry,surveyedElevation,TERRAIN_SOURCE,TERRAIN_DATUM } from '../src/xianxia-terrain.js';
 
 test('photographic background is closed in every normal viewing direction, including below the path',()=>{
   const mesh=new THREE.Mesh(photographicHorizonGeometry(),new THREE.MeshBasicMaterial({side:THREE.BackSide}));mesh.updateMatrixWorld(true);
@@ -31,8 +32,32 @@ test('player feet use the visible road triangles, not an unrelated source-height
     assert.ok(hit);assert.ok(Math.abs(world.groundHeight(x,z)-hit.point.y)<1e-5);
   }
 });
-test('photographic rock terrain supports the trail and descends below it, instead of a floating sheet',()=>{
+test('hills follow measured terrain, not a fabricated downhill profile around the route',()=>{
   const world=Object.assign(Object.create(XianxiaWorld.prototype),{});
-  assert.ok(world.supportHeight(0,-20)<world.sourceHeight(0,-20));
-  assert.ok(world.supportHeight(105,-20)<-100);assert.ok(world.supportHeight(-105,-20)<-100);
+  for(const [x,z]of [[0,-20],[105,-20],[-105,-20],[600,-900]]){
+    assert.equal(world.supportHeight(x,z),measuredTerrainHeight(x,z));
+    assert.equal(world.sourceHeight(x,z),measuredTerrainHeight(x,z));
+  }
+  assert.ok(Math.abs(world.supportHeight(105,-20)-world.supportHeight(-105,-20))>10);
+});
+
+test('Huangshan source samples retain real measured elevations and auditable public tile provenance',()=>{
+  const d=TERRAIN_SOURCE;
+  assert.ok(d.heights.length===d.width*d.height&&d.heights.length>15000);
+  assert.ok(d.step>30&&d.step<35);assert.ok(d.origin.latitude>30&&d.origin.latitude<31);
+  for(let z=1;z<d.height-1;z+=11)for(let x=1;x<d.width-1;x+=13)assert.ok(Math.abs(surveyedElevation(d.x0+x*d.step,d.z0+z*d.step)-d.heights[z*d.width+x])<1e-6);
+  assert.equal(measuredTerrainHeight(0,0),7);
+  assert.ok(TERRAIN_DATUM>1000&&TERRAIN_DATUM<1800);
+  assert.equal(d.provenance.sources.length,13);
+  for(const s of d.provenance.sources){assert.match(s.url,/^https:\/\/(s3.amazonaws.com\/elevation-tiles-prod|tiles.maps.eox.at)/);assert.match(s.sha256,/^[a-f0-9]{64}$/);}
+});
+
+test('landscape vertices and off-vertex foot heights share the measured terrain triangles',()=>{
+  const geometry=measuredTerrainGeometry(),positions=geometry.attributes.position,mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial());mesh.updateMatrixWorld(true);
+  assert.ok(positions.count>100000);
+  for(let i=0;i<positions.count;i+=1879)assert.ok(Math.abs(positions.getY(i)-measuredTerrainHeight(positions.getX(i),positions.getZ(i)))<.001);
+  for(const [x,z]of [[.7,-2.9],[104.2,-190.4],[799.3,-976.7],[-100.2,-400.1]]){
+    const hit=new THREE.Raycaster(new THREE.Vector3(x,2000,z),new THREE.Vector3(0,-1,0)).intersectObject(mesh)[0];assert.ok(hit);
+    assert.ok(Math.abs(hit.point.y-measuredTerrainHeight(x,z))<.001);
+  }
 });
