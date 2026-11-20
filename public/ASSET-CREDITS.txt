@@ -1,3 +1,40 @@
+Scanned rainforest wildlife (additional assets, loaded after the first scene)
+----------------------------------------------------------------------------
+Psalidognathus superbus / rainforest-beetle.glb
+Smithsonian National Museum of Natural History, USNMENT02024001. CC0.
+Record: http://n2t.net/ark:/65665/358771a69-87a1-4cb2-a8f1-46818f82ef29
+Source: https://3d-api.si.edu/content/document/3d_package:991f0339-b7bd-4fe1-8ab2-85cd5ae038fb/Psalidognathus_superbus-150k-1024-low.glb
+
+Trichodactylus crassus / river-crab.glb
+Smithsonian National Museum of Natural History, USNM 20091, Bahia. CC0.
+Record: http://n2t.net/ark:/65665/3129d974b-998a-4f44-9d43-ffebd490a16b
+Source: https://3d-api.si.edu/content/document/3d_package:0dffe3a7-3bf0-4c57-80a3-7aba59f2e884/Trichodactylus_crassus-150k-1024-low.glb
+
+Phyllobates terribilis / golden-poison-frog.glb
+"Model 39 - Golden Poison Frog", Digital Life 3D / University of Massachusetts Amherst.
+Live-animal Beastcam photogrammetry. CC BY 4.0.
+https://sketchfab.com/3d-models/model-39-golden-poison-frog-e032f702a9b14e0298cb236d3b44147b
+
+Piranga olivacea / scarlet-tanager.glb
+"Scarlet Tanager", RISD Nature Lab. Taxidermy specimen Artec 3D scan. CC BY 4.0.
+https://sketchfab.com/3d-models/scarlet-tanager-1b850768909c4d5487f2a0c6eec1a49b
+
+Iguana iguana / green-iguana.glb
+"Common Green Iguana", RISD Nature Lab. Taxidermy specimen Artec 3D scan with its scanned branch. CC BY 4.0.
+https://sketchfab.com/3d-models/common-green-iguana-7f6ecf8aa7614737a4d6108cd4ec6ca7
+
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+CC0: https://creativecommons.org/publicdomain/zero/1.0/
+The three CC-BY source files were obtained through Allen AI's public Objaverse dataset,
+which preserves the original Sketchfab attribution and license:
+https://huggingface.co/datasets/allenai/objaverse
+Adaptations: mesh simplification, metre scale, orientation and ground-origin normalization,
+embedded WebP textures and quantization; removed the beetle's specimen pin,
+the frog's scanning platform, and the bird's specimen support. The iguana retains
+its natural scanned branch, sunk into the ground to conceal its cut base.
+These are static scans, not skeletal animation. Small whole-model movements are
+programmed for the beetle, crab, frog and bird; the iguana and its branch remain still.
+
 Rainforest rendering assets
 
 Butterfly: "morpho" by QweenH / Qween.

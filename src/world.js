@@ -97,6 +97,7 @@ export class Rainforest {
     await this.renderer.compileAsync(this.scene, this.camera);
     this.renderer.render(this.scene, this.camera);
     this.initializing = false;
+    this.wildlife.startAdditional?.();
   }
 
   makeLighting() {
@@ -369,7 +370,7 @@ export class Rainforest {
   animate = () => {
     requestAnimationFrame(this.animate);
     const delta = this.clock.getDelta();
-    if (document.hidden) return;
+    if (document.hidden || this.contextFailed) return;
     const dt = Math.min(delta, 0.75);
     this.elapsed += dt; const t = this.elapsed;
     if (!this.rainy && this.moisture > 0) this.moisture = Math.max(0, this.moisture - dt * 0.008);
