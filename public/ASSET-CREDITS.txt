@@ -1,0 +1,113 @@
+Rainforest rendering assets
+
+Butterfly: "morpho" by QweenH / Qween.
+Source: https://sketchfab.com/3d-models/0f2f9980584749fda6875b8ef8617b98
+Author: https://sketchfab.com/QweenH
+License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+https://creativecommons.org/licenses/by/4.0/
+Retrieved from TexVerse, Yibo Zhang et al. (2025):
+https://huggingface.co/datasets/YiboZhang2001/TexVerse
+Database attribution: https://opendatacommons.org/licenses/by/1-0/
+Changes: body and wings reposed and grouped for real-time flapping; scaled
+to about 18cm wingspan; textures resized to 1024px and WebP-compressed.
+Source-authored wing geometry, blue upperwing and brown underwing textures,
+antennae and legs are retained. It is a textured artist model, NOT an animal
+scan; its exact Morpho species is not established. The former application-
+generated blue sphere wings have been removed. Flight paths and flapping
+are application-animated; this butterfly is NOT covered by the CC0 assets
+listed below.
+
+Captured entrance tree: "CC0 ガジュマル Malayan Banyan, Ficus microcarpa"
+by ffish.asia / floraZia.com. CC0 1.0 Universal, public domain dedication.
+Source: https://sketchfab.com/3d-models/038bae6f4bfe4a4f804b63efa2155481
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Retrieved from TexVerse, Yibo Zhang et al. (2025):
+https://huggingface.co/datasets/YiboZhang2001/TexVerse
+Database attribution: https://opendatacommons.org/licenses/by/1-0/
+Changes: geometry welding/decimation, joined mesh parts, a new UV atlas with
+captured-color reprojection for the mobile/software LOD, WebP compression,
+scaling and placement. This is a volumetric tree/roots capture, not a
+complete rainforest scan. The rejected photograph backdrop is not used.
+Large traversable forest trees reuse this complete volumetric capture,
+preserving the original connected roots, trunk and crown, UVs and color.
+No separate root collar is grafted to another species' trunk. Captured
+floor-only triangles below 1.1m in the normalized 12m pose are removed;
+the native wood base is embedded 1.3m below the local terrain. The already
+loaded capture and texture are shared, with no additional download.
+Root Cluster 01 bank/soil slabs are no longer placed as tree feet.
+
+CC0 photographic PBR textures and environment from Poly Haven:
+- Forest Leaves 03 (captured leaf litter, normal, roughness and displacement): https://polyhaven.com/a/forest_leaves_03
+  The displacement image is downsampled to an 8x8 low-frequency height field,
+  remapped over 32m with 1.1m relief for terrain art direction. This is a
+  transformed captured material, not a measured terrain reconstruction.
+- Rainforest Trail HDRI (real photographed environment): https://polyhaven.com/a/rainforest_trail
+License: https://polyhaven.com/license (CC0 1.0, public domain dedication)
+Textures are resized and JPEG-compressed for the browser build.
+
+CC0 professional vegetation and scanned natural-detail assets from Poly Haven:
+- Jacaranda Tree: https://polyhaven.com/a/jacaranda_tree
+- Fern 02: https://polyhaven.com/a/fern_02
+- Calathea Orbifolia 01: https://polyhaven.com/a/calathea_orbifolia_01
+- Pachira Aquatica 01: https://polyhaven.com/a/pachira_aquatica_01
+- Anthurium Botany 01: https://polyhaven.com/a/anthurium_botany_01
+- Root Cluster 01 (legacy bundled asset, not loaded): https://polyhaven.com/a/root_cluster_01
+- Dead Tree Trunk: https://polyhaven.com/a/dead_tree_trunk
+- Rock Moss Set 01: https://polyhaven.com/a/rock_moss_set_01
+- Shrub 02: https://polyhaven.com/a/shrub_02
+- Shrub 03: https://polyhaven.com/a/shrub_03
+- Shrub 04: https://polyhaven.com/a/shrub_04
+- Island Tree 02: https://polyhaven.com/a/island_tree_02
+
+CC0 tropical models and photographic-style diffuse/normal texture atlases by
+Nobiax / Yughues, downloaded from the author's OpenGameArt CC0 releases:
+- Free Palm TreeZ v3: https://opengameart.org/content/free-palm-treez-v3
+- Tropical Shrubs: https://opengameart.org/content/tropical-shrubs
+- Tropical Plant 02: https://opengameart.org/content/tropical-plant-02-0
+Original palm and shrub archive readme files expressly permit modification
+and redistribution for any purpose under CC0 1.0 Universal.
+Converted from original OBJ/TGA to glTF with Blender 4.2 LTS; texture atlases
+are compressed to WebP. These are sourced textured game-art assets, not
+claimed to be complete photogrammetry scans.
+
+Models are adapted for real-time rendering with glTF Transform 4.2.1 and
+meshoptimizer 0.24.0: reduced mesh complexity, WebP textures, alpha cutout,
+shared geometry and spatially grouped instances. Original vegetation models are not
+included; their browser-ready derivative GLB files are redistributed under CC0.
+Separate photographic alpha masks are composed into the foliage base-color
+textures. Leaf-cluster sizes compensate for lost surface area in canopy LODs;
+tree crowns are still sourced mesh geometry, not generated blob primitives.
+Two additional tree LODs reduce twig/leaf geometry while retaining the
+source's total leaf surface area through per-cluster size compensation.
+These are three-dimensional textured meshes, not forest photographs or
+billboards; the full source-tree geometry replaces them near the player.
+
+Sky-only HDRI: Overcast Soil (Pure Sky), Sergej Majboroda (original) and
+Jarod Guest (sky edits), https://polyhaven.com/a/overcast_soil_puresky
+CC0: commercial use, modification and local redistribution/embedding are
+permitted; attribution is not required. The RGBE HDR depicts
+only infinitely distant sky, not a photographic forest background. The
+captured Rainforest Trail HDR remains the forest's environment-light probe.
+HDRs are linearly downsampled to 512x256 for startup, preserving
+captured radiance rather than replacing it with generated lighting.
+
+Sunny sky-only HDRI: Kloofendal 48d Partly Cloudy (Pure Sky), Greg Zaal
+(original), Jarod Guest (sky edits),
+https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky
+CC0: https://polyhaven.com/license. Downloaded 1K RGBE is averaged in
+linear radiance to 512x256; the captured sun and blue sky are retained.
+This replaces the overcast sky in sunny weather only. Its sun direction
+is aligned with the scene's directional light. Rain uses Overcast Soil.
+
+The rainforest is an art-directed composition using sourced models,
+photographic materials, scanned natural details and real HDR lighting.
+It is not a scan of one complete real-world rainforest location, and not
+every vegetation model is a photogrammetry scan. Terrain, water, interaction
+markers are application-generated geometry. The butterfly uses the separately
+credited CC BY model above.
+
+Environment-art workflow references (not redistributed assets):
+- William Fiorentini, DNEG: Setting Up a Photorealistic Forest Scene With Megascans
+  https://80.lv/articles/setting-up-a-photorealistic-forest-scene-with-megascans
+- Theophile Lebeau: Creating a Forest Biome with Photogrammetry
+  https://80.lv/articles/creating-a-forest-biome-with-photogrammetry

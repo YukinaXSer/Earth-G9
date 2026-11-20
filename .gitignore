@@ -1,0 +1,6 @@
+node_modules/
+dist/
+dist-visual/
+dist-real-assets/
+*.log
+.DS_Store
