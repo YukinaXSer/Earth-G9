@@ -1,12 +1,12 @@
-import { BOUNDS, START, SPECIES, PLANT_SITES, riverX, groundHeight, RIVER_LEVEL } from './data.js';
+import { BOUNDS, START, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, riverX, groundHeight, RIVER_LEVEL } from './data.js';
 
-const landmarks = [...SPECIES, ...PLANT_SITES];
+const landmarks = [...SPECIES, ...PLANT_SITES, ...VIEWPOINTS];
 const margin = 22;
 
 export function vegetationAllowed(x, z, layer) {
   const woody = layer !== 'understory' && layer !== 'riparian';
   if (Math.abs(x - riverX(z)) < (layer === 'riparian' ? 5.5 : woody ? 7 : 6.2)) return false;
-  if (Math.abs(x - Math.sin(z * .06) * 1.4) < (woody ? 2.8 : 1.8)) return false;
+  if (distanceToTrail(x, z) < (layer === 'canopy' ? 7 : woody ? 2.8 : 1.8)) return false;
   if (landmarks.some(point => Math.hypot(point.x - x, point.z - z) < (woody ? 3.2 : 2.2))) return false;
   return !woody || Math.hypot(x - START.x, z - START.z) >= 14;
 }
@@ -102,7 +102,7 @@ export function createBackdropLayout() {
 
 export function createForestLayout(lowDetail = false) {
   return {
-    emergent: layerGrid(19.5, 813713, 'canopy', rand => ({ scale: rand(.95, 1.25) })),
+    emergent: layerGrid(19.5, 813713, 'emergent', rand => ({ scale: rand(.95, 1.25) })),
     canopy: layerGrid(11.5, 39592, 'canopy', rand => ({ scale: rand(3.5, 5.2) })),
     subcanopy: layerGrid(7.2, 71385, 'subcanopy', (rand, index) => ({
       key: index % 3 === 0 ? 'forest' : 'sapling',
@@ -111,8 +111,14 @@ export function createForestLayout(lowDetail = false) {
     })),
     understory: understoryClusters(lowDetail),
     riparian: riparianUnderstory(lowDetail),
-    debris: layerGrid(5.5, 176831, 'debris', (rand, index) => ({
+    debris: [...layerGrid(5.5, 176831, 'debris', (rand, index) => ({
       key: index % 12 === 0 ? 'rock' : 'log', scale: index % 12 === 0 ? rand(.3, .65) : index % 4 === 0 ? rand(.7, 1.3) : rand(.12, .35), variant: index,
     })),
+      { key: 'log', x: -128, z: -89, scale: 1.3, angle: .7, variant: 0 },
+      { key: 'log', x: -117, z: -80, scale: 1.1, angle: 2.8, variant: 0 },
+      { key: 'rock', x: -127, z: -79, scale: .8, angle: 1.1, variant: 2 },
+      { key: 'rock', x: 17.8, z: 178, scale: .7, angle: 1.5, variant: 3 },
+      { key: 'log', x: 112, z: -220, scale: 1.2, angle: 2, variant: 0 },
+    ],
   };
 }

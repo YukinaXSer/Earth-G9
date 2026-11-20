@@ -19,9 +19,49 @@ export function formatCoordinates(position) {
   const north = START.z - position.z;
   return `${Math.abs(north).toFixed(1)} ${north < 0 ? 'S' : 'N'}   ${Math.abs(position.x).toFixed(1)} ${position.x < 0 ? 'W' : 'E'}`;
 }
-export const BOUNDS = { minX: -52, maxX: 52, minZ: -111, maxZ: 51 };
+export const BOUNDS = { minX: -156, maxX: 156, minZ: -273, maxZ: 213 };
 export const RIVER_LEVEL = -.12;
 export function riverX(z) { return 24 + Math.sin(z * 0.036) * 8; }
+
+export const FORDS = [
+  { id: 'north-ford', name: '北溪浅滩', z: -180 },
+  { id: 'south-ford', name: '南溪浅滩', z: 120 },
+];
+export const VIEWPOINTS = [
+  { id: 'west-grove', name: '西部倒木林', x: -122, z: -85, description: '沿西侧步道深入林地，倒木与苔石散落在蕨丛之间。枯木也是森林的一部分，为小型生命留下栖息空间。' },
+  { id: 'north-crown', name: '北部林冠腹地', x: -50, z: -236, description: '头顶是交错的高层树冠，脚边是落叶、根系与低层植被。沿步道向东可回到溪边，循浅滩进入东岸。' },
+  { id: 'south-bank', name: '南溪岸林', x: 12, z: 176, description: '顺溪向南，林地在弯曲的岸边展开。可以观察水线、湿润落叶和贴岸生长的低层植物。跨溪请寻找地图上标出的浅滩。' },
+  { id: 'east-oldgrowth', name: '东岸老树林', x: 105, z: -218, description: '涉过浅滩，沿东岸步道走进另一片林地。这里与西岸连续相接，不需要传送。停下来看看树脚、林下和高处不同的植被层次。' },
+];
+export const WALKING_ROUTES = [
+  { id: 'main', points: Array.from({ length: 59 }, (_, i) => { const z = -257 + i * 8; return [Math.sin(z * .06) * 1.4, z]; }) },
+  { id: 'west', points: [[0, 35], [-40, 65], [-122, 110], [-128, 15], [-122, -85], [-105, -170], [-50, -236], [0, -235]] },
+  { id: 'east', points: [[0, 120], [48, 120], [100, 150], [130, 70], [125, -90], [105, -218], [45, -240], [36, -180], [0, -180]] },
+  { id: 'south', points: [[0, 160], [12, 176], [0, 195]] },
+];
+
+export function distanceToTrail(x, z) {
+  let distanceSquared = (x - Math.sin(z * .06) * 1.4) ** 2;
+  for (const route of WALKING_ROUTES) {
+    if (route.id === 'main') continue;
+    for (let i = 1; i < route.points.length; i++) {
+      const [ax, az] = route.points[i - 1], [bx, bz] = route.points[i];
+      const dx = bx - ax, dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      distanceSquared = Math.min(distanceSquared, (x - ax - dx * t) ** 2 + (z - az - dz * t) ** 2);
+    }
+  }
+  return Math.sqrt(distanceSquared);
+}
+
+export function mapProjection(width, height, padding = 24) {
+  const scale = Math.min((width - padding * 2) / (BOUNDS.maxX - BOUNDS.minX), (height - padding * 2) / (BOUNDS.maxZ - BOUNDS.minZ));
+  return { scale, project: (x, z) => ({ x: width / 2 + (x - (BOUNDS.minX + BOUNDS.maxX) / 2) * scale, y: height / 2 + (z - (BOUNDS.minZ + BOUNDS.maxZ) / 2) * scale }) };
+}
+
+export function isWalkableGround(x, z) {
+  return Math.abs(x - riverX(z)) >= 10 || groundHeight(x, z) >= RIVER_LEVEL - .55;
+}
 export function groundHeight(x, z) {
   const step = TERRAIN.step;
   const x0 = Math.floor((x + TERRAIN.width / 2) / step) * step - TERRAIN.width / 2;
@@ -37,13 +77,17 @@ export function groundHeight(x, z) {
 function terrainVertexHeight(x, z) {
   const distance = Math.abs(x - riverX(z));
   const bank = Math.min(1, Math.max(0, (distance - 4.8) / 5));
-  const offTrail = Math.min(1, Math.abs(x - Math.sin(z * .06) * 1.4) / 3);
+  const offTrail = Math.min(1, distanceToTrail(x, z) / 3);
   const height = -0.42 + bank * (0.68 + Math.sin(x * 0.09) * Math.cos(z * 0.065) * 0.65 + capturedRelief(x, z) * offTrail);
   if (distance >= 14) return height;
   const rise = Math.min(1, Math.max(0, (distance - 4.8) / 3.8));
   const fade = Math.min(1, Math.max(0, (distance - 10) / 4));
   const bankFloor = -.42 + .75 * rise * rise * (3 - 2 * rise);
-  return height + Math.max(0, bankFloor - height) * (1 - fade * fade * (3 - 2 * fade));
+  const shoreHeight = height + Math.max(0, bankFloor - height) * (1 - fade * fade * (3 - 2 * fade));
+  const ford = Math.min(...FORDS.map(p => Math.abs(z - p.z)));
+  const fordFade = Math.min(1, Math.max(0, (ford - 4) / 8));
+  const channel = Math.min(1, Math.max(0, (distance - 3) / 3.2));
+  return shoreHeight - (1 - channel * channel * (3 - 2 * channel)) * fordFade * fordFade * (3 - 2 * fordFade);
 }
 export function nearestPoint(position, points, radius = 5.5) {
   return points.map(point => ({ ...point, distance: Math.hypot(point.x - position.x, point.z - position.z) }))
@@ -70,7 +114,7 @@ export function loadView(storage) {
     const view = JSON.parse(storage.getItem('earth2-view'));
     if (!view || !['x', 'z', 'yaw', 'pitch'].every(k => Number.isFinite(view[k]))) return null;
     const z = Math.max(BOUNDS.minZ, Math.min(view.z, BOUNDS.maxZ));
-    return { x: Math.max(BOUNDS.minX, Math.min(view.x, BOUNDS.maxX, riverX(z) - 5.3)), z, yaw: view.yaw % (Math.PI * 2), pitch: Math.max(-1.05, Math.min(1.05, view.pitch)) };
+    return { x: Math.max(BOUNDS.minX, Math.min(view.x, BOUNDS.maxX)), z, yaw: view.yaw % (Math.PI * 2), pitch: Math.max(-1.05, Math.min(1.05, view.pitch)) };
   } catch { return null; }
 }
 

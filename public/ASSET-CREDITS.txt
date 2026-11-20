@@ -143,6 +143,18 @@ every vegetation model is a photogrammetry scan. Terrain, water, interaction
 markers are application-generated geometry. The butterfly uses the separately
 credited CC BY model above.
 
+Distant captured-tree LOD is derived from the already credited captured
+banyan with Blender Decimate. It retains the capture's UVs and reuses
+the original photographic texture; nearby trunks and roots are unchanged.
+
+Water normal texture and planar-reflection renderer: three.js examples,
+https://threejs.org/examples/textures/waternormals.jpg and
+https://github.com/mrdoob/three.js/blob/master/examples/jsm/objects/Water.js
+MIT, Copyright 2010-2026 three.js authors. Full license: THREE-LICENSE.txt.
+The water normal is an authored texture, not a photogrammetry capture.
+High quality reflects this scene's 3D forest; the low-quality fallback
+reflects the separately credited photographic rainforest HDR environment.
+
 Environment-art workflow references (not redistributed assets):
 - William Fiorentini, DNEG: Setting Up a Photorealistic Forest Scene With Megascans
   https://80.lv/articles/setting-up-a-photorealistic-forest-scene-with-megascans

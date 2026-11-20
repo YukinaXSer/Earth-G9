@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { groundHeight, riverX, SPECIES, PLANT_SITES, BOUNDS, START } from './data.js';
+import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, BOUNDS, START } from './data.js';
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
 import { capturedCollider, colliderContains } from './captured-collisions.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
-const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3 };
-const SOIL_SKIRT_RADIUS = { forest: .45, distant: .45, horizon: .45, rooted: 4.5 };
+const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
+const SOIL_SKIRT_RADIUS = { forest: .45, distant: .45, horizon: .45, rooted: 4.5, 'rooted-far': 4.5 };
 
 export function modelVariantId(key, name) {
   return key === 'rock' ? name : /_([a-f])$/.exec(name)?.[1] ?? 'main';
@@ -28,7 +28,8 @@ export class Habitat {
 
   async load() {
     const loader = new GLTFLoader(this.world.loadingManager);
-    await Promise.all(Object.entries(FILES).map(async ([key, file]) => {
+    const captureLod = loader.loadAsync('/models/captured-banyan-far.glb');
+    await Promise.all([captureLod, ...Object.entries(FILES).map(async ([key, file]) => {
       const source = key === 'banyan' ? 'captured-banyan-low' : file;
       const { scene } = await loader.loadAsync(`/models/${source}.glb`);
       scene.updateMatrixWorld(true);
@@ -93,6 +94,7 @@ export class Habitat {
           if (!foot.isEmpty()) foot.getCenter(center);
         }
         const scale = key === 'banyan' ? 12 / (box.max.y - box.min.y) : 1;
+        if (key === 'banyan') variant.userData.captureTransform = { x: center.x, y: box.min.y, z: center.z, scale };
         const size = box.getSize(new THREE.Vector3());
         variant.userData.spread = Math.max(size.x, size.z) * scale;
         variant.userData.height = size.y * scale;
@@ -119,8 +121,28 @@ export class Habitat {
           mesh.geometry.setIndex(kept);
         }
         this.models.set('rooted', [rooted]);
+        const lod = await captureLod, far = rooted.clone();
+        const transform = rooted.userData.captureTransform;
+        far.clear();
+        lod.scene.updateMatrixWorld(true);
+        lod.scene.traverse(mesh => {
+          if (!mesh.isMesh) return;
+          const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
+          geometry.translate(-transform.x, -transform.y, -transform.z).scale(transform.scale, transform.scale, transform.scale);
+          const positions = geometry.attributes.position, source = geometry.index.array;
+          const indices = [];
+          for (let j = 0; j < source.length; j += 3) {
+            if ([source[j], source[j + 1], source[j + 2]].some(vertex => positions.getY(vertex) >= 1.1)) indices.push(source[j], source[j + 1], source[j + 2]);
+          }
+          geometry.setIndex(indices);
+          geometry.computeVertexNormals();
+          rooted.children[0].geometry.computeBoundingSphere();
+          geometry.boundingSphere = rooted.children[0].geometry.boundingSphere.clone();
+          far.add(new THREE.Mesh(geometry, rooted.children[0].material));
+        });
+        this.models.set('rooted-far', [far]);
       }
-    }));
+    })]);
   }
 
   place(key, x, z, scale = 1, angle = 0, variantIndex = 0, elevatedY) {
@@ -151,11 +173,12 @@ export class Habitat {
       const { part, key, matrices } = batch, distant = ['distant', 'horizon'].includes(key);
       const mesh = new THREE.InstancedMesh(part.geometry, part.material, matrices.length);
       matrices.forEach((matrix, i) => mesh.setMatrixAt(i, matrix));
-      mesh.castShadow = !this.world.lowDetail && !distant; mesh.receiveShadow = true;
+      mesh.castShadow = !this.world.lowDetail && ['rooted', 'tree', 'forest', 'sapling', 'log'].includes(key); mesh.receiveShadow = true;
       if (distant) mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.computeBoundingSphere();
       mesh.matrixAutoUpdate = false;
-      mesh.userData.viewDistance = distant || key === 'rooted' ? 240 : ['tree', 'forest', 'sapling'].includes(key) ? 85 : this.world.lowDetail ? 32 : 44;
+      mesh.userData.viewDistance = key === 'rooted' ? 36 : distant || key === 'rooted-far' ? 240 : ['tree', 'forest', 'sapling'].includes(key) ? 85 : this.world.lowDetail ? 32 : 44;
+      mesh.userData.minViewDistance = key === 'rooted-far' ? 36 : -Infinity;
       batch.mesh = mesh;
       this.cells.push(mesh);
       this.world.scene.add(mesh);
@@ -168,6 +191,7 @@ export class Habitat {
       const nativeHeight = this.models.get('distant')[0].userData.height;
       const capturedHeight = this.models.get('rooted')[0].userData.height;
       const parts = this.place('rooted', x, z, scale * nativeHeight / capturedHeight, angle);
+      this.place('rooted-far', x, z, scale * nativeHeight / capturedHeight, angle);
       if (parts?.[0]?.matrix) this.world.colliders.push(capturedCollider(this.models.get('rooted')[0], parts[0].matrix));
       return;
     }
@@ -177,7 +201,7 @@ export class Habitat {
 
   composeBackground() {
     const w = this.world;
-    const allowed = (x, z) => Math.abs(x - riverX(z)) >= 7 && !(Math.abs(x) < 21 && z > -115 && z < 45) && ![...SPECIES, ...PLANT_SITES].some(s => Math.hypot(s.x - x, s.z - z) < 3);
+    const allowed = (x, z) => Math.abs(x - riverX(z)) >= 7 && distanceToTrail(x, z) >= 7 && !(Math.abs(x) < 21 && z > -115 && z < 45) && ![...SPECIES, ...PLANT_SITES, ...VIEWPOINTS].some(s => Math.hypot(s.x - x, s.z - z) < 3);
     const ring = (radius, spacing, small = false) => {
       const count = Math.ceil(Math.PI * 2 * radius / spacing);
       for (let i = 0; i < count; i++) {
@@ -368,7 +392,10 @@ export class Habitat {
   }
 
   updateVisibility(position) {
-    for (const mesh of this.cells) mesh.visible = mesh.boundingSphere.center.distanceTo(position) - mesh.boundingSphere.radius < mesh.userData.viewDistance;
+    for (const mesh of this.cells) {
+      const distance = mesh.boundingSphere.center.distanceTo(position) - mesh.boundingSphere.radius;
+      mesh.visible = distance < mesh.userData.viewDistance && distance >= (mesh.userData.minViewDistance ?? -Infinity);
+    }
     for (const tree of this.lodTrees) {
       const near = (tree.x - position.x) ** 2 + (tree.z - position.z) ** 2 < 18 ** 2;
       if (near === tree.near) continue;
