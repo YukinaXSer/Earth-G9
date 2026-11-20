@@ -216,10 +216,15 @@ export class Rainforest {
         float riverDistance = abs(vForestGround.x - (24. + sin(vForestGround.z * .036) * 8.));
         float shoreWetness = (1. - smoothstep(10., 12., riverDistance)) * (1. - smoothstep(.02, .48, vForestGround.y - (${RIVER_LEVEL})));
         diffuseColor.rgb *= mix(vec3(1.), vec3(.62, .58, .48), shoreWetness);
+        float submerged = shoreWetness * smoothstep(0., .18, (${RIVER_LEVEL}) - vForestGround.y);
+        float bedLuminance = dot(diffuseColor.rgb, vec3(.2126, .7152, .0722));
+        vec3 saturatedBed = max(vec3(0.), mix(vec3(bedLuminance), diffuseColor.rgb, 1.2));
+        diffuseColor.rgb = mix(diffuseColor.rgb, saturatedBed * vec3(.48, .56, .38), submerged);
         float forestOcclusion = clamp(texture2D(forestShade, vForestUv).r, 0.55, 1.0);
-        diffuseColor.rgb *= forestOcclusion;`).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, clamp(roughnessFactor * .85, .62, .85), shoreWetness);')
+        diffuseColor.rgb *= forestOcclusion;`).replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, clamp(roughnessFactor * .85, .62, .85), shoreWetness);\nroughnessFactor = mix(roughnessFactor, .98, submerged);')
         .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-        reflectedLight.indirectSpecular *= forestOcclusion;
+        reflectedLight.indirectSpecular *= forestOcclusion * mix(1., .08, submerged);
+        reflectedLight.directSpecular *= mix(1., .08, submerged);
         ${this.lowDetail ? 'reflectedLight.directSpecular *= forestOcclusion;' : ''}`);
     };
   }

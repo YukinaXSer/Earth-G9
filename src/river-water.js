@@ -29,7 +29,7 @@ export function createRiverWater(geometry, normalMap, lowDetail = false, renderR
     ` + material.fragmentShader
     .replace(/vec4 getNoise\([\s\S]*?(?=void sunLight)/, `vec4 getNoise(vec2 p) {
       vec2 uv = vec2(p.x - (24. + sin(p.y * .036) * 8.), p.y);
-      vec2 current = vec2(0., time * .18);
+      vec2 current = vec2(0., time * .4);
       vec4 a = texture2D(normalSampler, (uv - current) * .16);
       vec4 b = texture2D(normalSampler, (uv - current * 1.17) * .27 + vec2(.37, .19));
       return (a + b) - 1.;
@@ -46,7 +46,7 @@ export function createRiverWater(geometry, normalMap, lowDetail = false, renderR
       n = normalize(n);
     }
     `)
-    .replace('vec3( 1.5, 1.0, 1.5 )', 'vec3( 0.2, 1.0, 0.2 )')
+    .replace('vec3( 1.5, 1.0, 1.5 )', 'vec3( 0.55, 1.0, 0.55 )')
     .replace('vec3 diffuseLight = vec3(0.0);', 'rainNormal(surfaceNormal);\nvec3 diffuseLight = vec3(0.0);')
     .replace('float rf0 = 0.3;', 'float rf0 = 0.02;')
     .replace('float theta =', `vec3 reflected = reflect(-eyeDirection, surfaceNormal);
@@ -58,10 +58,10 @@ export function createRiverWater(geometry, normalMap, lowDetail = false, renderR
       float theta =`)
     .replace(/vec3 albedo =[^;]+;/, `vec3 albedo = mix((scatter * .55 + diffuseLight * .08) * getShadowMask(), reflectionSample, reflectance)
       + specularLight * reflectance * .04 * getShadowMask();`)
-    .replace('gl_FragColor = vec4( outgoingLight, alpha );', `float absorption = 1. - exp(-max(vWaterDepth, 0.) * mix(1.8, 2.4, rain));
+    .replace('gl_FragColor = vec4( outgoingLight, alpha );', `float absorption = 1. - exp(-max(vWaterDepth, 0.) * mix(4., 5., rain));
       float shoreFade = smoothstep(0., .14, vWaterDepth);
       float meshEdge = 1. - smoothstep(.46, .5, abs(vRiverUv.x - .5));
-      gl_FragColor = vec4(outgoingLight, mix(.2, .94, absorption) * shoreFade * meshEdge);`);
+      gl_FragColor = vec4(outgoingLight, mix(.35, .98, absorption) * shoreFade * meshEdge);`);
   const reflectScene = water.onBeforeRender;
   const reflectionCamera = new THREE.PerspectiveCamera();
   let lastReflection = -Infinity, framesSinceReflection = 2;

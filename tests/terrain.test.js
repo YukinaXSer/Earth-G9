@@ -90,6 +90,10 @@ test('wet litter keeps roughness variation and applies canopy occlusion to refle
       world.ground.material.onBeforeCompile(shader);
       assert.match(shader.fragmentShader, /forestOcclusion = clamp\(texture2D\(forestShade, vForestUv\)\.r, 0\.55, 1\.0\)/);
       assert.match(shader.fragmentShader, /diffuseColor\.rgb \*= forestOcclusion/);
+      assert.match(shader.fragmentShader, /float submerged = shoreWetness \* smoothstep/);
+      assert.match(shader.fragmentShader, /saturatedBed \* vec3\(\.48, \.56, \.38\)/);
+      assert.match(shader.fragmentShader, /roughnessFactor = mix\(roughnessFactor, \.98, submerged\)/);
+      assert.match(shader.fragmentShader, /reflectedLight\.directSpecular \*= mix\(1\., \.08, submerged\)/);
       assert.match(shader.fragmentShader, /clamp\(roughnessFactor \* \.85, \.62, \.85\)/);
       assert.match(shader.fragmentShader, /reflectedLight\.indirectSpecular \*= forestOcclusion/);
       assert.equal(shader.fragmentShader.includes('reflectedLight.directSpecular *= forestOcclusion;'), lowDetail);

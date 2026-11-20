@@ -23,7 +23,10 @@ test('reflective water retains its world-space surface, physical depth and upwar
     assert.match(water.material.fragmentShader, /float rf0 = 0.02;/);
     assert.match(water.material.fragmentShader, /exp\(-max\(vWaterDepth/);
     assert.match(water.material.fragmentShader, /texture2D\(normalSampler/);
-    assert.match(water.material.fragmentShader, /vec3\( 0.2, 1.0, 0.2 \)/);
+    assert.match(water.material.fragmentShader, /vec3\( 0.55, 1.0, 0.55 \)/);
+    assert.match(water.material.fragmentShader, /time \* \.4/);
+    assert.match(water.material.fragmentShader, /mix\(4\., 5\., rain\)/);
+    assert.match(water.material.fragmentShader, /mix\(\.35, \.98, absorption\)/);
     assert.match(water.material.fragmentShader, /radiance \/ \(1\. \+ luminance\)/);
     assert.doesNotMatch(water.material.fragmentShader, /reflectionSample \* specularLight/);
     assert.equal(water.userData.reflectionMode, lowDetail ? 'local-planar-throttled' : 'local-planar');
