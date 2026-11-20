@@ -2,7 +2,7 @@ import './style.css';
 import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
 import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
-import { SPECIES, PLANT_SITES, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
+import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
   leaf: '<path d="M20 4C10 3 3 7 4 15c1 6 13 7 16-11Z"/><path d="m4 21 11-12M9 16v-5m3 2h5"/>',
@@ -94,7 +94,7 @@ try { storage = window.localStorage; } catch { storage = { getItem: () => null, 
 let progress = loadProgress(storage);
 let savedView = loadView(storage), lastViewSave = 0;
 const settings = loadSettings(storage);
-let world, entered = false, currentPoint = null, modalType = null, previousFocus = null, toastTimer, audioContext, birdTimer;
+let world, entered = false, currentPoint = null, modalType = null, previousFocus = null, toastTimer, audioContext, birdTimer, navigationTarget = null;
 let riverGain, rainGain;
 let lastPosition = { ...START, yaw: 0 };
 const $ = selector => document.querySelector(selector);
@@ -146,15 +146,20 @@ function updatePosition(position) {
     saveView(storage, { x: position.x, z: position.z, yaw: position.yaw, pitch: position.pitch }); lastViewSave = performance.now();
   }
   $('#coordinates').textContent = formatCoordinates(position);
-  const region = position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地';
-  $('.location strong span').textContent = `· ${region}`;
+  const nearbyView = nearestPoint(position, VIEWPOINTS, 35);
+  const region = nearbyView?.name ?? (position.x > riverX(position.z) + 8 ? '东岸雨林' : position.x < -60 ? '西部密林' : position.z < -125 ? '北部林冠' : position.z > 85 ? '南溪岸林' : position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地');
+  if (navigationTarget && Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z) < 6) {
+    toast(`已到达${navigationTarget.name}。按 E 欣赏风景，按 P 留下照片。`); navigationTarget = null;
+  }
+  $('.location strong span').textContent = navigationTarget ? `· ${world.targetDirection(navigationTarget)}${navigationTarget.name} ${Math.ceil(Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z))}米` : `· ${region}`;
   const points = [
     ...SPECIES.map(s => ({ ...s, kind: 'species' })),
     ...PLANT_SITES.filter(s => !progress.planted.includes(s.id)).map(s => ({ ...s, kind: 'plant' })),
+    ...VIEWPOINTS.map(s => ({ ...s, kind: 'viewpoint' })),
   ];
   currentPoint = entered && !modalType && !world?.paused ? nearestPoint(position, points) : null;
   show('#interact', !!currentPoint);
-  if (currentPoint) $('#interaction-label').textContent = world.targetDirection(currentPoint) + (currentPoint.kind === 'plant' ? '种下一株新生' : `${progress.discovered.includes(currentPoint.id) ? '再次观察' : '观察'} · ${currentPoint.name}`);
+  if (currentPoint) $('#interaction-label').textContent = world.targetDirection(currentPoint) + (currentPoint.kind === 'plant' ? '种下一株新生' : currentPoint.kind === 'viewpoint' ? `欣赏 · ${currentPoint.name}` : `${progress.discovered.includes(currentPoint.id) ? '再次观察' : '观察'} · ${currentPoint.name}`);
   if (modalType === 'map') drawMap();
 }
 
@@ -165,6 +170,8 @@ function interact() {
     toast(`一株新生，已经扎根。已种下 ${progress.planted.length} / 3 株树苗。`);
     currentPoint = null; show('#interact', false);
     if (getCompletion(progress) === 100) setTimeout(() => openModal('complete'), 900);
+  } else if (currentPoint.kind === 'viewpoint') {
+    openModal('viewpoint', currentPoint);
   } else {
     const species = SPECIES.find(s => s.id === currentPoint.id);
     if (!progress.discovered.includes(species.id)) { progress.discovered.push(species.id); commitProgress(); }
@@ -192,8 +199,12 @@ function openModal(type, data) {
     modal.innerHTML = modalHeader(`自然图鉴 / ${data.mark}`, data.name, data.latin) +
       `<div class="species-detail-art art-${data.id}">${icon(data.icon)}<span>${data.type}</span></div><p class="species-description">${data.description}</p><div class="field-tip">${icon('compass')}<span>${data.fact}</span></div><div class="species-detail-footer"><span>${icon('check')} 已收入自然图鉴</span><button class="primary-button close-modal">继续探索 ${icon('arrow')}</button></div>`;
   } else if (type === 'map') {
-    modal.innerHTML = modalHeader('RAINFOREST ATLAS / 雨林地图', '跟随好奇心，向森林深处。', '当前位置实时显示。选择地点可直接前往附近，继续自由探索。') +
+    modal.innerHTML = modalHeader('RAINFOREST ATLAS / 雨林地图', '跟随好奇心，向森林深处。', `${BOUNDS.maxX - BOUNDS.minX} × ${BOUNDS.maxZ - BOUNDS.minZ}米。新区域设为目标后步行探索，跨溪走浅滩；原林地物种仍可直接前往。`) +
       `<div class="map-layout"><div class="map-canvas-wrap"><canvas id="map-canvas" width="540" height="560" aria-label="雨林地图：圆点为物种，金色小点为种植地点，箭头为当前位置"></canvas><span class="map-north">N ↑</span><div class="map-legend"><span><i></i>生命印记</span><span><i class="gold"></i>新生林地</span></div></div><div class="map-places"><h3>林间目的地</h3>${SPECIES.map(s => `<button class="map-place" data-travel="${s.id}"><span>${s.mark}</span><div><strong>${s.name}</strong><small>${progress.discovered.includes(s.id) ? '已记录的生命' : '有待发现'}</small></div>${icon('arrow')}</button>`).join('')}<div class="map-seed-sites">${PLANT_SITES.map((s, i) => `<button data-travel="${s.id}" title="前往${s.name}">${icon(progress.planted.includes(s.id) ? 'check' : 'sprout')} 苗圃 ${i + 1}</button>`).join('')}</div><button class="text-button" id="return-start">${icon('reset')} 返回溪谷入口</button></div></div>`;
+    modal.querySelector('.map-places').insertAdjacentHTML('afterbegin', `<h3>步行探索新区域</h3>${VIEWPOINTS.map(s => `<button class="map-place" data-guide="${s.id}"><span>${icon('compass')}</span><div><strong>${s.name}</strong><small>设为步行目标 · ${Math.round(Math.hypot(lastPosition.x - s.x, lastPosition.z - s.z))}米</small></div>${icon('arrow')}</button>`).join('')}`);
+    modal.querySelector('.map-legend').insertAdjacentHTML('beforeend', '<span><i class="landscape"></i>步行风景点</span>');
+  } else if (type === 'viewpoint') {
+    modal.innerHTML = modalHeader('FOREST WALK / 林间风景', data.name, '步行深入森林，看见不同的层次。') + `<div class="species-detail-art">${icon('compass')}</div><p class="species-description">${data.description}</p><div class="field-tip">${icon('map')}<span>按 M 查看连通步道与两处浅滩，按 P 保存实机风景。风景点不会更改物种和种植记录。</span></div><button class="primary-button close-modal">继续步行 ${icon('arrow')}</button>`;
   } else if (type === 'help') {
     modal.innerHTML = modalHeader('A QUIET ADVENTURE / 漫游指南', '不必赶路，森林会等你。') +
       `<div class="help-grid"><div><kbd>W A S D</kbd><h3>自由移动</h3><p>或使用方向键。按住 Shift 快步前行。</p></div><div>${icon('compass')}<h3>环顾四周</h3><p>按住鼠标拖动。手机上拖动画面，使用左下角摇杆移动。</p></div><div><kbd>E</kbd><h3>观察与种植</h3><p>靠近发光标记，按 E 或点击提示，记录物种或种下树苗。</p></div><div>${icon('map')}<h3>找到你的方向</h3><p>M 打开地图，J 打开图鉴，P 拍照，Esc 关闭窗口或暂停。</p></div></div><div class="help-note">目标：记录 5 种生命，种下 3 株幼苗。这是使用授权模型、实拍材质与扫描素材的单人 3D 雨林原型，不是完整地点的复原；环境声为合成声景。进度和位置只保存在当前浏览器。<br><a href="/ASSET-CREDITS.txt" target="_blank" rel="noopener">素材来源与许可</a></div><div class="help-actions"><button class="text-button" id="reset-progress">重新开始探索</button><button class="text-button" data-open="feedback">反馈与建议</button></div>`;
@@ -221,23 +232,34 @@ function closeModal(restore = true) {
 function drawMap() {
   const canvas = $('#map-canvas'); if (!canvas) return;
   const ctx = canvas.getContext('2d'); const w = canvas.width, h = canvas.height;
-  const project = (x, z) => ({ x: (x + 58) / 116 * w, y: (z + 119) / 178 * h });
+  const { project, scale } = mapProjection(w, h);
   ctx.fillStyle = '#e3e6d5'; ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = '#c9d0b9'; ctx.lineWidth = 1;
   for (let i = 0; i < 25; i++) {
     ctx.beginPath();
     for (let j = 0; j <= 50; j++) { const x = j / 50 * w, y = i * 27 + Math.sin(j * 0.2 + i * 0.8) * 12; j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
   }
-  ctx.strokeStyle = '#99b9aa'; ctx.lineWidth = 50; ctx.lineCap = 'round'; ctx.beginPath();
-  for (let z = -125; z < 60; z += 2) { const p = project(riverX(z), z); z === -125 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); } ctx.stroke();
-  ctx.strokeStyle = '#b4b897'; ctx.lineWidth = 7; ctx.setLineDash([3, 8]); ctx.beginPath();
-  for (let z = -105; z <= 40; z += 2) { const p = project(Math.sin(z * 0.06) * 2.5, z); z === -105 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); } ctx.stroke(); ctx.setLineDash([]);
-  ctx.font = '13px "Rainforest Sans", sans-serif'; ctx.textAlign = 'center';
+  ctx.strokeStyle = '#99b9aa'; ctx.lineWidth = 14 * scale; ctx.lineCap = 'round'; ctx.beginPath();
+  for (let z = BOUNDS.minZ; z <= BOUNDS.maxZ; z += 2) { const p = project(riverX(z), z); z === BOUNDS.minZ ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); } ctx.stroke();
+  ctx.strokeStyle = '#a7ab88'; ctx.lineWidth = 2; ctx.setLineDash([3, 5]);
+  for (const route of WALKING_ROUTES) {
+    ctx.beginPath(); route.points.forEach(([x, z], i) => { const p = project(x, z); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.textAlign = 'left'; ctx.font = '11px "Rainforest Sans", sans-serif';
+  for (const ford of FORDS) {
+    const p = project(riverX(ford.z), ford.z); ctx.fillStyle = '#e5dec0'; ctx.fillRect(p.x - 10 * scale, p.y - 3, 20 * scale, 6);
+    ctx.fillStyle = '#486357'; ctx.fillText(ford.name, p.x + 15, p.y + 4);
+  }
+  for (const s of VIEWPOINTS) {
+    const p = project(s.x, s.z); ctx.strokeStyle = '#62764d'; ctx.lineWidth = navigationTarget?.id === s.id ? 3 : 1.5;
+    ctx.strokeRect(p.x - 5, p.y - 5, 10, 10); ctx.fillStyle = '#3c513b';
+    ctx.textAlign = s.x > 70 ? 'right' : 'left'; ctx.fillText(s.name, p.x + (s.x > 70 ? -12 : 12), p.y - 8);
+  }
+  ctx.font = '11px "Rainforest Sans", sans-serif'; ctx.textAlign = 'center';
   for (const s of SPECIES) {
     const p = project(s.x, s.z); ctx.fillStyle = progress.discovered.includes(s.id) ? '#426849' : '#6a8759';
-    ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fffced'; ctx.fillText(s.mark, p.x, p.y + 5);
-    ctx.fillStyle = '#3c513b'; ctx.textAlign = 'left'; ctx.fillText(s.name, p.x + 20, p.y + 4); ctx.textAlign = 'center';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fffced'; ctx.fillText(s.mark, p.x, p.y + 4);
   }
   for (const s of PLANT_SITES) { const p = project(s.x, s.z); ctx.fillStyle = progress.planted.includes(s.id) ? '#8da672' : '#b48c42'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill(); }
   const p = project(lastPosition.x, lastPosition.z);
@@ -325,7 +347,13 @@ app.addEventListener('click', event => {
   if (button.classList.contains('close-modal')) { closeModal(); return; }
   if (button.dataset.open) { openModal(button.dataset.open); return; }
   if (button.dataset.species) { openModal('species', SPECIES.find(s => s.id === button.dataset.species)); return; }
+  if (button.dataset.guide) {
+    navigationTarget = VIEWPOINTS.find(s => s.id === button.dataset.guide);
+    if (!entered) enterWorld(); closeModal();
+    toast(`已标记${navigationTarget.name}，沿地图虚线步行前往；跨溪走浅滩。`); return;
+  }
   if (button.dataset.travel) {
+    navigationTarget = null;
     const point = [...SPECIES, ...PLANT_SITES].find(s => s.id === button.dataset.travel);
     if (!entered) enterWorld(); world.travelTo(point); closeModal(); toast(`已来到${point.name}附近，向前走几步即可互动。`); return;
   }
@@ -355,9 +383,9 @@ app.addEventListener('click', event => {
     case 'photo': takePhoto(); break;
     case 'pause': modalType ? closeModal() : openModal('pause'); break;
     case 'pause-map': openModal('map'); break;
-    case 'return-start': world.resetPosition(); closeModal(); toast('已回到溪谷入口。'); break;
+    case 'return-start': navigationTarget = null; world.resetPosition(); closeModal(); toast('已回到溪谷入口。'); break;
     case 'reset-progress': openModal('reset'); break;
-    case 'confirm-reset': savedView = null; saveView(storage, null); progress = { discovered: [], planted: [] }; commitProgress(); world.resetPosition(); closeModal(); toast('全新的一页，写给这片雨林。'); break;
+    case 'confirm-reset': navigationTarget = null; savedView = null; saveView(storage, null); progress = { discovered: [], planted: [] }; commitProgress(); world.resetPosition(); closeModal(); toast('全新的一页，写给这片雨林。'); break;
   }
 });
 
