@@ -6,7 +6,7 @@ export function createRiverWater(geometry, normalMap, lowDetail = false) {
   geometry.translate(0, -RIVER_LEVEL, 0).rotateX(Math.PI / 2);
   const water = new Water(geometry, {
     waterNormals: normalMap,
-    textureWidth: 256, textureHeight: 256,
+    textureWidth: lowDetail ? 128 : 256, textureHeight: lowDetail ? 128 : 256,
     sunDirection: new THREE.Vector3(-24, 30, 12).normalize(),
     sunColor: '#fff0ce', waterColor: '#384f39', distortionScale: .6, fog: true,
   });
@@ -64,20 +64,23 @@ export function createRiverWater(geometry, normalMap, lowDetail = false) {
       gl_FragColor = vec4(outgoingLight, mix(.2, .94, absorption) * shoreFade * meshEdge);`);
   const reflectScene = water.onBeforeRender;
   const reflectionCamera = new THREE.PerspectiveCamera();
+  let lastReflection = -Infinity;
   water.onBeforeRender = (renderer, scene, camera) => {
     const eye = material.uniforms.eye.value;
     eye.setFromMatrixPosition(camera.matrixWorld);
-    const nearRiver = Math.abs(eye.x - riverX(eye.z)) < 70;
-    material.uniforms.sceneReflection.value = Number(!lowDetail && nearRiver);
-    if (!lowDetail && nearRiver) {
+    const nearRiver = Math.abs(eye.x - riverX(eye.z)) < (lowDetail ? 35 : 70);
+    material.uniforms.sceneReflection.value = Number(nearRiver);
+    const time = material.uniforms.time.value;
+    if (nearRiver && (!lowDetail || time - lastReflection >= .2)) {
       if (camera.isPerspectiveCamera) {
         reflectionCamera.copy(camera, false);
-        reflectionCamera.far = Math.min(camera.far, 80);
+        reflectionCamera.far = Math.min(camera.far, lowDetail ? 48 : 80);
         reflectionCamera.updateProjectionMatrix();
         reflectScene(renderer, scene, reflectionCamera);
       } else reflectScene(renderer, scene, camera);
+      lastReflection = time;
     }
   };
-  water.userData.reflectionMode = lowDetail ? 'photographic-environment' : 'local-planar';
+  water.userData.reflectionMode = lowDetail ? 'local-planar-throttled' : 'local-planar';
   return water;
 }

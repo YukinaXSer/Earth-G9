@@ -26,13 +26,55 @@ test('reflective water retains its world-space surface, physical depth and upwar
     assert.match(water.material.fragmentShader, /vec3\( 0.2, 1.0, 0.2 \)/);
     assert.match(water.material.fragmentShader, /radiance \/ \(1\. \+ luminance\)/);
     assert.doesNotMatch(water.material.fragmentShader, /reflectionSample \* specularLight/);
-    assert.equal(water.userData.reflectionMode, lowDetail ? 'photographic-environment' : 'local-planar');
-    if (lowDetail) {
-      const camera = new THREE.PerspectiveCamera(); camera.position.set(0, 2, 20); camera.updateMatrixWorld();
-      water.onBeforeRender({}, new THREE.Scene(), camera);
-      assert.equal(water.material.uniforms.sceneReflection.value, 0);
-      assert.ok(water.material.uniforms.eye.value.equals(camera.position));
-    }
+    assert.equal(water.userData.reflectionMode, lowDetail ? 'local-planar-throttled' : 'local-planar');
+  }
+});
+
+test('both qualities reflect the local scene with bounded render targets, distance and LOW refresh cost', () => {
+  for (const lowDetail of [true, false]) {
+    const water = createRiverWater(new THREE.PlaneGeometry(14, 40), new THREE.Texture(), lowDetail);
+    water.updateMatrixWorld();
+    const camera = new THREE.PerspectiveCamera(60, 1, .1, 240);
+    camera.position.set(0, 2, 20); camera.updateMatrixWorld();
+    const scene = new THREE.Scene(), originalTarget = {}, calls = [];
+    let target = originalTarget;
+    const renderer = {
+      xr: { enabled: true }, shadowMap: { autoUpdate: true }, autoClear: false,
+      getRenderTarget: () => target,
+      setRenderTarget: value => { target = value; },
+      state: { buffers: { depth: { setMask: () => {} } } },
+      clear() {},
+      render(renderedScene, reflectedCamera) {
+        calls.push({ scene: renderedScene, camera: reflectedCamera.clone(), target });
+        assert.equal(water.visible, false);
+        assert.equal(this.xr.enabled, false);
+        assert.equal(this.shadowMap.autoUpdate, false);
+      },
+    };
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].scene, scene);
+    assert.equal(calls[0].target.width, lowDetail ? 128 : 256);
+    assert.equal(calls[0].camera.far, lowDetail ? 48 : 80);
+    assert.ok(Math.abs(calls[0].camera.position.y - (2 * RIVER_LEVEL - camera.position.y)) < 1e-6);
+    assert.ok(camera.position.equals(new THREE.Vector3(0, 2, 20)));
+    assert.equal(target, originalTarget);
+    assert.equal(water.visible, true);
+    assert.equal(renderer.xr.enabled, true);
+    assert.equal(renderer.shadowMap.autoUpdate, true);
+    assert.equal(water.material.uniforms.sceneReflection.value, 1);
+    water.material.uniforms.time.value = .1;
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, lowDetail ? 1 : 2);
+    water.material.uniforms.time.value = .21;
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, lowDetail ? 2 : 3);
+    camera.position.x = 100; camera.updateMatrixWorld();
+    water.material.uniforms.time.value = 1;
+    water.onBeforeRender(renderer, scene, camera);
+    assert.equal(calls.length, lowDetail ? 2 : 3);
+    assert.equal(water.material.uniforms.sceneReflection.value, 0);
+    assert.ok(water.material.uniforms.eye.value.equals(camera.position));
   }
 });
 
