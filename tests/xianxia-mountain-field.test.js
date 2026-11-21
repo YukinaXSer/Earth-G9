@@ -7,7 +7,7 @@ import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
 
 function load(phase,lod){
-  const b=readFileSync(new URL('../public/xianxia/surface/tile-'+phase+'-'+lod+'.bin',import.meta.url));
+  const b=readFileSync(new URL('../public/xianxia/surface/v2/tile-'+phase+'-'+lod+'.bin',import.meta.url));
   const geometry=decodeMountainGeometry(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
   return phase?geometry:gradeCaptureApproach(geometry);
 }

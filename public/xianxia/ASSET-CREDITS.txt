@@ -175,3 +175,7 @@ All original rainforest credits and licenses are preserved at /ASSET-CREDITS.txt
 Poetry quoted in the interface is public-domain classical Chinese poetry by Wang Wei, Jia Dao and Du Fu; authors and poem names are displayed beside each verse. Wind ambience is synthesized, not a field recording. Interface text and fictional location names are authored for this experience.
 
 All assets needed at runtime are bundled locally. There is no runtime fetch to asset providers, login service, CDN, iframe or navigation-based world transition.
+
+Streamed mountain surface revision 2
+-----------------------------------
+The 64 m source corridor retains the original-scale captured Coastal Cliff 04 skins and the gentle, photographically displaced earth surface described above. Near/far simplification happens before four-way clipping; missing interior cuts are restored with clipped triangles from those original surfaces, not procedural closing walls. MTN2 adds one normalized ground-cover byte per vertex, derived from actual earth proximity and upward normals, replacing the narrow route-only material mask. The visible terrain and movement queries decode the same triangles. Versioned v2 binaries leave the legacy geometry URLs intact for cached clients. Existing photographic layers, scanned stones, ferns and pines are reused; no additional texture source is introduced.

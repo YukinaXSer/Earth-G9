@@ -10,7 +10,7 @@ import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
 test('mountain navigation follows the visible surface in both mirrored directions',()=>{
   const surface=new MountainTileSurface();
   for(let phase=0;phase<4;phase++){
-    const data=readFileSync(new URL('../public/xianxia/surface/tile-'+phase+'-near.bin',import.meta.url));
+    const data=readFileSync(new URL('../public/xianxia/surface/v2/tile-'+phase+'-near.bin',import.meta.url));
     const geometry=decodeMountainGeometry(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
     if(!phase)gradeCaptureApproach(geometry);
     const index=createFloorIndex([geometry],2);

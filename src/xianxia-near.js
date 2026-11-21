@@ -17,7 +17,7 @@ export function captureGeometry(bytes){
 }
 
 export function gradeCaptureApproach(geometry){
-  const {position:entry,approach}=MOUNTAIN_ENTRANCE,positions=geometry.attributes.position,normals=geometry.attributes.normal;
+  const {position:entry,approach}=MOUNTAIN_ENTRANCE,positions=geometry.attributes.position,normals=geometry.attributes.normal,cover=geometry.attributes.groundCover;
   const normal=new THREE.Vector3(),targetNormal=new THREE.Vector3(-approach.grade,1,0).normalize();
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),y=positions.getY(i);
@@ -27,22 +27,30 @@ export function gradeCaptureApproach(geometry){
     if(blend<=0)continue;
     positions.setY(i,THREE.MathUtils.lerp(y,target,blend));
     normal.fromBufferAttribute(normals,i).lerp(targetNormal,blend).normalize();normals.setXYZ(i,normal.x,normal.y,normal.z);
+    if(cover)cover.setX(i,THREE.MathUtils.lerp(cover.getX(i),1,blend));
   }
   positions.needsUpdate=true;normals.needsUpdate=true;geometry.computeBoundingBox();geometry.computeBoundingSphere();
   return geometry;
 }
 
-export function groundProp(geometry,index,x,z,rotation,{sink=.025}={}){
-  geometry.rotateY(rotation);geometry.computeBoundingBox();
+export function groundPropMatrix(geometry,index,x,z,rotation,{sink=.025}={}){
+  geometry.computeBoundingBox();
   const box=geometry.boundingBox,positions=geometry.attributes.position,threshold=box.min.y+(box.max.y-box.min.y)*.2;
+  const c=Math.cos(rotation),s=Math.sin(rotation);
   let height=Infinity,samples=0;
   for(let i=0;i<positions.count;i++){
     if(positions.getY(i)>threshold)continue;
-    const floor=index.heightAt(x+positions.getX(i),z+positions.getZ(i));if(floor==null)return null;
+    const px=positions.getX(i),pz=positions.getZ(i);
+    const floor=index.heightAt(x+c*px+s*pz,z-s*px+c*pz);if(floor==null)return null;
     height=Math.min(height,floor-positions.getY(i));samples++;
   }
   if(!samples)return null;
-  geometry.translate(x,height-sink,z);geometry.computeBoundingBox();return geometry;
+  return new THREE.Matrix4().makeRotationY(rotation).setPosition(x,height-sink,z);
+}
+
+export function groundProp(geometry,index,x,z,rotation,options){
+  const matrix=groundPropMatrix(geometry,index,x,z,rotation,options);if(!matrix)return null;
+  geometry.applyMatrix4(matrix);geometry.computeBoundingBox();return geometry;
 }
 
 export async function loadNearCapture(world){

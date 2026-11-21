@@ -46,11 +46,13 @@ export async function loadPhotographicGround(renderer,{walls=false}={}){
 export function addPhotographicCapture(material,uniforms){
   uniforms.captureWorldToLocal??={value:new THREE.Matrix4()};
   uniforms.captureNormalToWorld??={value:new THREE.Matrix3()};
+  uniforms.captureUseGroundCover??={value:false};
   uniforms.captureReflectance??={value:new THREE.Vector2(.45,.38)};
   uniforms.captureGroundProfile??={value:null};uniforms.captureUseProfile??={value:false};uniforms.captureProfileSize??={value:1};uniforms.captureCorridorOrigin??={value:new THREE.Vector2()};
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniforms);
-    shader.vertexShader='uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    shader.vertexShader='attribute float groundCover; varying float photoGroundCover; uniform mat4 captureWorldToLocal; uniform vec3 patchOrigin; varying vec3 posM; varying vec3 normM;\n'+shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+      photoGroundCover=groundCover;
       mat4 photoModelMatrix=modelMatrix;
       #ifdef USE_BATCHING
         photoModelMatrix*=batchingMatrix;
@@ -60,7 +62,7 @@ export function addPhotographicCapture(material,uniforms){
       #endif
       posM=(captureWorldToLocal*photoModelMatrix*vec4(position,1.)).xyz-patchOrigin;
       normM=mat3(captureWorldToLocal*photoModelMatrix)*normal;`);
-    shader.fragmentShader='uniform mat3 captureNormalToWorld; uniform vec2 captureReflectance; uniform sampler2D captureGroundProfile; uniform bool captureUseProfile; uniform float captureProfileSize; uniform vec2 captureCorridorOrigin;\n'+photographicSurfaceGLSL+shader.fragmentShader;
+    shader.fragmentShader='varying float photoGroundCover; uniform bool captureUseGroundCover; uniform mat3 captureNormalToWorld; uniform vec2 captureReflectance; uniform sampler2D captureGroundProfile; uniform bool captureUseProfile; uniform float captureProfileSize; uniform vec2 captureCorridorOrigin;\n'+photographicSurfaceGLSL+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
       vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
@@ -68,14 +70,14 @@ export function addPhotographicCapture(material,uniforms){
       if(dot(faceG,photoG)<.7071)photoG=faceG;
       vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
       float region=dot(vec4(posM,1.),groundRegion);
-      if(captureUseProfile){
+      if(captureUseProfile&&!captureUseGroundCover){
         float station=mod(posM.x+captureCorridorOrigin.x,132.);if(station>66.)station=132.-station;
         float u=station<2.?station*station*.25:station>64.?64.-(66.-station)*(66.-station)*.25:station-1.;
         vec2 edges=texture2D(captureGroundProfile,vec2((u/64.*(captureProfileSize-1.)+.5)/captureProfileSize,.5)).rg*32.-16.;
         float lateral=mod(posM.z-captureCorridorOrigin.y+16.,64.);if(lateral>32.)lateral=64.-lateral;lateral-=16.;
         region=min(lateral-edges.x,edges.y-lateral);
       }
-      float mask=smoothstep(-groundMixWidth*.5,groundMixWidth*.5,region);if(forceMaterial>=0.)mask=forceMaterial;
+      float mask=captureUseGroundCover?clamp(photoGroundCover,0.,1.):smoothstep(-groundMixWidth*.5,groundMixWidth*.5,region);if(forceMaterial>=0.)mask=forceMaterial;
       Surface photoSurface;
       if(mask>=.99999){photoSurface=projectSurface(groundColor,groundNormal,groundMesoColor,groundMesoNormal,groundMean,photoG,photoW,posM,photoDx,photoDy,true);photoSurface.c*=captureReflectance.x;}
       else if(mask<=.00001){photoSurface=projectSurface(wallColor,wallNormal,wallMesoColor,wallMesoNormal,wallMean,photoG,photoW,posM,photoDx,photoDy,false);photoSurface.c*=captureReflectance.y;}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {captureGeometry,CAPTURE_SHIFT,CAPTURE_START,groundProp} from '../src/xianxia-near.js';
+import {captureGeometry,CAPTURE_SHIFT,CAPTURE_START,groundProp,groundPropMatrix} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {addPhotographicCapture} from '../src/xianxia-surface.js';
 import {XianxiaDemoRuntime} from '../src/xianxia-demo-runtime.js';
@@ -28,6 +28,16 @@ test('near runtime inherits the live forest lighting and stops the unused base a
   assert.equal(XianxiaDemoRuntime.prototype.makeLighting,Rainforest.prototype.makeLighting);
   const runtime={animate(){throw new Error('unused rainforest loop');}};
   XianxiaDemoRuntime.prototype.makeParticles.call(runtime);assert.doesNotThrow(()=>runtime.animate());
+});
+
+test('instanced ground placement preserves the same scale, foot embedding and template geometry',()=>{
+  const floor=new THREE.PlaneGeometry(20,20).rotateX(-Math.PI/2).rotateZ(.1),index=createFloorIndex([floor],2);
+  const template=new THREE.BoxGeometry(.6,.6,.6).translate(0,.3,0),original=template.attributes.position.array.slice();
+  const transform=groundPropMatrix(template,index,1,2,.7),copy=template.clone().applyMatrix4(transform),placed=groundProp(template.clone(),index,1,2,.7);
+  assert.deepEqual(template.attributes.position.array,original);
+  assert.ok(Math.abs(transform.determinant()-1)<1e-9);
+  assert.deepEqual(copy.attributes.position.array,placed.attributes.position.array);
+  assert.equal(groundPropMatrix(template,index,100,100,0),null);
 });
 
 test('both photographic layers feed standard PBR, retaining the shared HDR, tone map and output stages',()=>{

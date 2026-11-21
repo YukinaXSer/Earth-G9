@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {createFloorIndex} from './xianxia-world.js';
 import {loadPhotographicGround,ensureSurfaceNormals,addPhotographicCapture} from './xianxia-surface.js';
-import {CAPTURE_SHIFT,gradeCaptureApproach,groundProp} from './xianxia-near.js';
+import {CAPTURE_SHIFT,gradeCaptureApproach,groundProp,groundPropMatrix} from './xianxia-near.js';
 import {MOUNTAIN_ENTRANCE} from './xianxia-mountain.js';
 import {decodeMountainGeometry,distantMountainGeometry,mountainStation,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainCell} from './xianxia-mountain-geometry.js';
 import {MountainTileSurface} from './xianxia-mountain-surface.js';
@@ -54,7 +54,7 @@ async function pineSources(){
 }
 
 export async function loadMountainField(world){
-  const response=await fetch(ROOT+'mountain.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
+  const response=await fetch(ROOT+'mountain-v2.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
   const manifest=await response.json();
   if(manifest.period!==MOUNTAIN_PERIOD||manifest.tiles?.length!==4||manifest.profile?.length!==257)throw new Error('Invalid mountain surface manifest');
   const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),sourceProps(),pineSources()]);
@@ -64,7 +64,7 @@ export async function loadMountainField(world){
   profile.minFilter=profile.magFilter=THREE.LinearFilter;profile.needsUpdate=true;
   const uniforms={
     patchOrigin:{value:CAPTURE_SHIFT.clone()},captureWorldToLocal:{value:new THREE.Matrix4()},captureNormalToWorld:{value:new THREE.Matrix3()},
-    forceMaterial:{value:-1},stochastic:{value:true},microMeters:{value:new THREE.Vector2(resources.manifest.textures.groundColor.physicalTileMeters,resources.manifest.textures.wallColor.physicalTileMeters)},
+    forceMaterial:{value:-1},stochastic:{value:true},captureUseGroundCover:{value:true},microMeters:{value:new THREE.Vector2(resources.manifest.textures.groundColor.physicalTileMeters,resources.manifest.textures.wallColor.physicalTileMeters)},
     captureReflectance:{value:new THREE.Vector2(.35,.38)}
   };
   uniforms.groundMean={value:new THREE.Vector3(...resources.manifest.groundMean)};
@@ -95,6 +95,7 @@ export async function loadMountainField(world){
       const response=await fetch(ROOT+manifest.tiles[phase][lod]);
       if(!response.ok)throw new Error('Mountain tile unavailable: '+key);
       const geometry=decodeMountainGeometry(await response.arrayBuffer());
+      if(!geometry.attributes.groundCover)throw new Error('Mountain ground-cover metadata unavailable: '+key);
       if(phase===0)gradeCaptureApproach(geometry);
       const data={phase,lod,geometry,index:createFloorIndex([geometry],2)};
       if(lod==='near'||!native.has(phase))native.set(phase,data.index);
@@ -105,7 +106,7 @@ export async function loadMountainField(world){
   const slots=new Map();
   const rockMaterial=addPhotographicCapture(material.clone(),{...uniforms,forceMaterial:{value:0}});
   function decorate(phase,data){
-    const rocks=[],trees=[],floor={heightAt:(x,z)=>{
+    const rocks=[],trees=[],contacts=[],floor={heightAt:(x,z)=>{
       const height=data.index.heightAt(x,z);if(height!=null)return height;
       let h=-Infinity;for(const index of native.values())h=Math.max(h,index.heightAt(x,z)??-Infinity);
       return Number.isFinite(h)?h:null;
@@ -116,7 +117,19 @@ export async function loadMountainField(world){
       if(mountainPathDistance(x,z)<radius+.85)return;
       if(x>MOUNTAIN_ENTRANCE.position.x-radius-.5&&x<MOUNTAIN_ENTRANCE.approach.endX+radius+.5&&Math.abs(z-MOUNTAIN_ENTRANCE.position.z)<1+radius)return;
       const geometry=groundProp(template.clone(),floor,x,z,rotation,{sink});
-      if(geometry)rocks.push(geometry);
+      if(geometry){
+        rocks.push(geometry);
+        if(radius>.35){
+          const p=geometry.attributes.position,box=geometry.boundingBox,limit=box.min.y+(box.max.y-box.min.y)*.2;
+          for(let i=0;i<p.count;i+=3){
+            if(p.getY(i)>limit)continue;
+            const px=p.getX(i),pz=p.getZ(i),height=floor.heightAt(px,pz);
+            if(height==null||Math.abs(height-p.getY(i))>.12)continue;
+            const d=Math.max(.01,Math.hypot(px-x,pz-z));contacts.push([px+(px-x)/d*.12,pz+(pz-z)/d*.12]);
+            break;
+          }
+        }
+      }
     };
     for(let i=0;i<24;i++){
       const u=phase*16+1.1+(i%6)*2.4+random(i+phase*41)*.7,x=MOUNTAIN_BASE_X+mountainStation(u);
@@ -131,9 +144,16 @@ export async function loadMountainField(world){
       const z=MOUNTAIN_ENTRANCE.position.z+(i%2?1:-1)*(.7+random(i+71)*6);
       placeRock(sources[1+i%2][0].geometry,x,z,.018,random(i+phase*19)*Math.PI*2);
     }
+    for(let i=0;i<50;i++){
+      const u=phase*16+.6+random(i+phase*71+901)*14.8,x=MOUNTAIN_BASE_X+mountainStation(u);
+      const z=MOUNTAIN_BASE_Z+(random(i+phase*11+815)-.5)*(MOUNTAIN_WIDTH-2);
+      const large=i%5===0;
+      placeRock(large?sources[0][i%sources[0].length].geometry:sources[1+i%2][0].geometry,x,z,large?.14:.025,random(i+503)*Math.PI*2);
+    }
     if(phase===0)for(const [i,x,z]of[[0,119,-109],[1,127,-116.5],[2,135,-110]]){
       trees.push({i,x,z});
     }
+    if(phase===3)trees.push({i:phase,x:MOUNTAIN_BASE_X+mountainStation(phase*16+8),z:MOUNTAIN_BASE_Z+11});
     data.props=new THREE.Group();data.propIndices=[];
     for(const geometry of rocks){
       for(const name of Object.keys(geometry.attributes))if(!['position','normal'].includes(name))geometry.deleteAttribute(name);
@@ -145,16 +165,30 @@ export async function loadMountainField(world){
       data.props.add(mesh);data.propIndices.push(createFloorIndex([merged],2));
     }
     const plantedFloor={heightAt:(x,z)=>Math.max(floor.heightAt(x,z)??-Infinity,...data.propIndices.map(index=>index.heightAt(x,z)??-Infinity))};
-    for(let i=0;i<125;i++){
-      const u=phase*16+.6+random(i+phase*17)*14.8,x=MOUNTAIN_BASE_X+mountainStation(u);
-      const right=i%4!==0,z=right?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5;
+    const ferns=sources[3].map(()=>[]),basePlants=world.quality==='low'?75:125,plantCount=world.quality==='low'?125:225;
+    for(let i=0;i<plantCount;i++){
+      const u=phase*16+.6+random(i+phase*17)*14.8;
+      let x=MOUNTAIN_BASE_X+mountainStation(u);
+      const right=i%4!==0;
+      let z=i<basePlants?(right?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5):MOUNTAIN_BASE_Z+(random(i+phase*29+801)-.5)*(MOUNTAIN_WIDTH-1);
+      if(i>=basePlants&&i%2&&contacts.length)[x,z]=contacts[Math.floor(random(i+phase*71)*contacts.length)];
       if(mountainPathDistance(x,z)<.6)continue;
       if(x<MOUNTAIN_ENTRANCE.approach.endX+.5&&Math.abs(z-MOUNTAIN_ENTRANCE.position.z)<1)continue;
-      const template=sources[3][i%sources[3].length],geometry=groundProp(template.geometry.clone(),data.index,x,z,i*2.4,{sink:.02});
-      if(geometry)data.props.add(new THREE.Mesh(geometry,template.material));
+      if(i>=basePlants){
+        const heights=[[-.2,0],[.2,0],[0,-.2],[0,.2]].map(([dx,dz])=>plantedFloor.heightAt(x+dx,z+dz));
+        if(heights.some(h=>!Number.isFinite(h))||Math.max(...heights)-Math.min(...heights)>.35)continue;
+      }
+      const variant=i%sources[3].length,template=sources[3][variant],transform=groundPropMatrix(template.geometry,plantedFloor,x,z,i*2.4,{sink:.02});
+      if(transform)ferns[variant].push(transform);
     }
-    for(let i=0;i<7;i++){
-      const x=MOUNTAIN_BASE_X+mountainStation(phase*16+3+i*1.7),z=MOUNTAIN_BASE_Z-1+random(i+phase*13)*4,h=plantedFloor.heightAt(x,z);
+    for(const [i,transforms]of ferns.entries()){
+      if(!transforms.length)continue;
+      const template=sources[3][i],mesh=new THREE.InstancedMesh(template.geometry,template.material,transforms.length);
+      transforms.forEach((transform,i)=>mesh.setMatrixAt(i,transform));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
+      mesh.name='grounded-mountain-ferns';data.props.add(mesh);
+    }
+    for(let i=0;i<11;i++){
+      const x=MOUNTAIN_BASE_X+mountainStation(phase*16+1+(i<7?2+i*1.7:random(i+phase*13)*14)),z=MOUNTAIN_BASE_Z+(i<7?-1+random(i+phase*13)*4:(random(i+phase*31+913)-.5)*(MOUNTAIN_WIDTH-2)),h=plantedFloor.heightAt(x,z);
       if(mountainPathDistance(x,z)<.8)continue;
       if(!Number.isFinite(h))continue;
       const tree=pines.saplings[i%pines.saplings.length].clone(true);
@@ -177,11 +211,15 @@ export async function loadMountainField(world){
       if(wood.length){const index=createFloorIndex(wood,2);data.propIndices.push({geometries:wood,heightAt:()=>null,canMove:(...args)=>index.canMove(...args)});}
     }
   }
+  function releaseGroup(group){
+    if(!group)return;
+    group.traverse(object=>{if(object.isInstancedMesh)object.dispose();});group.removeFromParent();
+  }
   function show(block,band,phase,data,lod){
     const slot=slots.get(block+':'+band+':'+phase);
     if(slot.lod===lod&&slot.level===(data.level??0))return;
     if(lod==='near'&&!data.props)decorate(phase,data);
-    slot.group?.removeFromParent();slot.group=null;
+    releaseGroup(slot.group);slot.group=null;
     slot.batch.mesh.setVisibleAt(slot.id,lod==='far');
     if(lod==='far')slot.batch.mesh.setGeometryIdAt(slot.id,slot.batch.geometry[data.level??0]);
     if(lod==='near'){
@@ -215,7 +253,7 @@ export async function loadMountainField(world){
   function windowAt(block,band,x=MOUNTAIN_ENTRANCE.position.x,z=MOUNTAIN_ENTRANCE.position.z){
     if(block===windowBlock&&band===windowBand)return;
     for(const[key,slot]of slots)if(Math.abs(slot.block-block)>extentX||Math.abs(slot.band-band)>extentZ){
-      slot.group?.removeFromParent();slot.batch.mesh.deleteInstance(slot.id);
+      releaseGroup(slot.group);slot.batch.mesh.deleteInstance(slot.id);
       surface.delete(slot.block,slot.phase,slot.band);slots.delete(key);
     }
     for(let b=block-extentX;b<=block+extentX;b++)for(let r=band-extentZ;r<=band+extentZ;r++)for(let p=0;p<4;p++){
@@ -263,7 +301,7 @@ export async function loadMountainField(world){
     world.root.add(mesh);
     try{
       renderer.setRenderTarget(target);renderer.render(scene,world.prewarmCamera);data.warmed=true;
-    }finally{renderer.setRenderTarget(previous);mesh.removeFromParent();target.dispose();}
+    }finally{renderer.setRenderTarget(previous);releaseGroup(mesh);target.dispose();}
   }
   world.onProgress(1);
   return world;

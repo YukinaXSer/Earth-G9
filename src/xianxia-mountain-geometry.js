@@ -21,13 +21,14 @@ export function mountainStation(u){
 export function distantMountainGeometry(source,step=.5){
   if(!Number.isFinite(step)||step<=0)throw new Error('Invalid distant mesh spacing');
   source.computeBoundingBox();const {min,max}=source.boundingBox;
-  const p=source.attributes.position,n=source.attributes.normal,vertices=[],normals=[],remap=new Uint32Array(p.count),cells=new Map();
+  const p=source.attributes.position,n=source.attributes.normal,g=source.attributes.groundCover,vertices=[],normals=[],cover=[],counts=[],remap=new Uint32Array(p.count),cells=new Map();
   for(let i=0;i<p.count;i++){
     const px=p.getX(i),py=p.getY(i),pz=p.getZ(i),rim=Math.min(Math.abs(px-min.x),Math.abs(px-max.x),Math.abs(pz-min.z),Math.abs(pz-max.z))<.001;
     const x=rim?px:Math.round(px/step)*step,y=rim?py:Math.round(py/step)*step,z=rim?pz:Math.round((pz-MOUNTAIN_BASE_Z)/step)*step+MOUNTAIN_BASE_Z,key=x+':'+y+':'+z;
     let id=cells.get(key);
-    if(id==null){id=vertices.length/3;cells.set(key,id);vertices.push(x,y,z);normals.push(0,0,0);}
+    if(id==null){id=vertices.length/3;cells.set(key,id);vertices.push(x,y,z);normals.push(0,0,0);cover.push(0);counts.push(0);}
     remap[i]=id;for(let a=0;a<3;a++)normals[id*3+a]+=n.getComponent(i,a);
+    if(g)cover[id]+=g.getX(i);counts[id]++;
   }
   for(let i=0;i<normals.length;i+=3)if(Math.hypot(normals[i],normals[i+1],normals[i+2])<1e-6)normals[i+1]=1;
   const triangles=[],seen=new Set(),indices=source.index;
@@ -40,13 +41,16 @@ export function distantMountainGeometry(source,step=.5){
   if(!triangles.length||triangles.length>=indices.count)return source;
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geometry.normalizeNormals();
+  if(g)geometry.setAttribute('groundCover',new THREE.Uint8BufferAttribute(cover.map((v,i)=>Math.round(v/counts[i]*255)),1,true));
   geometry.setIndex(triangles);geometry.computeBoundingBox();geometry.computeBoundingSphere();return geometry;
 }
 
 export function decodeMountainGeometry(buffer){
   const view=new DataView(buffer);
-  if(buffer.byteLength<36||view.getUint32(0,true)!==0x314e544d)throw new Error('Invalid mountain geometry header');
-  const count=view.getUint32(4,true),length=view.getUint32(8,true),end=36+count*9;
+  if(buffer.byteLength<36)throw new Error('Invalid mountain geometry header');
+  const version=view.getUint32(0,true),covered=version===0x324e544d;
+  if(version!==0x314e544d&&!covered)throw new Error('Invalid mountain geometry header');
+  const count=view.getUint32(4,true),length=view.getUint32(8,true),end=36+count*(covered?10:9);
   if(!count||count>2000000||!length||length%3||length>12000000||end+length>buffer.byteLength)throw new Error('Invalid mountain geometry size');
   const lo=[12,16,20].map(o=>view.getFloat32(o,true)),span=[24,28,32].map(o=>view.getFloat32(o,true));
   if(lo.some(n=>!Number.isFinite(n))||span.some(n=>!Number.isFinite(n)||n<=0))throw new Error('Invalid mountain geometry bounds');
@@ -72,5 +76,6 @@ export function decodeMountainGeometry(buffer){
   }
   if(cursor!==bytes.length)throw new Error('Unexpected mountain geometry trailing data');
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setAttribute('normal',new THREE.BufferAttribute(normals,3));geometry.setIndex(new THREE.BufferAttribute(indices,1));
+  if(covered)geometry.setAttribute('groundCover',new THREE.Uint8BufferAttribute(new Uint8Array(buffer,36+count*9,count).slice(),1,true));
   geometry.computeBoundingBox();geometry.computeBoundingSphere();return geometry;
 }
