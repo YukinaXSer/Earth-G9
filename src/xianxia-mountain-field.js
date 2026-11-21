@@ -54,7 +54,7 @@ async function pineSources(){
 }
 
 export async function loadMountainField(world){
-  const response=await fetch(ROOT+'mountain-v2.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
+  const response=await fetch(ROOT+'mountain-v3.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
   const manifest=await response.json();
   if(manifest.period!==MOUNTAIN_PERIOD||manifest.tiles?.length!==4||manifest.profile?.length!==257)throw new Error('Invalid mountain surface manifest');
   const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),sourceProps(),pineSources()]);
@@ -165,13 +165,13 @@ export async function loadMountainField(world){
       data.props.add(mesh);data.propIndices.push(createFloorIndex([merged],2));
     }
     const plantedFloor={heightAt:(x,z)=>Math.max(floor.heightAt(x,z)??-Infinity,...data.propIndices.map(index=>index.heightAt(x,z)??-Infinity))};
-    const ferns=sources[3].map(()=>[]),basePlants=world.quality==='low'?75:125,plantCount=world.quality==='low'?125:225;
+    const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?25:45),plantCount=world.quality==='low'?125:225;
     for(let i=0;i<plantCount;i++){
       const u=phase*16+.6+random(i+phase*17)*14.8;
       let x=MOUNTAIN_BASE_X+mountainStation(u);
       const right=i%4!==0;
       let z=i<basePlants?(right?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5):MOUNTAIN_BASE_Z+(random(i+phase*29+801)-.5)*(MOUNTAIN_WIDTH-1);
-      if(i>=basePlants&&i%2&&contacts.length)[x,z]=contacts[Math.floor(random(i+phase*71)*contacts.length)];
+      if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(i+phase*71)*contacts.length)];
       if(mountainPathDistance(x,z)<.6)continue;
       if(x<MOUNTAIN_ENTRANCE.approach.endX+.5&&Math.abs(z-MOUNTAIN_ENTRANCE.position.z)<1)continue;
       if(i>=basePlants){

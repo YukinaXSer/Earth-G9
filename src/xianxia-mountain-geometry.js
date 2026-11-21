@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 export const MOUNTAIN_PERIOD=66;
 export const MOUNTAIN_BASE_X=97;
-export const MOUNTAIN_BASE_Z=-108.96188612599644;
+// Reflected cell anchors must share the decoded vertices' Float32 grid.
+export const MOUNTAIN_BASE_Z=Math.fround(-108.96188612599644);
 export const MOUNTAIN_WIDTH=32;
 
 export function mountainCell(block,band=0){
