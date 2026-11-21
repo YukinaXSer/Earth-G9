@@ -109,6 +109,11 @@ License: https://polyhaven.com/license (CC0 1.0, public domain dedication)
 Textures are resized and JPEG-compressed for the browser build.
 
 CC0 professional vegetation and scanned natural-detail assets from Poly Haven:
+Ground photographic layers: Rocky Trail https://polyhaven.com/a/rocky_trail (CC0), whole 2m color/normal plus native 0.25m fine-detail crop, KTX2 ETC1S/UASTC derivatives. Source roughness packed in normal alpha; no new geometric displacement.
+KTX2 container reader: ktx-parse bundled with Three.js (MIT), GPU upload through Three.CompressedTexture. libKTX 4.3.2 transcodes the approved Basis files offline to ETC2 or desktop S3TC blocks. No runtime Basis transcoder, workers, WASM, or CSP relaxation; HTTP gzip reduces transfer.
+Native-scale near capture: Coastal Cliff 04 https://polyhaven.com/a/coastal_cliff_04 (CC0), original 1-metre units, 151044 source triangles, rigid translation only. The binary patch retains source positions, normals and triangle indices; appearance/foot/body queries use these visible triangles, not Haytor or SRTM.
+Wall medium/detail photographs: AmbientCG Rock043L https://ambientcg.com/a/Rock043L (CC0 photogrammetry), 1.8m whole image and native 0.225m fine-grain crop. Grey natural rock; no geological certification as granite is claimed.
+Foot-transition props: Poly Haven Stone 01 https://polyhaven.com/a/stone_01 and Rock 07 https://polyhaven.com/a/rock_07 (CC0), plus Rock Moss Set 01 and Fern 02 already credited below; individual original-scale objects, missing normals generated, grounded against the visible scan.
 - Jacaranda Tree: https://polyhaven.com/a/jacaranda_tree
 - Fern 02: https://polyhaven.com/a/fern_02
 - Calathea Orbifolia 01: https://polyhaven.com/a/calathea_orbifolia_01

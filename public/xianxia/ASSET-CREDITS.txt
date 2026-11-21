@@ -1,0 +1,181 @@
+青岚境 / Earth 2 Xianxia — material provenance
+===========================================
+This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses a complete photographed landscape, with measured Huangshan elevations beyond it; neither is a profile invented around the route. The background photograph is not walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
+
+Close-scale photographed landscape
+----------------------------------
+The mountain-only entry now uses Coastal Cliff 04 by Poly Haven (CC0):
+https://polyhaven.com/a/coastal_cliff_04
+Native-scale scan surfaces are joined offline to a graded walking corridor
+derived from the captured height profile and Rocky Trail photographic
+displacement. Infill slopes are limited to 0.5 per axis before union
+(35.3 degrees maximum combined grade); cliff silhouettes, ledges and
+overhangs retain the scan's native geometry, without lateral planar caps.
+Four shared near/far tiles repeat with alternating X reflection.
+The two one-metre terminal bands blend the tangent between reflected blocks;
+the remaining captured interior is not enlarged. The visible baked triangles
+also provide foot height and wall collision. This is an authored composite,
+not a continuous one-kilometre survey. No aerial geometry is loaded by this entry.
+The earlier aerial terrain described below is retained only for legacy code.
+
+Mountain walking surfaces use Forest Floor by Poly Haven, CC0:
+https://polyhaven.com/a/forest_floor
+Bare-rock detail uses Rock043L by ambientCG, CC0:
+https://ambientcg.com/a/Rock043L
+Full photographic layers repeat at 2.14m and 1.8m; native detail crops at .2675m
+and .225m add grain. Original albedo, normal and roughness are repacked into
+precompressed GPU texture blocks; source dimensions, crop bounds, format,
+licenses and checksums are listed in surface/manifest.json. Scattered rocks
+and ferns retain their captured scale and are grounded against visible tiles.
+Entry vegetation includes native-scale Pine Sapling Small by Poly Haven, CC0:
+https://polyhaven.com/a/pine_sapling_small
+Only one original approximately 1.05m seedling is retained, with quantized
+geometry and compressed photographic albedo/alpha; it is not enlarged.
+The taller pines use an original approximately 7.01m Pine Sapling Medium model:
+https://polyhaven.com/a/pine_sapling_medium
+Its native three-dimensional trunk, branches and needles are LOD-reduced and
+quantized without enlargement, with photographic albedo under the shared PBR
+lighting. Whole-tree photographic cards are no longer loaded at this entry.
+Black unused atlas texels are padded with the nearest existing photographed
+color (no recoloring or generated texture detail), reducing black mip bleed.
+Visible trunk triangles supply body collision without becoming ground support.
+Beyond 96m (Low) / 192m (High), a half-metre vertex-cluster LOD of the same
+captured triangles is used; original tile-rim vertices remain. This LOD supplies
+terrain queries. Near geometry is not clustered. Subpixel photographic grain
+fades with screen footprint; the complete mid-scale photograph remains.
+
+"Mountain terrain - Haytor Dartmoor National Park" by Chris Bibb / chrisbibb.
+https://sketchfab.com/3d-models/6d15587128a5451d9e29d6b50061045e
+Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+Original capture: 300 oblique aerial photographs, approximately 50 m above
+the outcrops, 4K texture. The WHOLE captured terrain is used as actual 3D
+geometry, not as a photograph on an invented slope or a flat support plane.
+File: models/terrain-scan.glb. Changes: rigid translation, uniform 4.5x
+enlargement in all axes, clipping at the cave join, UV-preserving boundary
+triangulation, smooth normals, decimation and embedded WebP. Additional
+licensed near-surface photographic normal/luminance detail is applied without
+inventing terrain displacement. Player feet intersect the final visible
+triangles; a 12 m proxy is used only to mosaic the distant measured terrain
+around the capture boundary, not to replace the foreground scan geometry.
+Source transformation, uniform scale and original SHA-256 are retained in
+src/xianxia-foreground-data.json. The English source terrain is deliberately
+reinterpreted in this fictional Chinese-themed composite, not relabelled as
+a survey of Huangshan. Public source copy: ScanSceneverse, credited below.
+
+Measured Huangshan landscape and georeferenced imagery
+-----------------------------------------------------
+Terrain elevations: USGS SRTM, approximately 30 m native horizontal resolution,
+distributed by Mapzen Terrain Tiles (public-domain USGS data; retain attribution).
+https://registry.opendata.aws/terrain-tiles/
+https://github.com/tilezen/joerd/tree/master/docs
+AOI origin: 30.119 N, 118.161 E, Huangshan, China. Local datum is translated to
+7 m at the cave exit without vertical exaggeration. Native elevation samples
+are cropped, quantized to 0.125 m, interpolated and meshed at 12 m. This does
+NOT make the source a 12 m survey, nor resolve near-ground rocks or overhangs.
+The authored hiking ribbon follows that measured surface; it does not define
+or deform the surrounding hills. No noise-based or route-distance mountains.
+Source tile URLs and SHA-256 hashes: src/xianxia-terrain-data.json.
+Reproducer: scripts/import-xianxia-terrain.py EXISTING_DOWNLOAD_CACHE_DIRECTORY
+(Python dependencies: numpy, Pillow, requests).
+
+EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)
+https://cloudless.eox.at/
+https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml
+2016 layer: s2cloudless_3857. Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+Changes: four georeferenced tiles mosaicked to a local WebP, overlaid with the
+licensed Poly Haven near-surface rock detail and normal textures below.
+Later EOX annual layers have DIFFERENT licenses; they are not used here.
+
+Huangshan photographic distant environment
+------------------------------------------
+“Environment of huangshan” — François Philipp.
+Source: https://commons.wikimedia.org/wiki/File:Environment_of_huangshan.jpg
+License: Creative Commons Attribution 2.0 Generic
+https://creativecommons.org/licenses/by/2.0/
+Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
+
+Poly Haven resources — CC0 1.0 Universal
+--------------------------------------
+License: https://polyhaven.com/license
+Legal text: https://creativecommons.org/publicdomain/zero/1.0/
+rock_face_01 — Dario Barresi
+https://polyhaven.com/a/rock_face_01
+rock_moss_set_01 — Kless Gyzen
+https://polyhaven.com/a/rock_moss_set_01
+pine_sapling_medium — photography Rob Tuytel; modeling Rico Cilliers
+https://polyhaven.com/a/pine_sapling_medium
+rocky_trail — Amal Kumar
+https://polyhaven.com/a/rocky_trail
+rock_wall_02 — Rob Tuytel
+https://polyhaven.com/a/rock_wall_02
+kiara_1_dawn — Greg Zaal (mountain-light.hdr)
+https://polyhaven.com/a/kiara_1_dawn
+
+Changes: rock GLTF converted to binary GLB; mesh welding, simplification, pruning and deduplication with glTF Transform and Meshoptimizer; textures converted to embedded WebP. Separate low-quality rock GLBs use further simplification and 512 px textures. The old repeated rock-face cave and stacked entrance were removed; their source files remain for provenance. Scenery is instanced and distance-culled. Rocky trail photographs supply color, normal and displacement textures.
+
+Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
+
+Captured cave geometry (Creative Commons Attribution 4.0 International)
+--------------------------------------------------------------------------
+License: https://creativecommons.org/licenses/by/4.0/
+"Sea Cave 3" by b_nealie.
+https://sketchfab.com/3d-models/ce71dc2848984acfb11d8002a48a6043
+Captured from 46 photographs using 3DF Zephyr, including an actual arched
+entrance, forested approach, floor, interior walls and ceiling. Used as
+models/cave-scan.glb. Replaces the separate LiDAR body, Hohlenstein-Stadel
+entrance and subsequently rejected Mossy Sandstone Cave shelter; those are
+not used in the runtime. Source: about 698,000 triangles and nine native
+1024-pixel texture tiles. Native normalized units are uniformly scaled by
+0.04 for a human-height walkable passage; no claim of surveyed physical size.
+The captured arm is duplicated and opposed at its photographed interior,
+with a 1 m overlap. A single shared rigid tilt connects the rainforest datum
+to the mountain datum 7 m higher, preserving the source proportions. No
+independent stretching, generated tunnel or decorative stacked mouth rocks.
+Adaptations: rigid orientation, front/back clipping with interpolated UVs,
+conservative simplification and embedded quality-95 WebP without upscaling.
+The floor route and headroom are derived from captured triangles. Runtime
+feet and ceiling collision use the final rendered mesh, not an invented floor.
+Source matrices and enclosed lighting range: src/xianxia-cave-captures.json.
+Original GLB SHA-256: 44eef15244164d8503361b51dda69c3954cc1d784dfc9afbb88832cf3d72727e
+
+Walking-distance surface detail uses the photographed 4K diffuse and
+displacement of Poly Haven's rock_wall_02 (CC0, native physical tile 2 x 2 m):
+https://polyhaven.com/a/rock_wall_02
+Files: textures/cave-detail-color.webp and cave-detail-height.webp.
+Triplanar photographic albedo replaces the blurry baked wall/roof color;
+the captured floor and dark crevice occlusion remain. Derivative bump adds
+real photographed surface relief without changing the captured cave shape.
+Bump strength is an authored appearance setting, not measured cave relief.
+No synthetic noise, generative upscaling or displacement of the cave mesh.
+The source 16-bit height is quantized to 8-bit lossless WebP; color is quality
+95 WebP. The cropped floor edge fades over 1.5 m onto the demo's existing
+forest ground, which is graded to the captured boundary heights. Only that
+demo instance is graded; the rainforest's source terrain is unchanged.
+Diffuse download SHA-256: 08033b35eec27a9f806881d6fedd18c55433ef0130092f851b3c019e57989a68
+Height download SHA-256: 24986dff8c35a58d194c5866762abd3f6210b7a7519dca12bec3d6da87ca9678
+
+Licensed copies obtained from the public ScanSceneverse distribution:
+https://huggingface.co/datasets/Stable-X/ScanSceneverse
+This modified, repeated capture forms a fictional cave. It does not claim
+that the real cave connects a rainforest to Huangshan or Dartmoor.
+
+Fonts
+-----
+Noto Serif CJK SC — Adobe / Google, SIL Open Font License 1.1.
+https://github.com/notofonts/noto-cjk
+Subset for this Chinese interface and stone labels, converted to WOFF2. License: FONT-LICENSE.txt in this directory.
+Existing Rainforest Sans/Serif subsets are extended to cover the new interface. Their original FONT-LICENSE.txt remains at public root.
+
+Engine, original rainforest and text
+------------------------------------
+Three.js 0.180.0 — MIT; see /THREE-LICENSE.txt.
+All original rainforest credits and licenses are preserved at /ASSET-CREDITS.txt, /FONT-LICENSE.txt and /THREE-LICENSE.txt. This module does not replace them.
+Poetry quoted in the interface is public-domain classical Chinese poetry by Wang Wei, Jia Dao and Du Fu; authors and poem names are displayed beside each verse. Wind ambience is synthesized, not a field recording. Interface text and fictional location names are authored for this experience.
+
+All assets needed at runtime are bundled locally. There is no runtime fetch to asset providers, login service, CDN, iframe or navigation-based world transition.
+
+Streamed mountain surface revision 3 (MTN2)
+-----------------------------------
+The 64 m source corridor retains the authored Coastal Cliff 04 front surfaces over continuous gentle earth; no boolean backing shells, generated rock walls or union-cut rock feet are drawn. Earth comes from valid captured support samples with isotropic filtering and original Rocky Trail photographic displacement, not an axis-aligned slope envelope or an extrusion of out-of-capture raster edges. The fixed entrance is retained. Only earth is softened at mirrored lateral rims; steep faces remain captured rock. Captured LOD simplification locks the original clipped tile borders; near/far earth also retains the same fine boundary samples. Generated earth triangles stay below 45 degrees. MTN2 adds one normalized ground-cover byte per vertex, derived from actual earth proximity and upward normals, replacing the narrow route-only material mask. Visible terrain and movement queries decode the same final triangles, including the earth surface. Versioned v3 binaries leave legacy MTN1 and v2 MTN2 URLs intact, so cached clients cannot mix old and rebuilt terrain. Existing photographic layers, scanned stones, ferns and pines are reused; no additional texture source is introduced.
