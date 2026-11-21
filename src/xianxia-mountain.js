@@ -20,7 +20,8 @@ export const MOUNTAIN_LIGHTING=Object.freeze({
 });
 
 export class XianxiaMountain {
-  constructor({renderer,quality='high',onProgress=()=>{}}={}){
+  constructor({renderer,quality='high',renderHorizon=false,onProgress=()=>{}}={}){
+    this.renderHorizon=renderHorizon;
     this.world=new XianxiaWorld(new THREE.Group(),{renderer,quality,nearOnly:true,renderHorizon:false,onProgress});
     this.group=this.world.root;
     this.group.removeFromParent();
@@ -28,8 +29,19 @@ export class XianxiaMountain {
     this.from=new THREE.Vector3();this.to=new THREE.Vector3();
   }
   load(){
-    this.loading??=this.world.load().then(()=>this);
+    this.loading??=this.world.load().then(()=>{
+      if(this.renderHorizon)this.loadHorizon();
+      return this;
+    });
     return this.loading;
+  }
+  loadHorizon(){
+    this.horizonLoading??=this.load().then(async()=>{
+      const {loadMountainHorizon}=await import('./xianxia-mountain-horizon.js');
+      this.horizon=await loadMountainHorizon(this);return this.horizon;
+    });
+    this.horizonLoading.catch(error=>{this.horizonError=error;});
+    return this.horizonLoading;
   }
   async prepare(camera){
     await this.load();await this.world.prepareMountain?.(camera);return this;

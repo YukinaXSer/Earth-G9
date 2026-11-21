@@ -15,13 +15,30 @@ const y=mountain.groundHeight(worldX,worldZ); // 宿主世界坐标；缺面/未
 const allowed=mountain.canMove(fromWorldX,fromWorldZ,toWorldX,toWorldZ);
 ```
 
-- `group` 仅包含山体和道具，不创建 renderer、camera 或 Scene，不改宿主环境、背景、雾或灯光，不加载山洞、雨林资源或全景球。
+- `group` 默认仅包含近山和道具，不创建 renderer、camera 或 Scene，不改宿主环境、背景、雾或灯光，不加载山洞、雨林资源或全景球。
 - `load()` 返回同一个 Promise；完成后返回 mountain。`groundHeight` 和 `canMove` 查询可见地表及实体石块的最终三角网格，支持宿主父节点平移和 yaw。
 - `MOUNTAIN_ENTRANCE` 是**山本地坐标**：脚底 `(100.5, 0.49862106783051635, -115.1)`；离洞入山向 `+X`，yaw `-Math.PI/2`（相机向前为 `-Z`）。它不是旧 XianxiaLink 的全局坐标。用 `mountain.group.localToWorld(...)` 得到宿主坐标，入口方向也随 group 的 yaw 旋转。
 - 洞口前 `8 × 1.2m` 已在同一可见扫描网格内整坡，末端 `(108.5, 0.90559662697416, -115.1)`，坡度约 `5.09%`，不是水平平板；外围 0.6m 平滑衔接。没有第二层路面、碰撞平面或缩放整个扫描。边缘和完整山路仍在修，不能把本接口交接视为画面/穿洞验收通过。
 - `MOUNTAIN_LIGHTING` 导出雨林共享配置：sRGB、ACESFilmic、曝光 `.96`；环境 `/textures/rainforest-light.hdr`（晴 `.85` / 雨 `.45`）；太阳 `#fff0ce`（晴 `3` / 雨 `.75`），相对玩家 `(-24,30,12)`；半球光 `#b8cda4 / #65503b`（LOW `1.35` / HIGH `.85`）；LOW Ambient `#dbe2d3 / 1.1`。雾基数晴 `.0045` / 雨 `.007`，湿度另加 `moisture*.006`，色值与显示天空路径/强度/旋转也在常量中。
 - 灯光权威实现仍是 `src/world.js` 的 `makeLighting / setWeather / updateSky` 及 renderer 初始化；山适配器**不重新应用或覆盖**它们。宿主只保留同一个 renderer/Scene，天气变化跟随宿主，不另建一套山灯光。材质米制坐标、区域遮罩和法线使用山本地帧，整体平移/yaw 不会改变材质类别或法线朝向。
 - 这里冻结的是洞口位置、朝向及接口；山路扩展不得悄悄改变它们。若必须调整，先通知主会话和洞穴会话。
+
+### 可选宿主远景（近景之后异步加载）
+
+默认不下载远景。宿主可以在近景准备好之后主动调用：
+
+```js
+await mountain.load();
+await mountain.prepare(rainforest.camera);
+// 可在洞口进入视野前后台启动，不要在玩家走进洞里时阻塞等待。
+mountain.loadHorizon().catch(error => reportBackgroundFailure(error));
+```
+
+也可在构造时传 `renderHorizon:true`，在近景 `load()` 完成后自动启动同一任务；它不延迟近景 Promise。`loadHorizon()` 幂等，返回远景 Mesh 的 Promise；失败记录在 `horizonError`，不让近景行走失败，宿主仍应上报错误。需要确定远景就绪时显式等待该 Promise，并在出洞前完成宿主的编译/上传预热。
+
+远景使用已有约30米原生采样的黄山 SRTM 高程及512² Sentinel-2影像（新增延后下载约66KB），不复用旧全景球，也不把远景数据当近处扫描。它是随相机平移的不可走近背景，保留测得的相对地形和对应影像，以刚体旋转把主要山峰朝向山本地 `+X`；整体朝向仍随山组 yaw。外围淡出，不拉伸照片底部，不加入脚底/碰撞查询或射线拾取。
+
+背景保留宿主 ACES/sRGB、天空和天气雾颜色，不新建灯光、不改全局曝光/雾或 camera。仅该材质投到最远深度且不写深度，让实际近景始终遮住它；无需将宿主220米的远裁剪扩大到几公里。远景自身按测得距离采用较稀薄的空气雾深，不改变宿主近地雾。宿主平移/yaw和220米相机的自动检查通过，**正式穿洞视角的视觉验收仍待完成**。
 
 ## 本次范围
 基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
