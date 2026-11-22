@@ -29,10 +29,10 @@ export function mountainHorizonGeometry(){
   geometry.computeBoundingSphere();return geometry;
 }
 
-export async function loadMountainHorizon(mountain){
+export async function loadMountainHorizon({world,group}){
   const map=await new THREE.TextureLoader().loadAsync('/xianxia/textures/huangshan-satellite.webp');
   map.colorSpace=THREE.SRGBColorSpace;
-  map.anisotropy=Math.min(4,mountain.world.renderer?.capabilities?.getMaxAnisotropy?.()??1);
+  map.anisotropy=Math.min(4,world.renderer?.capabilities?.getMaxAnisotropy?.()??1);
   const material=new THREE.MeshBasicMaterial({map,side:THREE.DoubleSide,transparent:true,depthWrite:false,fog:true});
   material.onBeforeCompile=shader=>{
     shader.vertexShader='attribute float horizonFade; varying float distantFade;\n'+shader.vertexShader;
@@ -42,11 +42,12 @@ export async function loadMountainHorizon(mountain){
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n diffuseColor.a*=distantFade;');
   };
   material.customProgramCacheKey=()=> 'xianxia-surveyed-distant-backdrop-v1';
-  const mesh=new THREE.Mesh(mountainHorizonGeometry(),material),cameraPosition=new THREE.Vector3();
+  const mesh=new THREE.Mesh(mountainHorizonGeometry(),material),cameraPosition=new THREE.Vector3(),inverse=new THREE.Matrix4();
   mesh.name='Huangshan distant captured backdrop';mesh.renderOrder=-1000;mesh.frustumCulled=false;mesh.raycast=()=>{};
-  mesh.userData.collision=false;mountain.group.add(mesh);
+  mesh.userData.collision=false;group.add(mesh);
   mesh.onBeforeRender=(_renderer,_scene,camera)=>{
-    mountain.frame();camera.getWorldPosition(cameraPosition).applyMatrix4(mountain.inverse);
+    group.updateWorldMatrix(true,false);inverse.copy(group.matrixWorld).invert();
+    camera.getWorldPosition(cameraPosition).applyMatrix4(inverse);
     mesh.position.copy(cameraPosition);mesh.updateWorldMatrix(false,false);
   };
   return mesh;

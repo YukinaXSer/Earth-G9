@@ -31,6 +31,8 @@ const allowed=mountain.canMove(fromWorldX,fromWorldZ,toWorldX,toWorldZ);
 
 ### 可选宿主远景（近景之后异步加载）
 
+独立近山入口在近景完成后启动同一个黄山远景；此前 nearOnly 提前返回漏掉了这一层，并不是玩家朝向或近石遮挡。宿主 `XianxiaMountain` 默认仍关闭；两种入口共用远景加载器及随相机移动、保留父级平移/yaw的摆放，不另建天空或色调管线。远景失败记录在 `horizonError`，不让近景行走失败。改动后的实际下载、远峰可见度及SwiftShader响应须单独实测，不沿用无远景版本的冷载数字。
+
 默认不下载远景。宿主可以在近景准备好之后主动调用：
 
 ```js

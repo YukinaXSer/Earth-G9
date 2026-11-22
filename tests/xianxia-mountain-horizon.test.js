@@ -4,6 +4,31 @@ import * as THREE from 'three';
 import {mountainHorizonGeometry,loadMountainHorizon} from '../src/xianxia-mountain-horizon.js';
 import {TERRAIN_SOURCE,surveyedElevation} from '../src/xianxia-terrain.js';
 import {XianxiaMountain} from '../src/xianxia-mountain.js';
+import {XianxiaWorld} from '../src/xianxia-world.js';
+
+test('standalone near-only loading starts the same optional backdrop after near readiness without awaiting it',()=>{
+  const world=new XianxiaWorld(new THREE.Scene(),{nearOnly:true});
+  assert.equal(world.renderHorizon,true);
+  const branch=XianxiaWorld.prototype.load.toString().split('this.photographicGround=')[0];
+  assert.match(branch,/await loadMountainField\(this\)/);
+  assert.match(branch,/if\(this\.renderHorizon\)this\.loadHorizon\(\)/);
+  assert.doesNotMatch(branch,/await this\.loadHorizon/);
+  assert.ok(branch.indexOf('await loadMountainField')<branch.indexOf('this.loadHorizon()'));
+});
+
+test('standalone backdrop loads once and records background failure without changing near support',async t=>{
+  let requests=0;
+  t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async()=>{requests++;return new THREE.Texture();});
+  const world=new XianxiaWorld(new THREE.Scene(),{nearOnly:true}),support={heightAt:()=>2};world.floorIndex=support;
+  const pending=world.loadHorizon();assert.equal(world.loadHorizon(),pending);
+  const mesh=await pending;
+  assert.equal(world.horizon,mesh);assert.equal(mesh.parent,world.root);
+  assert.equal(world.floorIndex,support);assert.equal(requests,1);
+  t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async()=>{throw new Error('background download unavailable');});
+  const failure=new XianxiaWorld(new THREE.Scene(),{nearOnly:true});failure.floorIndex=support;
+  await assert.rejects(failure.loadHorizon(),/background download unavailable/);
+  assert.match(failure.horizonError.message,/background download unavailable/);assert.equal(failure.floorIndex,support);
+});
 
 test('distant backdrop retains captured elevation, mapped source coordinates and fades at its boundary',()=>{
   const g=mountainHorizonGeometry(),data=TERRAIN_SOURCE,p=g.attributes.position,angle=g.userData.yaw;

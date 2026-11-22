@@ -142,7 +142,12 @@ export class XianxiaWorld {
     this.sectors=[];this.colliders=[];this.loader=new GLTFLoader();this.textureLoader=new THREE.TextureLoader();
   }
   async load() {
-    if(this.nearOnly){const {loadMountainField}=await import('./xianxia-mountain-field.js');return loadMountainField(this);}
+    if(this.nearOnly){
+      const {loadMountainField}=await import('./xianxia-mountain-field.js');
+      await loadMountainField(this);
+      if(this.renderHorizon)this.loadHorizon();
+      return this;
+    }
     this.photographicGround=await loadPhotographicGround(this.renderer);
     const files=['cave-scan','terrain-scan'];
     let loaded=0;
@@ -233,6 +238,13 @@ export class XianxiaWorld {
     this.support.name='Huangshan surveyed SRTM relief';this.root.add(this.support);
     this.supportIndex={heightAt:(x,z)=>this.terrainHeight(x,z)};
     this.floorIndex=this.foregroundIndex;
+  }
+  loadHorizon(){
+    this.horizonLoading??=import('./xianxia-mountain-horizon.js').then(async({loadMountainHorizon})=>{
+      this.horizon=await loadMountainHorizon({world:this,group:this.root});return this.horizon;
+    });
+    this.horizonLoading.catch(error=>{this.horizonError=error;});
+    return this.horizonLoading;
   }
   makeHorizon() {
     this.panorama.wrapS=THREE.MirroredRepeatWrapping;this.panorama.repeat.x=2;
