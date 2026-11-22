@@ -1,6 +1,6 @@
 import * as T from 'three';
 
-export const FOREST_MOUTH = Object.freeze({ x: 72, z: -250, yaw: Math.PI });
+export { CAVE_FOREST_MOUTH as FOREST_MOUTH } from '../data.js';
 export const PLAYER_RADIUS = .4;
 const clamp = T.MathUtils.clamp;
 

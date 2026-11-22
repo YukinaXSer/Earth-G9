@@ -227,15 +227,15 @@ export class CaveLink {
     if (next === 'mountain') return this.ready && [[0, 0], [.05, 0], [-.05, 0], [0, .05], [0, -.05]].every(([dx, dz]) => this.mountain.canMove(ax + dx, az + dz, x + dx, z + dz));
     return this.floor.canMove(ax, az, x, z, .4, (x, z) => this.groundHeight(x, z));
   }
-  update(dt) {
+  update(dt, { teleported = false } = {}) {
     if (this.host.lowDetail && this.ready) useLowMountainMaterials(this.mountain.group);
     const near = this.locate(this.host.position.x, this.host.position.z), t = near.region === 'mountain' ? 1 : near.region === 'forest' ? 0 : near.along / this.length;
     this.region = near.region === 'mountain' ? '青岚境' : near.region === 'cave' ? '山腹石径' : null;
     const depth = Math.sin(Math.PI * T.MathUtils.smoothstep(t, 0, 1));
     this.lighting.blend = t; this.lighting.brightness = 1 - .67 * depth;
-    if (this.ready && near.region === 'cave' && near.along > this.bends[0] + 1 && near.along < this.bends[1] - 1) {
-      this.mountain.group.visible = this.host.lowDetail ? near.along > this.bends[1] - 8 : t > .23;
-      this.forestHidden = this.host.lowDetail ? near.along > this.bends[0] + 2 : t > .75;
+    if (this.ready && (teleported || near.region === 'cave' && near.along > this.bends[0] + 1 && near.along < this.bends[1] - 1)) {
+      this.mountain.group.visible = near.region === 'mountain' || near.region === 'cave' && (this.host.lowDetail ? near.along > this.bends[1] - 8 : t > .23);
+      this.forestHidden = near.region === 'mountain' || near.region === 'cave' && (this.host.lowDetail ? near.along > this.bends[0] + 2 : t > .75);
     }
     if (near.region !== 'cave') this.forestHidden = near.region === 'mountain';
     for (const group of this.dressing?.children ?? []) if (group.userData.caveEnd === 1) group.visible = this.ready && this.mountain.group.visible;
@@ -244,7 +244,7 @@ export class CaveLink {
       for (const group of this.forestGroups) group.visible = false;
     } else if (this.wasForestHidden) {
       for (const [group, visible] of this.forestVisibility) group.visible = visible;
-      this.host.habitat?.updateVisibility(this.host.camera.position);
+      this.host.habitat?.updateVisibility?.(this.host.camera.position);
       this.host.rain.visible = this.host.rainy;
     }
     this.wasForestHidden = this.forestHidden;

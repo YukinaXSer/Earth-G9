@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import * as T from 'three';
 import { CaveLink } from '../src/cave/cave-link.js';
 import { Rainforest } from '../src/world.js';
-import { START } from '../src/data.js';
+import { START, CAVE_FOREST_MOUTH, loadView, saveView } from '../src/data.js';
+import { restoreCaveView } from '../src/cave/cave-view.js';
 import { decodeMountainGeometry } from '../src/xianxia-mountain-geometry.js';
 import { gradeCaptureApproach } from '../src/xianxia-near.js';
 import { createFloorIndex } from '../src/xianxia-world.js';
@@ -41,6 +42,47 @@ test('map travel and return to entrance restore forest visibility without walkin
     assert.equal(link.forestDressing.visible, true);
     assert.equal(host.rain.visible, false);
   }
+});
+
+test('saved linked positions retain coordinates and restore exactly only when support is ready', () => {
+  const { host, link } = fixture();
+  const cave = link.route[100], mountain = new T.Vector3(...link.mouths[1].floorCenter).addScaledVector(new T.Vector3(...link.mouths[1].outward), 4);
+  for (const [point, region] of [[link.route[10], 'cave'], [cave, 'cave'], [link.route.at(-1), 'cave'], [mountain.toArray(), 'mountain']]) {
+    const original = { x: point[0], z: point[2], yaw: .7, pitch: -.2 };
+    let stored;
+    const storage = { getItem: () => stored, setItem: (key, value) => { stored = value; } };
+    assert.equal(saveView(storage, original), true);
+    const view = loadView(storage, { preservePosition: true });
+    assert.deepEqual(view, original);
+    host.worldLink = null;
+    assert.equal(restoreCaveView(host, view), true);
+    assert.deepEqual([host.position.x, host.position.z], [CAVE_FOREST_MOUTH.x, CAVE_FOREST_MOUTH.z]);
+    assert.equal(host.yaw, original.yaw); assert.equal(host.pitch, original.pitch);
+    host.worldLink = link; link.ready = false;
+    link.regionAt = (x, z) => x === view.x && z === view.z ? region : 'forest';
+    link.canMove = () => true;
+    restoreCaveView(host, view);
+    assert.deepEqual([host.position.x, host.position.z], [CAVE_FOREST_MOUTH.x, CAVE_FOREST_MOUTH.z]);
+    link.ready = true;
+    restoreCaveView(host, view);
+    assert.deepEqual([host.position.x, host.position.z], [original.x, original.z]);
+    if (region === 'mountain') { assert.equal(link.mountain.group.visible, true); assert.equal(host.ground.visible, false); }
+    link.canMove = () => false;
+    restoreCaveView(host, view);
+    assert.deepEqual([host.position.x, host.position.z], [CAVE_FOREST_MOUTH.x, CAVE_FOREST_MOUTH.z]);
+  }
+});
+
+test('forest saves still recover locally, while malformed or unavailable saves leave position alone', () => {
+  const { host } = fixture(); host.worldLink = null;
+  const view = { x: -6, z: -31, yaw: .5, pitch: .12 };
+  assert.equal(restoreCaveView(host, view), true);
+  assert.deepEqual([host.position.x, host.position.z], [view.x, view.z]);
+  for (const invalid of [null, {}, { ...view, z: Infinity }, { ...view, yaw: NaN }]) {
+    assert.equal(restoreCaveView(host, invalid), false);
+    assert.deepEqual([host.position.x, host.position.z], [view.x, view.z]);
+  }
+  assert.equal(loadView({ getItem() { throw Error('denied'); } }, { preservePosition: true }), null);
 });
 
 test('supported mountain paths outside the cave bounds delegate movement to the native tile surface', () => {

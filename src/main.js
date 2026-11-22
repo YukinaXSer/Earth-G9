@@ -2,7 +2,7 @@ import './style.css';
 import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
 import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
-import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
+import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, CAVE_FOREST_MOUTH, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
   leaf: '<path d="M20 4C10 3 3 7 4 15c1 6 13 7 16-11Z"/><path d="m4 21 11-12M9 16v-5m3 2h5"/>',
@@ -92,7 +92,7 @@ app.innerHTML = `
 let storage;
 try { storage = window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw new Error('storage unavailable'); } }; }
 let progress = loadProgress(storage);
-let savedView = loadView(storage), lastViewSave = 0;
+let savedView = loadView(storage, { preservePosition: true }), lastViewSave = 0, entering = false;
 const settings = loadSettings(storage);
 let world, entered = false, currentPoint = null, modalType = null, previousFocus = null, toastTimer, audioContext, birdTimer, navigationTarget = null;
 let riverGain, rainGain;
@@ -123,12 +123,19 @@ function commitProgress() {
   syncProgress();
 }
 
-function enterWorld() {
-  if (!world) return;
+async function enterWorld() {
+  if (!world || entering) return;
+  entering = true;
   if (!entered && savedView) {
-    world.position.set(savedView.x, 0, savedView.z); world.yaw = savedView.yaw; world.pitch = savedView.pitch;
-    world.recoverPosition();
+    try {
+      const { restoreCaveView } = await import('./cave/cave-view.js');
+      restoreCaveView(world, savedView);
+    } catch {
+      world.position.set(CAVE_FOREST_MOUTH.x, 0, CAVE_FOREST_MOUTH.z);
+      world.yaw = savedView.yaw; world.pitch = savedView.pitch; world.recoverPosition();
+    }
   }
+  entering = false;
   entered = true; world.active = true;
   if (settings.sound) setAudio(true, false);
   ['#intro', '#intro-aside', '#intro-footer'].forEach(s => show(s, false));
