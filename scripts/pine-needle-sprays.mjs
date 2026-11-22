@@ -1,5 +1,12 @@
 import {needleComponents} from './pine-needle-components.mjs';
 
+export function pineTree01AtlasPart(u,v){
+  u-=Math.floor(u);v-=Math.floor(v);
+  if(u>.25&&v<.33)return 'cones';
+  if(u<.6&&v>.35&&(v<.86||u<.32))return 'wood';
+  return 'needles';
+}
+
 const dot=(a,b)=>a.reduce((sum,n,k)=>sum+n*b[k],0);
 const unit=v=>{const length=Math.hypot(...v);return length>1e-9?v.map(n=>n/length):[0,1,0];};
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -40,9 +47,13 @@ export function needleSprays(position,indices,uv,{cellSize=.35,aspect=.6,acceptU
       const angle=rotation+plane*Math.PI/3,across=first.map((n,k)=>n*Math.cos(angle)+second[k]*Math.sin(angle)),base=output.length/3;
       const faceNormal=cross(across,axis),shootAxis=unit(axis.map((n,k)=>n+faceNormal[k]*.25));
       const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
-      for(let face=0;face<2;face++)for(const [x,y]of corners){
-        for(let k=0;k<3;k++)output.push(Math.max(min[k],Math.min(max[k],center[k]+across[k]*x*width/2+shootAxis[k]*y*height/2)));
-        normals.push(...normal);texcoords.push((x+1)/2,(1-y)/2);
+      const offsets=corners.map(([x,y])=>across.map((n,k)=>n*x*width/2+shootAxis[k]*y*height/2));
+      for(let k=0;k<3;k++)if(max[k]===min[k])for(const offset of offsets)offset[k]=0;
+      let fit=1;
+      for(const offset of offsets)for(let k=0;k<3;k++)if(offset[k])fit=Math.min(fit,((offset[k]>0?max[k]:min[k])-center[k])/offset[k]);
+      for(let face=0;face<2;face++)for(let i=0;i<corners.length;i++){
+        for(let k=0;k<3;k++)output.push(center[k]+offsets[i][k]*fit);
+        normals.push(...normal);texcoords.push((corners[i][0]+1)/2,(1-corners[i][1])/2);
       }
       triangles.push(base,base+1,base+2,base,base+2,base+3,base+4,base+6,base+5,base+4,base+7,base+6);
     }

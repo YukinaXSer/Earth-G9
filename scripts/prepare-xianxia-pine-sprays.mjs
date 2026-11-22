@@ -6,7 +6,7 @@ import {ALL_EXTENSIONS} from '@gltf-transform/extensions';
 import {cloneDocument,dequantize,transformPrimitive,simplifyPrimitive,prune,weld,quantize,textureCompress,reorder,getBounds} from '@gltf-transform/functions';
 import {MeshoptSimplifier,MeshoptEncoder} from 'meshoptimizer';
 import sharp from 'sharp';
-import {needleSprays,pineSprayAlpha} from './pine-needle-sprays.mjs';
+import {needleSprays,pineSprayAlpha,pineTree01AtlasPart} from './pine-needle-sprays.mjs';
 import {padOpaqueAtlas} from './pad-opaque-atlas.mjs';
 
 const [input,kind,output,photo]=process.argv.slice(2);
@@ -31,11 +31,12 @@ const {data,info}=await sharp(readFileSync(photo)).extract(crop).ensureAlpha().r
 const rgba=padOpaqueAtlas(pineSprayAlpha(data,info.width,info.height),info.width,info.height);
 const image=await sharp(rgba,{raw:info}).png().toBuffer();
 writeFileSync(resolve(output,'pine-source-shoot.png'),image);
-for(const [lod,cell]of [['near',kind==='mature'?.35:.24],['far',kind==='mature'?.55:.35]]){
+for(const lod of ['near','far']){
+  const cell=kind==='mature'?.35:.24;
   const doc=cloneDocument(source),buffer=doc.getRoot().listBuffers()[0],texture=doc.createTexture('photographed-pine-shoot').setImage(image).setMimeType('image/png');
   for(const mesh of doc.getRoot().listMeshes())for(const p of [...mesh.listPrimitives()]){
     const original=p.getMaterial(),twig=original.getName().includes('twig');
-    if(!twig){simplifyPrimitive(p,{simplifier:MeshoptSimplifier,ratio:lod==='near'?.2:.02,error:lod==='near'?.0005:.002,lockBorder:false});continue;}
+    if(!twig){simplifyPrimitive(p,{simplifier:MeshoptSimplifier,ratio:lod==='near'?.2:.08,error:lod==='near'?.0002:.0003,lockBorder:false});continue;}
     const positions=p.getAttribute('POSITION').getArray(),uv=p.getAttribute('TEXCOORD_0').getArray(),indices=p.getIndices().getArray();
     const atlas=await sharp(original.getBaseColorTexture().getImage()).ensureAlpha().raw().toBuffer({resolveWithObject:true});
     const acceptUV=(u,v)=>{const x=Math.floor(((u%1)+1)%1*atlas.info.width),y=Math.floor(((v%1)+1)%1*atlas.info.height),i=(y*atlas.info.width+x)*4,[r,g,b]=atlas.data.subarray(i,i+3);return g>12&&g>=r&&g>b*1.12;};
@@ -45,15 +46,22 @@ for(const [lod,cell]of [['near',kind==='mature'?.35:.24],['far',kind==='mature'?
     const primitive=doc.createPrimitive().setMaterial(material);
     for(const [semantic,array,type]of [['POSITION',sprays.position,Accessor.Type.VEC3],['NORMAL',sprays.normal,Accessor.Type.VEC3],['TEXCOORD_0',sprays.uv,Accessor.Type.VEC2]])primitive.setAttribute(semantic,doc.createAccessor().setType(type).setArray(array).setBuffer(buffer));
     primitive.setIndices(doc.createAccessor().setType(Accessor.Type.SCALAR).setArray(sprays.indices).setBuffer(buffer));mesh.addPrimitive(primitive);
-    const cones=[];
-    for(let i=0;i<indices.length;i+=3){const u=(uv[indices[i]*2]+uv[indices[i+1]*2]+uv[indices[i+2]*2])/3,v=(uv[indices[i]*2+1]+uv[indices[i+1]*2+1]+uv[indices[i+2]*2+1])/3;if(u>.25&&v<.33)cones.push(indices[i],indices[i+1],indices[i+2]);}
-    if(cones.length){
-      original.setName(kind+'_pine_cones');p.setIndices(doc.createAccessor().setType(Accessor.Type.SCALAR).setArray(new Uint32Array(cones)).setBuffer(buffer));
-      simplifyPrimitive(p,{simplifier:MeshoptSimplifier,ratio:lod==='near'?.1:.02,error:lod==='near'?.002:.006,lockBorder:false});
-    }else{mesh.removePrimitive(p);p.dispose();}
+    const wood=[],cones=[];
+    for(let i=0;i<indices.length;i+=3){
+      const u=(uv[indices[i]*2]+uv[indices[i+1]*2]+uv[indices[i+2]*2])/3,v=(uv[indices[i]*2+1]+uv[indices[i+1]*2+1]+uv[indices[i+2]*2+1])/3;
+      const part=pineTree01AtlasPart(u,v);
+      if(part!=='needles')(part==='cones'?cones:wood).push(indices[i],indices[i+1],indices[i+2]);
+    }
+    for(const [name,faces,ratio,error]of [['native_fine_twigs',wood,lod==='near'?.2:.08,lod==='near'?.0002:.0003],['pine_cones',cones,lod==='near'?.1:.02,lod==='near'?.002:.006]]){
+      if(!faces.length)continue;
+      const native=p.clone().setMaterial(original.clone().setName(kind+'_'+name)).setIndices(doc.createAccessor().setType(Accessor.Type.SCALAR).setArray(new Uint32Array(faces)).setBuffer(buffer));
+      mesh.addPrimitive(native);simplifyPrimitive(native,{simplifier:MeshoptSimplifier,ratio,error,lockBorder:false});
+      console.log('RETAINED',name,lod,faces.length/3,native.getIndices().getCount()/3);
+    }
+    mesh.removePrimitive(p);p.dispose();
   }
   if(lod==='far')for(const m of doc.getRoot().listMaterials())m.setBaseColorTexture(null);
   await doc.transform(weld(),prune({keepAttributes:true}),quantize({quantizePosition:16,quantizeNormal:8,quantizeTexcoord:12}),textureCompress({encoder:sharp,targetFormat:'webp',resize:[1024,1024],quality:95}),reorder({encoder:MeshoptEncoder,target:'size'}));
-  const family=kind==='mature'?'pine-mature-v5':'pine-mid-v3',path=resolve(output,family+'-'+lod+'.glb');
+  const family=kind==='mature'?'pine-mature-v6':'pine-mid-v4',path=resolve(output,family+'-'+lod+'.glb');
   await io.write(path,doc);writeFileSync(path+'.gz',gzipSync(readFileSync(path),{level:9}));console.log('OUTPUT',path,statSync(path).size,'gzip',statSync(path+'.gz').size,'BOUNDS',getBounds(doc.getRoot().listScenes()[0]));
 }

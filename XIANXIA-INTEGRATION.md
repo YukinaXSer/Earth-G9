@@ -8,9 +8,9 @@
 
 松林有三个原生高度层：1.05米幼株、7.01米 Pine Sapling Medium C、约14.9米 Pine Tree 01 B。保留原比例木质枝系与真实根脚/身体碰撞，针叶不作脚底或身体支撑。低/高档成年树LOD为12/25米，中层6/12米，均带15%滞回。上一版逐针细长比补面积在真实High下仍稀薄偏棕，不能把投影面积数字当视觉通过。
 
-本版改用原始摄影图集中的针束近照，固定交叉在原模型绿色针叶簇的位置与主轴上；不是面对镜头的整树卡片，也不生成新的树干/枝条布局。近/远档分别聚合原始针叶点，针束顶点限制在原针叶外包范围内。照片亮度蒙版只保留连通针束，剔除旁边的图集填充岛并扩边RGB；原生241×410像素，不插值扩图。固定扇向交叉面避免从枝端观察消失，弯曲的簇法线近似针束平均朝向，不把照片当平板照明。使用MASK/.18阈值，不作BLEND或随机alpha噪点；针束单独校正暖偏，松果/树干不染绿，保留原始IOR/specular，无自发光、无曝光/宿主光照调整。
+本版改用原始摄影图集中的针束近照，固定交叉在原模型绿色针叶簇的位置与主轴上；不是面对镜头的整树卡片，也不生成新的树干/枝条布局。照片亮度蒙版只保留连通针束，剔除旁边的图集填充岛并扩边RGB；原生241×410像素，不插值扩图。固定扇向交叉面避免从枝端观察消失，弯曲的簇法线近似针束平均朝向。High保留原图集木质叉枝区域对应的细枝几何（过去只保松果而漏掉），木质枝系使用更精细LOD，远档针束不再粗聚合成大叶团；保持原比例，不生成树枝骨架。针束用整面等比收缩贴合原针叶范围，不再逐角裁剪扭曲照片。使用MASK/.18阈值；只对针束校色，细枝/松果/树干不染绿或提亮，保留原始IOR/specular，不改曝光/宿主光照。High林下沿原有松根/岩脚非均匀蕨簇增加候选，仍四种原生植株混合大小；避开走线、拒绝无支撑根脚。
 
-四个LOD以版本化 `pine-mature-v5-*.glb.gz` / `pine-mid-v3-*.glb.gz` 请求，合计约3.1MB，低于逐针版7.68MB；并不是整页HTTP冷载实测。远档不含独立纹理，复用各自近档材质，但必须保留TEXCOORD_0。4b8ab99的离线prune默认把“暂时未用”的UV删掉，导致复用近档透明照片后远档针束不可见；现在显式keepAttributes并检查全部远档primitive的UV与顶点数。使用浏览器原生gzip解压和Three原生glTF解析，接受HTTP已解压的GLB，不引入WASM、mesh/texture codec或worker。针束会有alpha overdraw，不能用面数下降代替性能审计。旧资源留档但不首载，默认低档分辨率不动；本版整帧、短走与冷载待验。
+Low仍用 `pine-mature-v5-*.glb.gz` / `pine-mid-v3-*.glb.gz`，四个LOD约3.1MB，模型与190个蕨候选均不变。High用v6/v4，四个LOD总计8,887,136B，低于被替换的原幼松下载量，但高于逐针版7.68MB；High蕨候选350→900，绘制与驻留会增加，需要实测，并不是整页HTTP冷载或性能通过。远档复用各自近档材质，必须保留TEXCOORD_0；离线prune显式keepAttributes，实物GLB回归检查每个远档primitive的UV与顶点数。7f6241f已实见远档复绿，但脱枝叶团与裸地仍让整帧失败，本次仍待验。浏览器原生gzip解压和Three原生glTF解析，接受HTTP已解压的GLB，无WASM/meshcodec/worker。针束MASK有overdraw，不能用下载量或面数代替性能审计；低档默认分辨率不动。
 
 离线重建：准备 Poly Haven Pine Tree 01 的1K glTF及原始未扩边的针束图，保留extensionsUsed/Required声明，运行 `node scripts/prepare-xianxia-pine-sprays.mjs /path/to/pine_tree_01_1k.gltf mature public/xianxia/surface /path/to/pine_tree_01_twig_diff_1k.jpg`。中层用同一脚本，把输入替换为 `public/xianxia/surface/pine-medium.glb`，类型改为 `middle`，仍用同一原始针束近照。准备机需 `@gltf-transform/core`、`extensions`、`functions` 4.2.1，`meshoptimizer` 0.24.0 和 `sharp`（本次0.35.5）；这些只用于离线制作，不加入浏览器运行时。旧逐针脚本留作来源追溯，当前不使用。来源与改制见资产许可文件。
 

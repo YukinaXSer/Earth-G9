@@ -79,10 +79,15 @@ export function mountainPinePlacements(phase){
 
 const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
 
+export function mountainPineFamilies(quality){
+  return quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v6','pine-mid-v4'];
+}
+
 async function pineSources(quality){
+  const families=mountainPineFamilies(quality);
   const loader=new GLTFLoader(),[small,near,far,midNear,midFar]=await Promise.all([
     loader.loadAsync(ROOT+'pine.glb'),
-    ...['pine-mature-v5-near','pine-mature-v5-far','pine-mid-v3-near','pine-mid-v3-far'].map(file=>loadCompressedModel(loader,ROOT+file+'.glb.gz',ROOT)),
+    ...families.flatMap(family=>['near','far'].map(lod=>loadCompressedModel(loader,ROOT+family+'-'+lod+'.glb.gz',ROOT))),
   ]);
   const tunedMaterials=new WeakSet();
   const normalize=scene=>scene.children.map(child=>{
@@ -97,7 +102,7 @@ async function pineSources(quality){
     group.position.sub(new THREE.Vector3(anchor.x,minimum,anchor.z));
     group.traverse(child=>{
       if(!child.isMesh)return;
-      const leaf=child.material.name.includes('twig');
+      const leaf=child.material.name.includes('twig')&&!child.material.name.includes('native_fine_twigs');
       child.material.envMapIntensity=leaf?1:.35;
       if(leaf&&!tunedMaterials.has(child.material))child.material.color.multiplyScalar(1.5);
       tunedMaterials.add(child.material);
@@ -229,7 +234,7 @@ export async function loadMountainField(world){
       data.props.add(mesh);data.propIndices.push(createFloorIndex([merged],2));
     }
     const plantedFloor={heightAt:(x,z)=>Math.max(floor.heightAt(x,z)??-Infinity,...data.propIndices.map(index=>index.heightAt(x,z)??-Infinity))};
-    const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?60:100),plantCount=world.quality==='low'?190:350;
+    const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?60:100),plantCount=world.quality==='low'?190:900;
     for(let i=0;i<plantCount;i++){
       const {x,z,scale,rotation,variant:choice}=mountainFernPlacement(phase,i,basePlants,contacts);
       if(mountainPathDistance(x,z)<Math.max(.6,scale*.65))continue;

@@ -6,7 +6,7 @@ import {decodeMountainGeometry,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,M
 import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
-import {mountainFernPlacement,mountainPinePlacements} from '../src/xianxia-mountain-field.js';
+import {mountainFernPlacement,mountainPinePlacements,mountainPineFamilies} from '../src/xianxia-mountain-field.js';
 import {mountainPathDistance} from '../src/xianxia-mountain-route.js';
 
 function load(phase,lod){
@@ -31,9 +31,10 @@ test('mature pine groves belong to their streamed phase and keep the walking lin
   assert.ok(new Set(placements.map(p=>p.i)).size===placements.length);
 });
 
-test('mature and middle pine LODs together cost less than the replaced sapling download and use native glTF geometry',()=>{
+for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and cost less than the replaced sapling download',()=>{
+  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v6','pine-mid-v4']);
   let total=0;
-  for(const family of ['pine-mature-v5','pine-mid-v3'])for(const lod of ['near','far']){
+  for(const family of mountainPineFamilies(quality))for(const lod of ['near','far']){
     const compressed=readFileSync(new URL('../public/xianxia/surface/'+family+'-'+lod+'.glb.gz',import.meta.url));total+=compressed.length;
     const bytes=gunzipSync(compressed);assert.equal(bytes.toString('ascii',0,4),'glTF');
     const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
@@ -43,6 +44,11 @@ test('mature and middle pine LODs together cost less than the replaced sapling d
     const spray=json.materials.find(m=>m.name.includes('sprays'));
     assert.equal(spray.alphaMode,'MASK');assert.equal(spray.alphaCutoff,.18);assert.ok(!spray.doubleSided);
     assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor,[.6,1,.7,1]);
+    if(quality==='high'){
+      const wood=json.materials.find(m=>m.name.includes('native_fine_twigs'));assert.ok(wood);
+      assert.deepEqual(wood.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],[1,1,1,1]);
+      assert.ok(json.materials.some(m=>m.name.includes('pine_cones')));
+    }
     if(lod==='far'){
       assert.equal(json.images?.length??0,0);
       for(const mesh of json.meshes)for(const primitive of mesh.primitives){
