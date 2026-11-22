@@ -72,7 +72,7 @@ app.innerHTML = `
   </main>
 
   <footer class="bottom-bar">
-    <div class="location">${icon('pin')}<div><strong>原生雨林 <span>· 溪谷入口</span></strong><small id="coordinates">00.0 N &nbsp; 00.0 E</small></div></div>
+    <div class="location">${icon('pin')}<div><strong><b id="region-world">原生雨林</b> <span>· 溪谷入口</span></strong><small id="coordinates">00.0 N &nbsp; 00.0 E</small></div></div>
     <div class="intro-footer" id="intro-footer"><span class="tiny-line"></span> 不是征服自然，而是成为自然的一部分。</div>
     <div class="game-hint hidden" id="game-hint"><kbd>W A S D</kbd> 移动 <span>·</span> 拖动环顾 <span>·</span> <kbd>E</kbd> 互动</div>
     <div class="toolbar" aria-label="探索工具">
@@ -147,11 +147,12 @@ function updatePosition(position) {
   }
   $('#coordinates').textContent = formatCoordinates(position);
   const nearbyView = nearestPoint(position, VIEWPOINTS, 35);
-  const region = nearbyView?.name ?? (position.x > riverX(position.z) + 8 ? '东岸雨林' : position.x < -60 ? '西部密林' : position.z < -125 ? '北部林冠' : position.z > 85 ? '南溪岸林' : position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地');
+  const region = world?.worldLink?.region ?? nearbyView?.name ?? (position.x > riverX(position.z) + 8 ? '东岸雨林' : position.x < -60 ? '西部密林' : position.z < -125 ? '北部林冠' : position.z > 85 ? '南溪岸林' : position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地');
   if (navigationTarget && Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z) < 6) {
     toast(`已到达${navigationTarget.name}。按 E 欣赏风景，按 P 留下照片。`); navigationTarget = null;
   }
   $('.location strong span').textContent = navigationTarget ? `· ${world.targetDirection(navigationTarget)}${navigationTarget.name} ${Math.ceil(Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z))}米` : `· ${region}`;
+  $('#region-world').textContent = world?.worldLink?.region === '青岚境' ? '青岚境' : '原生雨林';
   const points = [
     ...SPECIES.map(s => ({ ...s, kind: 'species' })),
     ...PLANT_SITES.filter(s => !progress.planted.includes(s.id)).map(s => ({ ...s, kind: 'plant' })),

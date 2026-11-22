@@ -1,0 +1,13 @@
+{
+  "baseline": "e83d5fb8103a44a63036c1c9052c81c21e0f3853",
+  "definition": "Main's pre-first-scene-frame runtime asset requests, verified against src/habitat.js load, src/wildlife.js load and src/world.js makeMaterials/makeLighting at the recorded commit. Existing post-frame ground critters are excluded. Entry chunk names are normalized to remove content hashes.",
+  "entry": ["/", "/assets/rainforest.js", "/assets/loading.js", "/assets/three.js", "/assets/rainforest.css", "/manifest.webmanifest", "/noto-sans-sc.ttf", "/noto-serif-sc.ttf", "/icon.svg", "/icon-192.png"],
+  "assets": [
+    "/models/captured-banyan-low.glb", "/models/captured-banyan-far.glb", "/models/canopy-tree.glb",
+    "/models/fern.glb", "/models/calathea.glb", "/models/pachira.glb", "/models/anthurium.glb",
+    "/models/fallen-trunk.glb", "/models/moss-rock.glb", "/models/shrub-03.glb", "/models/shrub-04.glb",
+    "/models/forest-tree.glb", "/models/forest-distant.glb", "/models/forest-horizon.glb", "/models/morpho-butterfly.glb",
+    "/textures/wet-floor.jpg", "/textures/wet-floor-normal.jpg", "/textures/forest-litter-roughness.jpg", "/textures/water-normals.jpg",
+    "/textures/rainforest-light.hdr", "/textures/overcast-sky.hdr", "/textures/sunny-sky.hdr"
+  ]
+}
