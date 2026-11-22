@@ -80,7 +80,7 @@ export function mountainPinePlacements(phase){
 const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
 
 export function mountainPineFamilies(quality){
-  return quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v7','pine-mid-v5'];
+  return quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v8','pine-mid-v6'];
 }
 
 async function pineSources(quality){

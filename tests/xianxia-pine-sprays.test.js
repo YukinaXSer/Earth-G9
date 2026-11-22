@@ -57,6 +57,13 @@ test('spray replacement leaves every non-slender original twig surface available
   const indices=new Uint32Array([0,1,2,0,2,3,4,5,6,4,6,7]),uv=new Float32Array(16).fill(.8);
   const before=position.slice(),result=needleSprays(position,indices,uv);
   assert.deepEqual([...result.needleMask],[1,1,1,1,0,0,0,0]);
-  assert.deepEqual(pineTwigParts(indices,uv,result.needleMask),{wood:[4,5,6,4,6,7],cones:[]});
+  assert.deepEqual(pineTwigParts(indices,uv,result.needleMask),{wood:[],cones:[],needles:[4,5,6,4,6,7]});
   assert.deepEqual(position,before);
+});
+
+test('native non-slender needle-region surfaces cannot consume the woody-fork simplification budget',()=>{
+  const indices=new Uint32Array([0,1,2,3,4,5,6,7,8,9,10,11]),mask=new Uint8Array(12),uv=[];
+  for(const [u,v]of [[.1,.65],[.6,.15],[.8,.8],[.8,.8]])for(let i=0;i<3;i++)uv.push(u,v);
+  mask.fill(1,9);
+  assert.deepEqual(pineTwigParts(indices,new Float32Array(uv),mask),{wood:[0,1,2],cones:[3,4,5],needles:[6,7,8]});
 });

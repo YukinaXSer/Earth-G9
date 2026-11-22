@@ -8,14 +8,14 @@ export function pineTree01AtlasPart(u,v){
 }
 
 export function pineTwigParts(indices,uv,needleMask){
-  const wood=[],cones=[];
+  const wood=[],cones=[],needles=[];
   for(let i=0;i<indices.length;i+=3){
     const u=(uv[indices[i]*2]+uv[indices[i+1]*2]+uv[indices[i+2]*2])/3;
     const v=(uv[indices[i]*2+1]+uv[indices[i+1]*2+1]+uv[indices[i+2]*2+1])/3;
     const part=pineTree01AtlasPart(u,v);
-    if(part!=='needles'||!needleMask[indices[i]])(part==='cones'?cones:wood).push(indices[i],indices[i+1],indices[i+2]);
+    if(part!=='needles'||!needleMask[indices[i]])(part==='cones'?cones:part==='wood'?wood:needles).push(indices[i],indices[i+1],indices[i+2]);
   }
-  return {wood,cones};
+  return {wood,cones,needles};
 }
 
 export function pineNeedlePhotoColor(rgba){

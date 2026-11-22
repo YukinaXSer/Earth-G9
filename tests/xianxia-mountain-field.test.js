@@ -32,7 +32,7 @@ test('mature pine groves belong to their streamed phase and keep the walking lin
 });
 
 for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and cost less than the replaced sapling download',()=>{
-  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v7','pine-mid-v5']);
+  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v8','pine-mid-v6']);
   let total=0;
   for(const family of mountainPineFamilies(quality))for(const lod of ['near','far']){
     const compressed=readFileSync(new URL('../public/xianxia/surface/'+family+'-'+lod+'.glb.gz',import.meta.url));total+=compressed.length;
@@ -45,6 +45,11 @@ for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and
     assert.equal(spray.alphaMode,'MASK');assert.equal(spray.alphaCutoff,.18);assert.ok(!spray.doubleSided);
     assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],quality==='low'?[.6,1,.7,1]:[1,1,1,1]);
     if(quality==='high'){
+      const oldFamily=family.startsWith('pine-mature')?'pine-mature-v7':'pine-mid-v5';
+      const previousBytes=gunzipSync(readFileSync(new URL('../public/xianxia/surface/'+oldFamily+'-'+lod+'.glb.gz',import.meta.url)));
+      const previous=JSON.parse(previousBytes.subarray(20,20+previousBytes.readUInt32LE(12)).toString());
+      assert.equal(json.meshes.reduce((n,m)=>n+m.primitives.length,0),previous.meshes.reduce((n,m)=>n+m.primitives.length,0),'split offline simplification must not add runtime draw primitives');
+      assert.equal(json.images?.length??0,previous.images?.length??0,'native atlas padding reuses the existing texture count');
       assert.equal(spray.extras.pinePhotographBalanced,true);
       const wood=json.materials.find(m=>m.name.includes('native_fine_twigs'));assert.ok(wood);
       assert.deepEqual(wood.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],[1,1,1,1]);
