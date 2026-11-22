@@ -86,6 +86,13 @@ Source tile URLs and SHA-256 hashes: src/xianxia-terrain-data.json.
 Reproducer: scripts/import-xianxia-terrain.py EXISTING_DOWNLOAD_CACHE_DIRECTORY
 (Python dependencies: numpy, Pillow, requests).
 
+The non-walkable mountain backdrop instead uses the same measured grid at
+native spacing from a surveyed eye at local (1517, 298) m, with eye elevation
+sampled there plus 1.85 m. It retains only terrain beyond 1.4 km, translated
+and yaw-rotated without vertical exaggeration, with the same satellite UVs.
+Opaque surface colors fade into host haze rather than translucent terrain
+layers; this changes neither near geometry nor the host rendering pipeline.
+
 EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)
 https://cloudless.eox.at/
 https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml

@@ -48,6 +48,8 @@ mountain.loadHorizon().catch(error => reportBackgroundFailure(error));
 
 背景保留宿主 ACES/sRGB、天空和天气雾颜色，不新建灯光、不改全局曝光/雾或 camera。仅该材质投到最远深度且不写深度，让实际近景始终遮住它；无需将宿主220米的远裁剪扩大到几公里。远景自身按测得距离采用较稀薄的空气雾深，不改变宿主近地雾。宿主平移/yaw和220米相机的自动检查通过，**正式穿洞视角的视觉验收仍待完成**。
 
+独立入口复查暴露的过大绿坡来自过近的DEM视点及透明地形叠画，不是新的近景扫描。现改取同一原始测区内 `(1517,298)` 米的实测视点，眼高仍由该点原始高程加1.85米计算，只显示1.4公里外的背景；仅平移/yaw，不缩放或压扁高程。背景不再逐面透明叠加，按远近绘制不透明源表面，数据边缘褪向宿主雾色，继续不写宿主深度。修订后的游戏观感仍须实走复验，不能由这些数值推定合格。
+
 ## 本次范围
 基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
 
@@ -58,7 +60,7 @@ Node 24：`npm ci && npm test && npm run build`，`npm run dev` 后打开 /xianx
 演示锚点显式选在稳定图内 (0,-90)，y 来自原 groundHeight。这不是已批准的正式洞口；原扩图建议的 (72,-230) 在稳定图界外，不应启用。正式入口和固定雨林网址仍由雨林方整合发布。
 
 ## 当前近景与保留的历史模块
-- xianxia-near.js / xianxia-surface.js：Coastal Cliff 04 原比例扫描地块（151044 个源三角形、约 12.5×11.7m），位置仅作平移；同一可见网格与扫描岩石提供脚底和阻挡。双尺度摄影材质走共享 Standard PBR，原生 ETC2/S3TC 上传，无运行时 Basis/WASM。入山首载不加载旧航拍、SRTM 山体、洞穴和雨林模型；并不代表下列历史完整路线已开放。
+- xianxia-mountain-field.js / xianxia-mountain-surface.js：当前v3扫描岩面与实拍缓坡二维流送，共用可见网格作支撑与碰撞。xianxia-near.js保留原比例扫描工具、前庭整坡和道具接地；xianxia-surface.js双尺度摄影材质走共享Standard PBR，原生ETC2/S3TC上传，无运行时Basis/WASM。近景不首载旧航拍、旧可走SRTM山体、洞穴或雨林模型；独立入口在近景后异步加载测得的不可走远山背景。不代表下列历史路线已经开放。
 - xianxia-world.js：完整近景摄影测量地形、远处实测山体、摄影材质松树景片、实拍 PBR；洞口、洞顶、洞壁和地面使用同一套完整摄影测量洞穴臂。
 - xianxia-foreground.js / xianxia-foreground-data.json：Haytor 完整实拍地形的变换和边界融合代理。近景实际绘制完整 GLB 并用真实三角形接地，不把代理网格冒称原始扫描。山地洞口按实扫地面横坡作刚体姿态对齐，岩体埋入地面而非悬空叠放。
 - xianxia-terrain.js / xianxia-terrain-data.json：黄山 SRTM 实测高程与原始瓦片校验；约 30 m 原生采样、12 m 插值渲染，不夸称近地扫描。
