@@ -64,7 +64,7 @@ test('both panorama tiers have a sky-free top and bottom, closed seam and mounta
       assert.equal(data[x*4+3],0);assert.equal(data[((height-1)*width+x)*4+3],0);
       let top=height;
       for(let y=0;y<height;y++)if(data[(y*width+x)*4+3]>127){top=y;break;}
-      assert.ok(top<height*.65,`missing positive-elevation ridge at ${path} column ${x}`);
+      assert.ok(top<height*MOUNTAIN_HORIZON_CAPTURE.eye,`missing positive-elevation ridge at ${path} column ${x}`);
     }
     let seam=0;
     for(let y=0;y<height;y++){
@@ -73,6 +73,18 @@ test('both panorama tiers have a sky-free top and bottom, closed seam and mounta
       seam+=Math.abs(data[left+3]-data[right+3]);
     }
     assert.ok(seam/(height*4)<4);
+  }
+});
+
+test('the west photographic lower fade stays below the visible horizon in both tiers',async()=>{
+  const capture=MOUNTAIN_HORIZON_CAPTURE,verticalAngle=capture.angle*capture.height/capture.width;
+  for(const path of [capture.texture,capture.lowTexture]){
+    const {data,info}=await sharp(readFileSync(new URL('../public'+path,import.meta.url))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    const x=Math.round(.9548466043*(info.width-1));
+    for(const degrees of [0,.5,1,2.540353]){
+      const y=Math.round((capture.eye-degrees*Math.PI/180/verticalAngle)*(info.height-1));
+      assert.ok(data[(y*info.width+x)*4+3]>250,`photographic bottom fade leaks sky at ${path} elevation ${degrees}`);
+    }
   }
 });
 

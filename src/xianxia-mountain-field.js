@@ -66,7 +66,7 @@ export function mountainPinePlacements(phase){
       trees.push({i:grove*3+member,x,z});
     }
   }
-  for(const [grove,[cx,cz]]of [[107,-120],[120,-121],[138,-121],[153,-120],[109,-99.5],[125,-100],[141,-99],[155,-104.5]].entries()){
+  for(const [grove,[cx,cz]]of [[107,-120],[120,-121],[138,-121],[153,-120],[101.1,-100.7],[125,-100],[141,-99],[155,-104.5]].entries()){
     for(const [member,[dx,dz]]of [[0,0],[3.2,-2.1],[-3.7,2.8]].entries()){
       const x=cx+dx,z=cz+dz;
       const start=MOUNTAIN_BASE_X+mountainStation(phase*16),end=MOUNTAIN_BASE_X+mountainStation((phase+1)*16);
@@ -219,8 +219,9 @@ export async function loadMountainField(world){
       placeRock(sources[1+i%2][0].geometry,x,z,.018,random(i+phase*19)*Math.PI*2);
     }
     for(let i=0;i<50;i++){
-      const u=phase*16+.6+random(i+phase*71+901)*14.8,x=MOUNTAIN_BASE_X+mountainStation(u);
-      const z=MOUNTAIN_BASE_Z+(random(i+phase*11+815)-.5)*(MOUNTAIN_WIDTH-2);
+      const shoulder=phase===0&&i===15?[99.4,-105.7]:null;
+      const u=phase*16+.6+random(i+phase*71+901)*14.8,x=shoulder?.[0]??MOUNTAIN_BASE_X+mountainStation(u);
+      const z=shoulder?.[1]??MOUNTAIN_BASE_Z+(random(i+phase*11+815)-.5)*(MOUNTAIN_WIDTH-2);
       const large=i%5===0;
       placeRock(large?sources[0][i%sources[0].length].geometry:sources[1+i%2][0].geometry,x,z,large?.14:.025,random(i+503)*Math.PI*2);
     }

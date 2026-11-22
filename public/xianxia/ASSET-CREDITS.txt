@@ -125,6 +125,11 @@ and excludes the low lakeshore, people and boardwalk. Restoring the real
 hazy ridges makes the previous repeating forest backing unnecessary; that
 layer is removed so it cannot cross the pale east cliffs' sky notches.
 Only the hut-replacement sector reuses neighbouring forest photography.
+Runtime eye alignment is 0.58 instead of 0.65, lowering the entire composite
+by 3.54375 degrees without changing its angular scale or source alignment.
+The lower feather then falls below the horizon instead of blending sky
+through the photographed scrub. This is an authored visual alignment,
+not a measured camera pose; the image files and their provenance are unchanged.
 This is not a geographically continuous 360-degree capture.
 No mirror, generated fill, closed sky sphere,
 pole stretch or reachable photographic ground is used. Transparent RGB is

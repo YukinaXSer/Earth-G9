@@ -2,7 +2,7 @@ import * as THREE from 'three';
 export const MOUNTAIN_HORIZON_CAPTURE=Object.freeze({
   texture:'/xianxia/textures/mountain-distant-ring-v6.webp',width:3072,height:432,
   lowTexture:'/xianxia/textures/mountain-distant-ring-v6-low.webp',
-  radius:1500,angle:2*Math.PI,eye:.65,
+  radius:1500,angle:2*Math.PI,eye:.58,
 });
 
 export function mountainHorizonGeometry(){

@@ -64,6 +64,10 @@ High 为3072×432，Low为2048×288，每档只下载一张、不超过256KB；�
 
 先前DEM远景有低矮绿脊和天空三角孔，不再承担背景轮廓；135°第二版则不能覆盖西/西北。新版URL不覆盖已缓存旧图。文件大小**不是新冷载、全向观感或洞口往返验收**，须在新修订中实际录下从洞口走出数百米再回洞口并沿途转向。复现：先运行`python3 scripts/prepare-xianxia-horizon.py`得到中间黄山图，再运行`python3 scripts/prepare-xianxia-horizon-ring.py --panorama <署名中的原全景JPEG> --east public/xianxia/textures/huangshan-distant-v2.webp --output public/xianxia/textures/mountain-distant-ring-v6.webp`，依赖numpy/scipy/Pillow；运行时不加载原全景，不需解码器/worker。
 
+摄影环的运行时眼线为0.58，整张合成相对原0.65眼线下移3.54375°；不改变照片角尺度、方位、比例或各来源之间的接缝。原摄影下沿2–3.5°的渐隐区因此落在地平线以下，避免透明林坡混入天空形成浅色岸线状直带。两档共用同一投影，原图和下载字节不变；这仍是美术配准，不是测得的拍摄姿态。
+
+南侧衔接只调整一组既有中层松丛与一个散岩候选的位置，使用原比例扫描模型和实际地面脚点，不拉动扫描岩层，也不添加隐藏遮挡或碰撞面。两档模型、候选数和渲染档位不变；整轮画面与行走仍须复验。
+
 ## 本次范围
 基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。
 
