@@ -10,6 +10,7 @@ import { decodeMountainGeometry } from '../src/xianxia-mountain-geometry.js';
 import { gradeCaptureApproach } from '../src/xianxia-near.js';
 import { createFloorIndex } from '../src/xianxia-world.js';
 import { MountainTileSurface } from '../src/xianxia-mountain-surface.js';
+import { mouthDistance } from '../src/cave/cave-space.js';
 
 function fixture(lowDetail = false) {
   const scene = new T.Scene(), visible = new T.Group(), hidden = new T.Group();
@@ -91,7 +92,9 @@ test('supported mountain paths outside the cave bounds delegate movement to the 
     const bytes = readFileSync(new URL(`../public/xianxia/surface/v3/tile-${phase}-near.bin`, import.meta.url));
     let geometry = decodeMountainGeometry(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
     if (!phase) geometry = gradeCaptureApproach(geometry);
-    surface.set(0, phase, [createFloorIndex([geometry], 2)]);
+    const index = createFloorIndex([geometry], 2);
+    surface.set(0, phase, [index]);
+    surface.set(-1, phase, [index], 1);
   }
   link.mountain.world.floorIndex = surface;
   link.floor = {}; link.caveAttached = true;
@@ -103,6 +106,11 @@ test('supported mountain paths outside the cave bounds delegate movement to the 
   assert.equal(link.regionAt(to.x, to.z), 'mountain');
   assert.equal(link.canMove(from.x, from.z, to.x, to.z), true);
   assert.equal(link.canMove(to.x, to.z, from.x, from.z), true);
+  const clipped = new T.Vector3(90, 0, -75).applyMatrix4(link.mountain.group.matrixWorld);
+  assert.ok(Number.isFinite(link.mountain.groundHeight(clipped.x, clipped.z)));
+  assert.ok(mouthDistance(clipped, link.mouths[1]) < -.03);
+  assert.equal(link.regionAt(clipped.x, clipped.z), 'forest');
+  assert.equal(link.canMove(clipped.x, clipped.z, clipped.x, clipped.z), false);
   assert.equal(link.regionAt(1e6, 1e6), 'forest');
   assert.equal(link.canMove(to.x, to.z, 1e6, 1e6), false);
   assert.equal(link.regionAt(START.x, START.z), 'forest');

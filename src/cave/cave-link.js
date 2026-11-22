@@ -195,7 +195,7 @@ export class CaveLink {
     const inCorridor = x >= this.bounds.min.x && x <= this.bounds.max.x && z >= this.bounds.min.z && z <= this.bounds.max.z;
     const point = { x, z }, forest = mouthDistance(point, this.mouths[0]), mountain = mouthDistance(point, this.mouths[1]);
     if (inCorridor && forest <= .03 && mountain <= .03) return 'cave';
-    if ((!insideForest(x, z) || !isWalkableGround(x, z)) && this.mountain.groundHeight(x, z) != null) return 'mountain';
+    if (mountain > -.03 && (!insideForest(x, z) || !isWalkableGround(x, z)) && this.mountain.groundHeight(x, z) != null) return 'mountain';
     if (!inCorridor) return 'forest';
     if (mountain > -.03 && this.mountain.groundHeight(x, z) != null) return 'mountain';
     return 'forest';
