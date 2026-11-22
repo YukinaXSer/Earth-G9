@@ -3,10 +3,256 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import * as THREE from 'three';
-import { NearTrunks, NEAR_TRUNK_LIMIT, trunkBlend, nearTrunkMaterial } from '../src/near-trunks.js';
+import { KTXLoader } from 'three/addons/loaders/KTXLoader.js';
+import { NearTrunks, NEAR_TRUNK_LIMIT, trunkBlend, nearTrunkMaterial, treeDetailDistance } from '../src/near-trunks.js';
 import { Habitat } from '../src/habitat.js';
+import { START } from '../src/data.js';
 
 const assets = () => ({ geometry: new THREE.BoxGeometry(), color: new THREE.Texture(), normal: new THREE.Texture() });
+
+test('GPU-native banyan detail retains both 2K maps and all mips within the entrance texture budget', () => {
+  let bytes = 0;
+  for (const [kind, format, blockBytes] of [['color', THREE.RGB_ETC2_Format, 8], ['normal', THREE.RGBA_ETC2_EAC_Format, 16]]) {
+    const raw = fs.readFileSync(new URL(`../public/textures/near-banyan-${kind}.ktx`, import.meta.url));
+    const texture = new KTXLoader().parse(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), true);
+    assert.equal(texture.format, format);
+    assert.equal(texture.width, 2048);
+    assert.equal(texture.height, 2048);
+    assert.equal(texture.mipmapCount, 12);
+    texture.mipmaps.forEach((mip, level) => {
+      assert.equal(mip.width, Math.max(1, 2048 >> level));
+      assert.equal(mip.height, Math.max(1, 2048 >> level));
+      assert.equal(mip.data.byteLength, Math.ceil(mip.width / 4) * Math.ceil(mip.height / 4) * blockBytes);
+      bytes += mip.data.byteLength;
+    });
+  }
+  assert.equal(bytes, 8388648);
+  assert.ok(bytes <= 314638324 * .05);
+});
+
+test('compressed normals reconstruct the photographic hemisphere only on the banyan shader', () => {
+  const maps = assets(); maps.normal.format = THREE.RGBA_ETC2_EAC_Format;
+  const { material } = nearTrunkMaterial(new THREE.MeshBasicMaterial(), maps, 1, new THREE.Vector3(.25, .25, .25));
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.lambert.vertexShader, fragmentShader: THREE.ShaderLib.lambert.fragmentShader };
+  material.onBeforeCompile(shader);
+  assert.ok(shader.fragmentShader.includes('texture2D( normalMap, vNormalMapUv ).ag'));
+  assert.ok(shader.fragmentShader.includes('1.0 - abs(trunkOct.x) - abs(trunkOct.y)'));
+  assert.ok(shader.fragmentShader.includes('mapN.xy *= normalScale'));
+  assert.ok(shader.fragmentShader.includes('normal = normalize(mix(trunkOriginalNormal, normal, trunkSurface))'));
+  assert.deepEqual(material.normalScale.toArray(), [.12, .12]);
+  for (const v of [[0, 0, 1], [.3, -.6, .2], [-.8, .2, .1]]) {
+    const source = new THREE.Vector3(...v).normalize();
+    const oct = source.clone().divideScalar(Math.abs(source.x) + Math.abs(source.y) + source.z);
+    const restored = new THREE.Vector3(oct.x, oct.y, 1 - Math.abs(oct.x) - Math.abs(oct.y)).normalize();
+    assert.ok(restored.distanceTo(source) < 1e-12);
+  }
+});
+
+test('devices without ETC2 keep the original captured banyan outside the near-slot competition', () => {
+  const habitat = new Habitat({ renderer: { extensions: { has: () => false } } });
+  habitat.models.set('banyan', [capture(0, new NearTrunks()).group]);
+  habitat.place('banyan', 0, 35, 1, 0);
+  assert.equal(habitat.nearTrunks.captureDisabled, true);
+  assert.equal(habitat.lodTrees.length, 0);
+  assert.ok(habitat.batches.size > 0);
+});
+
+function capture(x, near) {
+  const t = tree(x), mesh = t.group.children[0], source = mesh.geometry;
+  mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.Texture(), color: '#a9b8a2', side: THREE.DoubleSide });
+  mesh.material.userData = { nearTrunk: 'capture', captureTint: mesh.material.color.clone() };
+  source.userData.captureCorners = Uint32Array.from({ length: source.index.count }, (_, i) => i);
+  const uv = source.toNonIndexed().attributes.uv;
+  near.captureLayout = { uv, weight: new THREE.Float32BufferAttribute(new Float32Array(uv.count).fill(1), 1), grainMean: new THREE.Vector3(1, 1, 1), ...assets() };
+  return t;
+}
+
+test('captured grain changes no scanned face, normal, old atlas coordinate or collider transform', () => {
+  const near = new NearTrunks(), t = capture(0, near), mesh = t.group.children[0], original = mesh.geometry;
+  const expected = original.toNonIndexed(), geometry = near.captureGeometry(original);
+  assert.equal(geometry.index, null);
+  for (const name of ['position', 'normal', 'uv']) assert.deepEqual(geometry.attributes[name].array, expected.attributes[name].array);
+  assert.equal(geometry.attributes.position.count, original.index.count);
+  assert.equal(geometry.attributes.trunkLodPosition, geometry.attributes.position);
+  assert.equal(geometry.attributes.trunkLodNormal, geometry.attributes.normal);
+  assert.equal(geometry.attributes.captureWeight.count, geometry.attributes.position.count);
+  assert.equal(geometry.attributes.tangent.count, geometry.attributes.position.count);
+  assert.ok(geometry.attributes.tangent.array.every(Number.isFinite));
+  for (let i = 0; i < geometry.attributes.tangent.count; i++) {
+    const tangent = new THREE.Vector3().fromBufferAttribute(geometry.attributes.tangent, i);
+    const normal = new THREE.Vector3().fromBufferAttribute(geometry.attributes.normal, i);
+    assert.ok(Math.abs(tangent.dot(normal)) < 1e-6);
+    assert.equal(Math.abs(geometry.attributes.tangent.getW(i)), 1);
+  }
+  assert.equal(near.captureGeometry(original), geometry);
+  assert.deepEqual(mesh.position.toArray(), [0, 0, 0]);
+  assert.deepEqual(mesh.scale.toArray(), [1, 1, 1]);
+  const invalid = original.clone(); invalid.userData = {};
+  assert.throws(() => near.captureGeometry(invalid), /correspondence/);
+});
+
+test('the photographed captured material retains an exact unlit endpoint and finite wet tint', () => {
+  const near = new NearTrunks(), source = capture(0, near).group.children[0].material;
+  const mean = new THREE.Vector3(.05, .04, .03);
+  const { material, blend } = nearTrunkMaterial(source, assets(), 1.8, mean);
+  assert.ok(material.isMeshLambertMaterial);
+  assert.equal(material.map, source.map);
+  assert.equal(material.side, THREE.DoubleSide);
+  assert.notEqual(material.userData.captureTint, source.userData.captureTint);
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.lambert.vertexShader, fragmentShader: THREE.ShaderLib.lambert.fragmentShader };
+  material.onBeforeCompile(shader);
+  assert.equal(shader.uniforms.trunkBlend, blend);
+  assert.ok(shader.vertexShader.includes('vCaptureWeight = captureWeight'));
+  assert.ok(shader.fragmentShader.includes('vec3 trunkCaptureColor = diffuseColor.rgb'));
+  assert.equal(shader.uniforms.trunkGrainMean.value, mean);
+  assert.ok(shader.fragmentShader.includes('vec3 normal = trunkOriginalNormal'));
+  assert.ok(shader.fragmentShader.includes('material.diffuseColor = vec3(1.0)'));
+  assert.ok(shader.fragmentShader.includes('/ trunkGrainMean'));
+  assert.ok(shader.fragmentShader.includes('diffuseColor.rgb = trunkCaptureColor * texture2D'));
+  assert.ok(!shader.fragmentShader.includes('trunkCaptureTint'));
+  assert.ok(shader.fragmentShader.includes('/ (trunkReferenceLight + vec3(.0001))'));
+  assert.ok(!shader.fragmentShader.includes('captureShade'));
+  assert.equal(shader.fragmentShader.match(/#include <normal_fragment_maps>/g).length, 1);
+  assert.equal(shader.fragmentShader.match(/#include <lights_fragment_begin>/g).length, 2);
+  const habitat = new Habitat({ rainy: false }); habitat.materials.add(material);
+  for (const rainy of [false, true, false]) { habitat.setWet(rainy); assert.ok(material.color.toArray().every(Number.isFinite)); }
+});
+
+test('calibrated grain preserves every captured RGB channel under flat normals, including warm wood and wet tint', () => {
+  const mean = new THREE.Vector3(.25, .25, .25);
+  for (const wet of [1, .68]) {
+    const capture = new THREE.Vector3(.09, .07, .05).multiplyScalar(wet);
+    const photograph = mean.clone();
+    const calibrated = photograph.divide(mean).multiply(capture);
+    for (const light of [0, .1, .3, 1, 3]) {
+      const outgoing = calibrated.clone().multiplyScalar((light + .0001) / (light + .0001));
+      outgoing.toArray().forEach((channel, i) => assert.ok(Math.abs(channel - capture.getComponent(i)) < 1e-10));
+    }
+  }
+  const source = tree(0).group.children[0].material;
+  const { material } = nearTrunkMaterial(source, assets(), 1);
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.lambert.vertexShader, fragmentShader: THREE.ShaderLib.lambert.fragmentShader };
+  material.onBeforeCompile(shader);
+  assert.ok(!shader.fragmentShader.includes('trunkReferenceLight'), 'accepted forest shading must remain unchanged');
+});
+
+test('captured and forest stems share two slots and fade to their own exact source geometry', () => {
+  const near = new NearTrunks(), a = capture(0, near), b = tree(12), c = capture(14, near), trees = [a, b, c];
+  near.assets = assets();
+  const original = trees.map(t => t.group.children[0].geometry);
+  let time = 0;
+  const update = (x, count = 1) => { for (let i = 0; i < count; i++) {
+    near.update(new THREE.Vector3(x, 0, 0), trees, time += 1 / 60); assert.ok(near.active.size <= 2);
+  } };
+  update(5.5, 40);
+  const mesh = a.group.children[0], state = near.cache.get(mesh);
+  assert.equal(state.blend.value, 1);
+  assert.notEqual(mesh.geometry, near.assets.geometry);
+  update(7.2);
+  assert.ok(state.blend.value > .9);
+  assert.equal(mesh.geometry, state.nearGeometry);
+  update(7.2, 40);
+  assert.equal(mesh.geometry, original[0]);
+  assert.ok(near.cache.get(c.group.children[0]).blend.value > .9);
+  update(100, 40);
+  trees.forEach((t, i) => assert.equal(t.group.children[0].geometry, original[i]));
+  assert.equal(near.active.size, 0);
+});
+
+test('unavailable captured grain keeps the old capture without disabling forest upgrades', async () => {
+  const near = new NearTrunks(), t = capture(0, near), original = t.group.children[0].geometry;
+  near.assets = assets(); near.captureLayout = undefined;
+  near.loadCapture = async () => { throw new Error('offline'); };
+  near.update(new THREE.Vector3(), [t]); await near.captureLoading;
+  near.update(new THREE.Vector3(), [t]);
+  assert.equal(near.captureDisabled, true);
+  assert.equal(near.disabled, undefined);
+  assert.equal(t.group.children[0].geometry, original);
+  const forest = tree(0);
+  near.update(new THREE.Vector3(), [forest]);
+  assert.equal(forest.group.children[0].geometry, near.assets.geometry);
+});
+
+test('only entrance captured placements join the new parent LOD, with the original matrices', () => {
+  const habitat = new Habitat({ lowDetail: true, scene: new THREE.Scene() });
+  const near = new NearTrunks(), model = capture(0, near).group;
+  for (const key of ['banyan', 'rooted', 'rooted-far', 'forest']) habitat.models.set(key, [model]);
+  const hero = habitat.place('banyan', 5.2, 23, 1, 2.8, 0, -1);
+  const entry = habitat.place('rooted', START.x + 23, START.z, 1.8, .7);
+  habitat.place('rooted', START.x + 80, START.z, 1.8, .7);
+  habitat.place('rooted-far', START.x + 23, START.z, 1.8, .7);
+  habitat.place('forest', START.x - 6, START.z, 3.5, .7);
+  assert.equal(habitat.lodTrees.length, 2);
+  assert.deepEqual(habitat.lodTrees.map(t => t.modelKey), ['banyan', 'rooted']);
+  assert.equal(habitat.lodTrees[0].parts, hero);
+  assert.equal(habitat.lodTrees[1].parts, entry);
+  const expected = new THREE.Matrix4().compose(new THREE.Vector3(5.2, -1, 23), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 2.8, 0)), new THREE.Vector3(1, 1, 1));
+  assert.deepEqual(hero[0].matrix.elements, expected.elements);
+});
+
+test('a large captured root can enter close detail beyond its centre radius without changing forest distances', () => {
+  const near = new NearTrunks(), t = capture(15, near);
+  near.assets = assets();
+  t.detailBounds = new THREE.Box3(new THREE.Vector3(1, -1, -10), new THREE.Vector3(29, 20, 10));
+  const position = new THREE.Vector3();
+  assert.equal(treeDetailDistance(t, position), 1);
+  assert.equal(treeDetailDistance(tree(15), position), 15);
+  near.update(position, [t]);
+  assert.equal(near.active.size, 1);
+  assert.ok(near.cache.get(t.group.children[0]).blend.value > 0);
+});
+
+test('banyan near data contains only finite grain coordinates tied to the unchanged source scan', () => {
+  const read = name => {
+    const raw = fs.readFileSync(new URL(`../public/models/${name}.glb`, import.meta.url));
+    const n = raw.readUInt32LE(12), json = JSON.parse(raw.subarray(20, 20 + n));
+    return { raw, json, bin: raw.subarray(28 + n) };
+  };
+  const layout = read('near-banyan-grain'), source = read('captured-banyan-low');
+  assert.equal(layout.json.meshes, undefined, 'new coordinates must not replace the scanned geometry');
+  assert.equal(layout.json.extras.sourceSha256, createHash('sha256').update(source.raw).digest('hex'));
+  const grain = fs.readFileSync(new URL('../public/textures/near-banyan-color.jpg', import.meta.url));
+  assert.equal(layout.json.extras.grainSha256, createHash('sha256').update(grain).digest('hex'));
+  assert.equal(layout.json.extras.grainMean.length, 3);
+  assert.ok(layout.json.extras.grainMean.every(v => Number.isFinite(v) && v > 0 && v <= 1));
+  assert.equal(layout.json.extras.grainMetres, 1.36);
+  assert.ok(Math.abs(Math.hypot(...layout.json.extras.grainDirection) - 1) < 1e-8);
+  assert.ok(layout.raw.length < 3.6e6);
+  const value = (doc, index, row, axis = 0) => {
+    const a = doc.json.accessors[index], b = doc.json.bufferViews[a.bufferView];
+    const size = { SCALAR: 1, VEC2: 2, VEC3: 3 }[a.type], bytes = a.componentType === 5123 ? 2 : 4;
+    const offset = (b.byteOffset ?? 0) + (a.byteOffset ?? 0) + row * (b.byteStride ?? size * bytes) + axis * bytes;
+    return a.componentType === 5126 ? doc.bin.readFloatLE(offset) : bytes === 2 ? doc.bin.readUInt16LE(offset) : doc.bin.readUInt32LE(offset);
+  };
+  const primitive = source.json.meshes[0].primitives[0], count = source.json.accessors[primitive.indices].count;
+  assert.equal(layout.json.extras.sourceCorners, count);
+  assert.equal(layout.json.accessors[0].count, count);
+  assert.equal(layout.json.accessors[1].count, count);
+  const positions = source.json.accessors[primitive.attributes.POSITION];
+  const scale = 12 / (positions.max[1] - positions.min[1]);
+  let fullFaces = 0, capturedFaces = 0, physicalArea = 0, textureArea = 0;
+  for (let i = 0; i < count; i += 3) {
+    const uv = [0, 1, 2].map(k => new THREE.Vector2(value(layout, 0, i + k), value(layout, 0, i + k, 1)));
+    const weights = [0, 1, 2].map(k => value(layout, 1, i + k));
+    assert.ok(uv.every(p => p.toArray().every(Number.isFinite)));
+    assert.ok(weights.every(w => Number.isFinite(w) && w >= 0 && w <= 1));
+    const area = Math.abs(uv[1].clone().sub(uv[0]).cross(uv[2].clone().sub(uv[0]))) / 2;
+    assert.ok(area > 1e-12, `singular normal-map coordinates on source face ${i / 3}`);
+    if (Math.max(...weights) === 0) capturedFaces++;
+    else {
+      const vertices = [0, 1, 2].map(k => {
+        const id = value(source, primitive.indices, i + k);
+        return new THREE.Vector3(...[0, 1, 2].map(axis => value(source, primitive.attributes.POSITION, id, axis)));
+      });
+      physicalArea += new THREE.Triangle(...vertices).getArea() * scale ** 2;
+      textureArea += area;
+      if (Math.min(...weights) > .9) fullFaces++;
+    }
+  }
+  assert.ok(fullFaces > 3000, 'reachable wood needs substantial photographic coverage');
+  assert.ok(capturedFaces > 30000, 'soil, leaves and upper scan must keep their capture');
+  assert.ok(textureArea / physicalArea > .25 && textureArea / physicalArea < 4, 'grain must use physical rather than atlas-scale coordinates');
+});
 function tree(x) {
   const group = new THREE.Group(), material = new THREE.MeshLambertMaterial({ map: new THREE.Texture(), color: '#a9b8a2' });
   material.userData.nearTrunk = true; material.userData.foliageTint = material.color.clone();
