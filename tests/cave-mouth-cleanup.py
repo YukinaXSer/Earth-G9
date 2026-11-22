@@ -47,7 +47,7 @@ class MouthCleanupTests(unittest.TestCase):
                     [0, 0, 0], [0, 0, -1], [1, 0, 0]]
         mesh = trimesh.Trimesh(vertices, [[0, 1, 2], [3, 4, 5], [6, 8, 7]], process=False)
         mouth = dict(floorCenter=[0, 0, 0], outward=[0, 0, 1])
-        keep = mountain.recess_faces(mesh, mouth, 1.75)
+        keep = mountain.recess_faces(mesh, mouth, 3)
         np.testing.assert_array_equal(keep, [False, True, True])
         before = mesh.triangles.copy()
         mesh.update_faces(keep)
@@ -56,6 +56,18 @@ class MouthCleanupTests(unittest.TestCase):
         self.assertEqual(len(mountain.recess_faces(empty, mouth, 1)), 0)
         with self.assertRaises(ValueError):
             mountain.recess_faces(mesh, mouth, -1)
+
+    def test_floor_exemption_keeps_real_floor_not_dangling_side_sheets(self):
+        mesh = trimesh.Trimesh([[0., 0, 0], [1, 0, 0], [0, 0, -1],
+                               [3, 0, 0], [4, 0, 0], [3, 0, -1],
+                               [3, 0, 0], [3.1, .3, 0], [3, 0, -1],
+                               [0, 0, 0], [.1, .3, 0], [0, 0, -1]],
+                              [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11]], process=False)
+        mouth = dict(floorCenter=[0, 0, 0], outward=[0, 0, 1])
+        keep = mountain.recess_faces(mesh, mouth, 3, [[0, 0, -1], [0, 0, 0]])
+        np.testing.assert_array_equal(keep, [True, True, False, True])
+        with self.assertRaises(ValueError):
+            mountain.recess_faces(mesh, mouth, 3, [])
 
 
 if __name__ == '__main__':

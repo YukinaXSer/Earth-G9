@@ -8,22 +8,29 @@ import sys
 
 import numpy as np
 import trimesh
+from scipy.spatial import cKDTree
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / 'public/cave'
 
 
-def recess_faces(mesh, mouth, recess):
+def recess_faces(mesh, mouth, recess, route=None):
     if not np.isfinite(recess) or recess < 0:
         raise ValueError('Recess must be finite and non-negative')
     center = np.array(mouth['floorCenter'])
     depth = (mesh.triangles - center) @ np.array(mouth['outward'])
     floor = (mesh.face_normals[:, 1] > .2) & (abs(mesh.triangles_center[:, 1] - center[1]) < 1.3)
+    if route is not None:
+        route = np.asarray(route)
+        if route.ndim != 2 or route.shape[1] != 3 or len(route) < 2 or not np.isfinite(route).all():
+            raise ValueError('Floor corridor needs at least two finite route points')
+        distance = cKDTree(route[:, [0, 2]]).query(mesh.triangles_center[:, [0, 2]])[0]
+        floor &= (mesh.face_normals[:, 1] > .5) | (distance <= 1)
     return (depth.max(axis=1) <= -recess) | floor
 
 
-def prepare(source, recess=1.75):
+def prepare(source, recess=3):
     raw = source.read_bytes()
     length = struct.unpack_from('<I', raw, 12)[0]
     document = json.loads(raw[20:20 + length])
@@ -45,7 +52,7 @@ def prepare(source, recess=1.75):
     mesh = trimesh.Trimesh(positions, faces, process=False)
     data = json.loads((ROOT / 'src/cave/cave-data.json').read_text())
     mouth = data['mouths'][1]
-    mesh.update_faces(recess_faces(mesh, mouth, recess))
+    mesh.update_faces(recess_faces(mesh, mouth, recess, data['route']))
     used, inverse = np.unique(mesh.faces, return_inverse=True)
     mesh = trimesh.Trimesh(positions[used], inverse.reshape(-1, 3), process=False)
     normals = np.array(mesh.vertex_normals)
@@ -67,6 +74,8 @@ def prepare(source, recess=1.75):
                                    'use': 'Existing host scanned cliff, tiles and grounded scan rocks'},
                         'createdFaces': 0, 'rockTriangles': 0, 'tubeRecessMetres': recess,
                         'tubeRecessCriterion': 'all non-floor triangle vertices behind recess plane',
+                        'protectedFloorCorridorMetres': 1,
+                        'minimumUnprotectedFloorNormalY': .5,
                         'nativeOpeningExtensionMetres': 1.5, 'tubeTrianglesBeforeRecess': len(faces),
                         'tubeTrianglesAfterRecess': len(mesh.faces), 'apertureGuards': guards}
     fit['mouths'][0]['bodyReduction']['webTriangles'] = len(mesh.faces)
@@ -78,6 +87,6 @@ def prepare(source, recess=1.75):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--recess', type=float, default=1.75)
+    parser.add_argument('--recess', type=float, default=3)
     args = parser.parse_args()
     prepare(args.source, args.recess)

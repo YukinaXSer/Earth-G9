@@ -141,13 +141,24 @@ for (const end of [0, 1]) test(`${end ? 'mountain' : 'forest'} scan has no sky g
   console.log(`${fit.mouth} mouth: ${eyes.length} eyes, ${rays} sky-gap rays, ${boundary.length} boundary edges checked`);
 });
 
-test('the fitted mountain outcrop has no centroids inside the scanned cave or extruded aperture', () => {
+test('the mountain shell uses scanned faces without generated caps or an unsupported fitted rim', () => {
   const fit = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
   if (fit.mouths[1].strategy === 'native-cliff') {
-    assert.equal(mountain.getObjectByProperty('isMesh', true), undefined);
-    assert.equal(fit.mouths[1].rockTriangles, 0);
+    if (fit.mouths[1].scannedShell) {
+      assert.ok(mountain.getObjectByProperty('isMesh', true));
+      assert.ok(fit.mouths[1].rockTriangles > 1000);
+      assert.equal(fit.mouths[1].scannedShell.source, 'https://polyhaven.com/a/coastal_cliff_04');
+      assert.equal(fit.mouths[1].scannedShell.license, 'CC0');
+      assert.ok(fit.mouths[1].scannedShell.burialMetres >= .5);
+      assert.ok(fit.mouths[1].scannedShell.protectedHeadroomMetres >= 3);
+      assert.equal(fit.mouths[1].scannedShell.createdCapFaces, 0);
+      assert.equal(fit.mouths[1].scannedShell.snappedVertices, 0);
+    } else {
+      assert.equal(mountain.getObjectByProperty('isMesh', true), undefined);
+      assert.equal(fit.mouths[1].rockTriangles, 0);
+    }
     assert.equal(fit.mouths[1].createdFaces, 0);
-    assert.equal(fit.mouths[1].tubeRecessMetres, 1.75);
+    assert.equal(fit.mouths[1].tubeRecessMetres, 3);
     assert.equal(fit.mouths[1].tubeRecessCriterion, 'all non-floor triangle vertices behind recess plane');
     assert.ok(fit.mouths[1].tubeTrianglesAfterRecess < fit.mouths[1].tubeTrianglesBeforeRecess);
     return;
