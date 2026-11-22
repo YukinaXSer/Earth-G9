@@ -80,7 +80,7 @@ export function mountainPinePlacements(phase){
 const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
 
 export function mountainPineFamilies(quality){
-  return quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v6','pine-mid-v4'];
+  return quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v7','pine-mid-v5'];
 }
 
 async function pineSources(quality){
@@ -104,7 +104,7 @@ async function pineSources(quality){
       if(!child.isMesh)return;
       const leaf=child.material.name.includes('twig')&&!child.material.name.includes('native_fine_twigs');
       child.material.envMapIntensity=leaf?1:.35;
-      if(leaf&&!tunedMaterials.has(child.material))child.material.color.multiplyScalar(1.5);
+      if(leaf&&!child.material.userData.pinePhotographBalanced&&!tunedMaterials.has(child.material))child.material.color.multiplyScalar(1.5);
       tunedMaterials.add(child.material);
       child.castShadow=true;child.receiveShadow=true;
     });
@@ -128,7 +128,7 @@ export async function loadMountainField(world){
   const response=await fetch(ROOT+'mountain-v3.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
   const manifest=await response.json();
   if(manifest.period!==MOUNTAIN_PERIOD||manifest.tiles?.length!==4||manifest.profile?.length!==257)throw new Error('Invalid mountain surface manifest');
-  const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),sourceProps(),pineSources(world.quality)]);
+  const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true,quality:world.quality}),sourceProps(),pineSources(world.quality)]);
   const profileBytes=new Uint8Array(manifest.profile.length*4);
   manifest.profile.forEach(([l,r],i)=>profileBytes.set([l,r,0,255],i*4));
   const profile=new THREE.DataTexture(profileBytes,manifest.profile.length,1);
@@ -139,6 +139,7 @@ export async function loadMountainField(world){
     captureReflectance:{value:new THREE.Vector2(.27,.38)}
   };
   uniforms.groundMean={value:new THREE.Vector3(...resources.manifest.groundMean)};
+  uniforms.mesoMeters={value:new THREE.Vector2(resources.manifest.textures.groundMesoColor.physicalTileMeters,resources.manifest.textures.wallMesoColor.physicalTileMeters)};
   uniforms.wallMean={value:new THREE.Vector3(...resources.manifest.wallMean)};
   uniforms.groundRegion={value:new THREE.Vector4(0,0,1,1.7)};
   uniforms.groundMixWidth={value:.4};

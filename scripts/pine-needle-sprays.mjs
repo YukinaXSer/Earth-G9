@@ -7,6 +7,31 @@ export function pineTree01AtlasPart(u,v){
   return 'needles';
 }
 
+export function pineTwigParts(indices,uv,needleMask){
+  const wood=[],cones=[];
+  for(let i=0;i<indices.length;i+=3){
+    const u=(uv[indices[i]*2]+uv[indices[i+1]*2]+uv[indices[i+2]*2])/3;
+    const v=(uv[indices[i]*2+1]+uv[indices[i+1]*2+1]+uv[indices[i+2]*2+1])/3;
+    const part=pineTree01AtlasPart(u,v);
+    if(part!=='needles'||!needleMask[indices[i]])(part==='cones'?cones:wood).push(indices[i],indices[i+1],indices[i+2]);
+  }
+  return {wood,cones};
+}
+
+export function pineNeedlePhotoColor(rgba){
+  const out=new Uint8Array(rgba),gain=[.9,1.5,1.05];
+  for(let i=0;i<out.length;i+=4){
+    const green=Math.max(0,Math.min(1,Math.min(rgba[i+1]-rgba[i],rgba[i+1]-rgba[i+2])/9));
+    if(!green)continue;
+    for(let k=0;k<3;k++){
+      const c=rgba[i+k]/255,linear=c<=.04045?c/12.92:((c+.055)/1.055)**2.4;
+      const value=Math.min(1,linear*(1+(gain[k]-1)*green));
+      out[i+k]=Math.round((value<=.0031308?value*12.92:1.055*value**(1/2.4)-.055)*255);
+    }
+  }
+  return out;
+}
+
 const dot=(a,b)=>a.reduce((sum,n,k)=>sum+n*b[k],0);
 const unit=v=>{const length=Math.hypot(...v);return length>1e-9?v.map(n=>n/length):[0,1,0];};
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -27,10 +52,9 @@ export function needleSprays(position,indices,uv,{cellSize=.35,aspect=.6,acceptU
   for(let k=0;k<3;k++)crown[k]/=accepted;
   const output=[],normals=[],texcoords=[],triangles=[];
   for(const groups of cells.values()){
-    const center=[0,0,0],lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+    const center=[0,0,0];
     for(const group of groups){
       for(let k=0;k<3;k++)center[k]+=group.center[k]/groups.length;
-      for(const i of group.vertices)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],position[i*3+k]);hi[k]=Math.max(hi[k],position[i*3+k]);}
     }
     const covariance=Array.from({length:3},()=>[0,0,0]);
     for(const group of groups){const delta=group.center.map((n,k)=>n-center[k]);for(let j=0;j<3;j++)for(let k=0;k<3;k++)covariance[j][k]+=delta[j]*delta[k];}
@@ -39,7 +63,12 @@ export function needleSprays(position,indices,uv,{cellSize=.35,aspect=.6,acceptU
     const outward=[center[0]-crown[0],.7,center[2]-crown[2]];
     if(dot(axis,outward)<0)axis=axis.map(n=>-n);
     const first=unit(cross(axis,Math.abs(axis[1])<.9?[0,1,0]:[1,0,0])),second=cross(axis,first);
-    const span=axis.reduce((s,n,k)=>s+Math.abs(n)*(hi[k]-lo[k]),0),height=Math.min(.75,Math.max(.18,span*1.25)),width=height*aspect;
+    let start=Infinity,end=-Infinity;
+    for(const group of groups)for(const i of group.vertices){
+      const along=axis.reduce((s,n,k)=>s+n*(position[i*3+k]-center[k]),0);
+      start=Math.min(start,along);end=Math.max(end,along);
+    }
+    const height=Math.min(.4,Math.max(.1,(end-start)*1.1)),width=height*aspect;
     // Bend the ensemble normal around the canopy, not the flat photograph.
     const normal=unit([outward[0],Math.hypot(outward[0],outward[2])*.7+.7,outward[2]]);
     const rotation=center[0]*1.71+center[2]*.93;
@@ -58,7 +87,7 @@ export function needleSprays(position,indices,uv,{cellSize=.35,aspect=.6,acceptU
       triangles.push(base,base+1,base+2,base,base+2,base+3,base+4,base+6,base+5,base+4,base+7,base+6);
     }
   }
-  return {position:new Float32Array(output),normal:new Float32Array(normals),uv:new Float32Array(texcoords),indices:new Uint32Array(triangles),accepted,clusters:cells.size,bounds:{min,max}};
+  return {position:new Float32Array(output),normal:new Float32Array(normals),uv:new Float32Array(texcoords),indices:new Uint32Array(triangles),needleMask:needles.mask,accepted,clusters:cells.size,bounds:{min,max}};
 }
 
 export function pineSprayAlpha(pixels,width,height){

@@ -32,7 +32,7 @@ test('mature pine groves belong to their streamed phase and keep the walking lin
 });
 
 for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and cost less than the replaced sapling download',()=>{
-  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v6','pine-mid-v4']);
+  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v7','pine-mid-v5']);
   let total=0;
   for(const family of mountainPineFamilies(quality))for(const lod of ['near','far']){
     const compressed=readFileSync(new URL('../public/xianxia/surface/'+family+'-'+lod+'.glb.gz',import.meta.url));total+=compressed.length;
@@ -43,8 +43,9 @@ for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and
     assert.equal(json.nodes.filter(n=>n.mesh!==undefined).length,1);
     const spray=json.materials.find(m=>m.name.includes('sprays'));
     assert.equal(spray.alphaMode,'MASK');assert.equal(spray.alphaCutoff,.18);assert.ok(!spray.doubleSided);
-    assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor,[.6,1,.7,1]);
+    assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],quality==='low'?[.6,1,.7,1]:[1,1,1,1]);
     if(quality==='high'){
+      assert.equal(spray.extras.pinePhotographBalanced,true);
       const wood=json.materials.find(m=>m.name.includes('native_fine_twigs'));assert.ok(wood);
       assert.deepEqual(wood.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],[1,1,1,1]);
       assert.ok(json.materials.some(m=>m.name.includes('pine_cones')));

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 export const MOUNTAIN_HORIZON_CAPTURE=Object.freeze({
   texture:'/xianxia/textures/huangshan-distant-v2.webp',width:1024,height:387,
-  radius:1500,angle:135*Math.PI/180,eye:.55,
+  radius:1500,angle:135*Math.PI/180,eye:.65,
 });
 
 export function mountainHorizonGeometry(){

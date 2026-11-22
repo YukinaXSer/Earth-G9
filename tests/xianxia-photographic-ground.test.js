@@ -7,6 +7,7 @@ import {addPhotographicGround,ensureSurfaceNormals,nativeGroundTexture,nativeGro
 import {photographicSurfaceGLSL} from '../src/xianxia-surface-glsl.js';
 
 const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/manifest.json',import.meta.url)));
+const highManifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/manifest-high.json',import.meta.url)));
 const textures=Object.fromEntries(Object.keys(manifest.textures).map(id=>[id,new THREE.Texture()]));
 
 test('native variant requires sRGB S3TC for color and regular S3TC for normal uploads',async()=>{
@@ -19,7 +20,8 @@ test('native variant requires sRGB S3TC for color and regular S3TC for normal up
   }
 });
 
-test('ground keeps the full forest-floor photograph and native detail crop within its real transfer payload',()=>{
+for(const [quality,source]of [['low',manifest],['high',highManifest]])test(quality+' ground keeps full photographs and native detail crops within their transfer payload',()=>{
+  const manifest=source;
   let bytes=0;
   for(const [id,row]of Object.entries(manifest.textures)){
     const data=readFileSync(new URL(`../public/xianxia/surface/${row.file}`,import.meta.url));
@@ -27,15 +29,39 @@ test('ground keeps the full forest-floor photograph and native detail crop withi
     assert.equal(data.readUInt32LE(20),row.width);assert.equal(data.readUInt32LE(24),row.height);
     assert.equal(data.readUInt32LE(40),Math.log2(row.width)+1);assert.equal(data.length,row.bytes);bytes+=data.length;
     assert.notEqual(data.readUInt32LE(12),0);assert.equal(data.readUInt32LE(44),0);
-    const meters=id.startsWith('ground')?2.1399996280670166:1.8;
+    const meters=id.startsWith('ground')?(id.includes('Meso')&&quality==='high'?3.0009725093841553:2.1399996280670166):1.8;
     assert.ok(Math.abs(row.physicalTileMeters-meters/(id.includes('Meso')?1:8))<1e-8);
   }
   assert.equal(bytes,manifest.variants.etc2.textureFileBytes);assert.ok(bytes<30e6);
   assert.equal(manifest.textures.groundMesoColor.width,2048);
+  for(const key of ['groundMesoColor','groundMesoNormal']){
+    assert.equal(manifest.textures[key].source,quality==='high'?'forest_leaves_02':'forest_floor');
+    assert.equal(manifest.textures[key].physicalTileMeters,manifest.textures[key].sourcePhysicalMeters);
+  }
+});
+
+test('High selects its moss capture without changing Low assets or either upload allocation',async t=>{
+  const urls=[],renderer={capabilities:{maxTextureSize:4096,getMaxAnisotropy:()=>8},extensions:{has:name=>name==='WEBGL_compressed_texture_etc'}};
+  t.mock.method(globalThis,'fetch',async url=>{
+    urls.push(url);
+    if(url.endsWith('manifest.json')||url.endsWith('manifest-high.json'))return {ok:true,json:async()=>url.endsWith('manifest-high.json')?highManifest:manifest};
+    const bytes=readFileSync(new URL('../public'+url,import.meta.url));
+    return {ok:true,arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};
+  });
+  const low=await loadPhotographicGround(renderer);
+  assert.equal(urls[0],'/xianxia/surface/manifest.json');assert.ok(!urls.some(url=>url.includes('forest-leaves-02')));
+  urls.length=0;
+  const high=await loadPhotographicGround(renderer,{quality:'high'});
+  assert.equal(urls[0],'/xianxia/surface/manifest-high.json');assert.ok(urls.some(url=>url.includes('forest-leaves-02')));
+  for(const [id,row]of Object.entries(low.manifest.textures)){
+    const other=high.manifest.textures[id];
+    assert.deepEqual([row.width,row.height,row.bytes],[other.width,other.height,other.bytes]);
+    if(!id.startsWith('groundMeso'))assert.deepEqual(row,other);
+  }
 });
 
 test('both GPU variants parse without Basis workers, WASM or dynamic code, preserving every mip and roughness alpha',()=>{
-  for(const [variant,set]of Object.entries(manifest.variants))for(const [id,row]of Object.entries(set.textures)){
+  for(const source of [manifest,highManifest])for(const [variant,set]of Object.entries(source.variants))for(const [id,row]of Object.entries(set.textures)){
     const data=readFileSync(new URL(`../public/xianxia/surface/${row.file}`,import.meta.url));
     const texture=nativeGroundTexture(data,row);assert.equal(texture.mipmaps.length,Math.log2(row.width)+1);
     assert.equal(texture.image.width,row.width);assert.equal(texture.flipY,false);
@@ -76,10 +102,12 @@ test('standard lighting receives photographic color, roughness and correctly vie
   assert.match(shader.fragmentShader,/detailFade=1.-smoothstep\(\.0125,\.04,max\(length\(px\),length\(py\)\)\)/);
   assert.match(shader.fragmentShader,/if\(detailFade>\.001\)/);
   assert.equal(shader.uniforms.groundMesoColor.value,textures.groundMesoColor);
+  assert.deepEqual(shader.uniforms.mesoMeters.value.toArray(),[manifest.textures.groundMesoColor.physicalTileMeters,1.8]);
 });
 
 test('ground scatters the full photograph with matching rotated normals instead of a fixed leaf grid',()=>{
-  assert.match(photographicSurfaceGLSL,/if\(isGround\)medium=photoPatch\(mc,mn,uv\*\.125,meanColor,dx\*\.125,dy\*\.125,true,true\)/);
+  assert.match(photographicSurfaceGLSL,/if\(isGround\)medium=photoPatch\(mc,mn,uv\*mediumScale,meanColor,dx\*mediumScale,dy\*mediumScale,true,true\)/);
+  assert.match(photographicSurfaceGLSL,/mediumMeters>0\.\?\(isGround\?microMeters\.x:microMeters\.y\)\/mediumMeters:\.125/);
   assert.match(photographicSurfaceGLSL,/if\(!meso\)\{/);
   assert.match(photographicSurfaceGLSL,/v\.xy=transpose\(R\)\*v\.xy/);
   assert.match(photographicSurfaceGLSL,/detail=photoPatch\(c,n,uv,meanColor,dx,dy,!isGround,false\)/);

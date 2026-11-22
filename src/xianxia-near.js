@@ -55,12 +55,13 @@ export function groundProp(geometry,index,x,z,rotation,options){
 }
 
 export async function loadNearCapture(world){
-  const root='/xianxia/surface/',[resources,response]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),fetch(root+'capture.bin')]);
+  const root='/xianxia/surface/',[resources,response]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true,quality:world.quality}),fetch(root+'capture.bin')]);
   if(!response.ok)throw new Error('Captured near ground unavailable');
   const geometry=gradeCaptureApproach(captureGeometry(await response.arrayBuffer()));
   const uniforms={patchOrigin:{value:CAPTURE_SHIFT.clone()},captureWorldToLocal:{value:new THREE.Matrix4()},captureNormalToWorld:{value:new THREE.Matrix3()},forceMaterial:{value:-1},stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.225)},groundMean:{value:new THREE.Vector3(...resources.manifest.groundMean)},wallMean:{value:new THREE.Vector3(...resources.manifest.wallMean)},groundRegion:{value:new THREE.Vector4(0,0,1,1.7)},groundMixWidth:{value:.05}};
   const updateFrame=()=>{uniforms.captureWorldToLocal.value.copy(world.root.matrixWorld).invert();uniforms.captureNormalToWorld.value.getNormalMatrix(world.root.matrixWorld);};
   for(const [key,value]of Object.entries(resources.textures))uniforms[key]={value};
+  uniforms.mesoMeters={value:new THREE.Vector2(resources.manifest.textures.groundMesoColor.physicalTileMeters,resources.manifest.textures.wallMesoColor.physicalTileMeters)};
   const material=addPhotographicCapture(new THREE.MeshStandardMaterial({side:THREE.DoubleSide,roughness:1,envMapIntensity:.22}),uniforms);
   const mesh=new THREE.Mesh(geometry,material);mesh.name='coastal-cliff-04-native-capture';mesh.receiveShadow=true;mesh.castShadow=true;mesh.onBeforeRender=updateFrame;world.root.add(mesh);
   world.ground=mesh;world.foreground=mesh;world.surfaceMeshes=[mesh];world.terrainIndex=createFloorIndex([geometry],2);world.photographicGround=resources;

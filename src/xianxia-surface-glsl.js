@@ -4,7 +4,7 @@ varying vec3 posM;
 varying vec3 normM;
 uniform sampler2D groundColor, groundNormal, wallColor, wallNormal,groundMesoColor,groundMesoNormal,wallMesoColor,wallMesoNormal;
 uniform vec3 groundMean,wallMean;
-uniform vec2 microMeters;
+uniform vec2 microMeters,mesoMeters;
 uniform vec4 groundRegion;
 uniform float groundMixWidth;
 uniform float forceMaterial;
@@ -51,6 +51,8 @@ Surface photoPatch(sampler2D c,sampler2D n,vec2 uv,vec3 meanColor,vec2 dx,vec2 d
 Surface projectSurface(sampler2D c,sampler2D n,sampler2D mc,sampler2D mn,vec3 meanColor,vec3 g,vec3 w,vec3 p,vec3 px,vec3 py,bool isGround){
   vec3 s=mix(vec3(-1.),vec3(1.),step(vec3(0.),g));
   float repeats=1./(isGround?microMeters.x:microMeters.y);
+  float mediumMeters=isGround?mesoMeters.x:mesoMeters.y;
+  float mediumScale=mediumMeters>0.?(isGround?microMeters.x:microMeters.y)/mediumMeters:.125;
   vec2 ux=vec2(p.y,s.x*p.z)*repeats,uy=vec2(p.x,-s.y*p.z)*repeats,uz=vec2(p.x,s.z*p.y)*repeats;
   vec2 xx=vec2(px.y,s.x*px.z)*repeats,xy=vec2(py.y,s.x*py.z)*repeats;
   vec2 yx=vec2(px.x,-s.y*px.z)*repeats,yy=vec2(py.x,-s.y*py.z)*repeats;
@@ -68,10 +70,10 @@ Surface projectSurface(sampler2D c,sampler2D n,sampler2D mc,sampler2D mn,vec3 me
       detail.n=normalize(mix(vec3(0,0,1),detail.n,detailFade));
     }
     Surface medium;
-    if(isGround)medium=photoPatch(mc,mn,uv*.125,meanColor,dx*.125,dy*.125,true,true);
+    if(isGround)medium=photoPatch(mc,mn,uv*mediumScale,meanColor,dx*mediumScale,dy*mediumScale,true,true);
     else{
-      vec4 nr=textureGrad(mn,uv*.125,dx*.125,dy*.125);
-      medium.c=textureGrad(mc,uv*.125,dx*.125,dy*.125).rgb;
+      vec4 nr=textureGrad(mn,uv*mediumScale,dx*mediumScale,dy*mediumScale);
+      medium.c=textureGrad(mc,uv*mediumScale,dx*mediumScale,dy*mediumScale).rgb;
       medium.n=normalize(nr.xyz*2.-1.);medium.r=nr.a;
     }
     vec3 m=medium.n;
