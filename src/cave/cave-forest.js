@@ -10,8 +10,8 @@ export async function cullForestInCave(habitat, dressing, worldToCave, volume, m
   const instance = new Matrix4(), matrix = new Matrix4(), point = new Vector3(), box = new Box3(), hidden = new Matrix4().makeScale(0, 0, 0), roots = new Set(), rootX = new Set(), removed = new Map();
   const geometryBounds = new Map(), transforms = new Map();
   let deadline = performance.now() + 4;
-  const pause = async (force = false) => {
-    if (!force && performance.now() < deadline) return;
+  const pause = async () => {
+    if (performance.now() < deadline) return;
     await yieldFrame();
     deadline = performance.now() + 4;
   };
@@ -31,10 +31,20 @@ export async function cullForestInCave(habitat, dressing, worldToCave, volume, m
     }
     box.copy(geometryBounds.get(geometry)).applyMatrix4(transform);
     if (!box.intersectsBox(bounds)) return false;
+    const x = (box.min.x + box.max.x) / 2, z = (box.min.z + box.max.z) / 2;
+    let nearest = Infinity;
+    for (const p of volume.route) nearest = Math.min(nearest, (p[0] - x) ** 2 + (p[2] - z) ** 2);
+    const reach = (Math.sqrt(nearest) + Math.hypot(box.max.x - x, box.max.z - z) + 1e-6) ** 2;
+    const query = { ...volume, route: [], side: [], radius: [] };
+    for (let i = 0; i < volume.route.length; i++) {
+      const p = volume.route[i], dx = Math.max(box.min.x - p[0], 0, p[0] - box.max.x), dz = Math.max(box.min.z - p[2], 0, p[2] - box.max.z);
+      if (i && i < volume.route.length - 1 && dx * dx + dz * dz > reach) continue;
+      query.route.push(p); query.side.push(volume.side[i]); query.radius.push(volume.radius[i]);
+    }
     for (let i = 0; i < positions.count; i++) {
-      if (i && i % 128 === 0) await pause(i % 2048 === 0);
+      if (i && i % 128 === 0) await pause();
       point.fromBufferAttribute(positions, i).applyMatrix4(transform);
-      if (bounds.containsPoint(point) && insideScannedCave(point.toArray(), volume, mouths)) return true;
+      if (bounds.containsPoint(point) && insideScannedCave(point.toArray(), query, mouths)) return true;
     }
     return false;
   };
@@ -49,7 +59,7 @@ export async function cullForestInCave(habitat, dressing, worldToCave, volume, m
   }
   for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
     for (let i = 0; i < mesh.count; i++) {
-      if (i % 128 === 0) await pause(i > 0 && i % 2048 === 0);
+      if (i % 128 === 0) await pause();
       mesh.getMatrixAt(i, instance);
       if (!instance.determinant()) continue;
       matrix.multiplyMatrices(transformFor(mesh), instance);
@@ -58,7 +68,7 @@ export async function cullForestInCave(habitat, dressing, worldToCave, volume, m
   }
   for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
     for (let i = 0; i < mesh.count; i++) {
-      if (i % 128 === 0) await pause(i > 0 && i % 2048 === 0);
+      if (i % 128 === 0) await pause();
       mesh.getMatrixAt(i, instance);
       if (!rootX.has(instance.elements[12]) || !roots.has(instance.elements.join(','))) continue;
       mesh.setMatrixAt(i, hidden);

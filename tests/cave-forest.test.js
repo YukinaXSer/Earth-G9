@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
 import { forestSurfaceContains, clipForestSurface, createMouthForest, cullForestInCave } from '../src/cave/cave-forest.js';
+import { insideScannedCave } from '../src/cave/cave-volume.js';
 
 test('cave profiles remove complete vegetation instances and LOD records, retaining canopy above the tube', async () => {
   const geometry = new T.BoxGeometry(.2, .2, .2), material = new T.MeshBasicMaterial();
@@ -46,7 +47,9 @@ test('cave culling computes shared bounds once and rejects transformed distant i
   geometry.dispose(); material.dispose();
 });
 
-test('dense cave intersections yield during vertex scans and propagate streaming failures', async () => {
+test('dense cave intersections yield during vertex scans and propagate streaming failures', async t => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now++);
   const positions = new Float32Array(4096 * 3);
   for (let i = 0; i < positions.length; i += 3) { positions[i] = 2.8; positions[i + 1] = 2.8; }
   const geometry = new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(positions, 3)), material = new T.MeshBasicMaterial();
@@ -57,6 +60,23 @@ test('dense cave intersections yield during vertex scans and propagate streaming
   assert.ok(frames > 0, 'a single dense instance must not monopolize a streaming frame');
   await assert.rejects(cullForestInCave({ cells: [mesh] }, null, new T.Matrix4(), volume, mouths, async () => { throw new Error('stream interrupted'); }), /stream interrupted/);
   const transform = new T.Matrix4(); mesh.getMatrixAt(0, transform); assert.equal(transform.determinant(), 1);
+  geometry.dispose(); material.dispose();
+});
+
+test('bounds-pruned profiles preserve the full nearest-profile result, including mouth extensions', async () => {
+  const route = Array.from({ length: 64 }, (_, i) => [Math.sin(i / 8) * 2, Math.sin(i / 6) * .5, -i]);
+  const volume = { route, side: route.map(() => [1, 0, 0]), radius: route.map((_, i) => Array(64).fill(1 + i / 50)), axisHeight: 1, clearance: .15 };
+  const mouths = [{ floorCenter: route[0], outward: [0, 0, 1] }, { floorCenter: route.at(-1), outward: [0, 0, -1] }];
+  const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([0, 0, 0], 3)), material = new T.MeshBasicMaterial();
+  const mesh = new T.InstancedMesh(geometry, material, 128), expected = [], matrix = new T.Matrix4(), point = new T.Vector3();
+  const bounds = new T.Box3().setFromPoints(route.map(p => new T.Vector3(...p))).expandByScalar(Math.max(...volume.radius.flat()) + volume.axisHeight + volume.clearance);
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.setMatrixAt(i, matrix.makeTranslation(i % 7 - 3, i % 5 / 2, 2 - i / 2));
+    mesh.getMatrixAt(i, matrix); point.setFromMatrixPosition(matrix);
+    expected.push(bounds.containsPoint(point) && insideScannedCave(point.toArray(), volume, mouths));
+  }
+  assert.equal(await cullForestInCave({ cells: [mesh] }, null, new T.Matrix4(), volume, mouths), expected.filter(Boolean).length);
+  for (let i = 0; i < mesh.count; i++) { mesh.getMatrixAt(i, matrix); assert.equal(matrix.determinant() === 0, expected[i], `instance ${i}`); }
   geometry.dispose(); material.dispose();
 });
 
