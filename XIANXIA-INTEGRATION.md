@@ -6,9 +6,11 @@
 
 落叶分布由完整实拍层打散取样，底色、法线与粗糙度同步旋转，细颗粒层不代替中尺度。蕨复用四个已有实拍变体，按缩放后的实际脚底求支撑；Low/High每块最多190/350个候选，再按路径净空和真实支撑剔除。散株与较成熟的蕨丛混合，丛生候选高约0.2–1米，约一半丛心关联松根，另一半关联岩脚或自然土坡；不把统一大小的幼株等距撒满。道具脚底跨分块边缘时查询相邻镜像的同一可见地面。提高林下覆盖会增加绘制工作，不能以旧版帧时冒充新性能；默认低档分辨率、共享光照、洞口和地形资源未改。
 
-成年松替换原先承担中景的幼松模型：Poly Haven Pine Tree 01 的 B 株，主干、枝干与约14.88米树高保留原尺度，成簇摆放并从同一地表求根脚支撑。近/远 LOD 为原摄影材质模型离线简化，不是整树景片；单针叶宽度补偿降低叶面积丢失，主干/枝干不放大，去掉原顶点光照，使用宿主实时光照与投影。第二版图集离线将不透明针叶图中的近黑空区扩边为邻近实拍像素，保留有色样本，防止mip黑边；不加自发光或改全局曝光，针叶反照率补偿只对共享材质执行一次。近/远 GLB 使用版本化v2 URL，共约9.04MB，小于替换的9.24MB幼松文件；旧模型保留但不首载。远 LOD 只含几何，按材质名复用近 LOD 贴图；松针不参与脚底或碰撞，真实木质网格参与碰撞。低/高档 LOD 距离为12/25米，带15%滞回。这不是整页HTTP冷载实测或视觉验收结果。
+松林有三个真实模型高度层：1.05米幼株、原生7.01米 Pine Sapling Medium C、约14.9米 Pine Tree 01 B。成年树干/枝干不缩放，新增中层也不放大；都从同一可见地表的根脚采样求支撑，空值不强转为零。保留木质碰撞，松针不参与脚底/身体碰撞。近/远LOD是原摄影材质三维模型的离线简化，不是整树景片。新针叶补偿用细长比排除松果鳞片，仅对针叶测量三轴投影覆盖；旧版只按半径判断，会误放大圆钝的松果。图集近黑空区仍用邻近实拍样本扩边，去掉原顶点光照，保留原始specular/IOR属性；针叶反照率只补偿一次，不加自发光或改全局曝光。低/高档成年树LOD为12/25米，中层为6/12米，均带15%滞回。
 
-离线重建：准备 Poly Haven Pine Tree 01 的1K glTF及引用文件，运行 `node scripts/prepare-xianxia-pine.mjs /path/to/pine_tree_01_1k.gltf`。准备机需 `@gltf-transform/core`、`extensions`、`functions` 4.2.1，`meshoptimizer` 0.24.0 和 `sharp`（本次0.35.5）；这些只用于离线资产制作，不加入浏览器运行时。来源与改制见资产许可文件。
+四个LOD以版本化 `pine-mature-v3-*.glb.gz` / `pine-mid-v1-*.glb.gz` 请求，文件合计7,683,793B，比上一版仅成年树的9,038,104B少；并不是整页HTTP冷载实测。远档不含独立纹理，复用各自近档材质。使用浏览器原生gzip解压和Three原生glTF解析，接受HTTP已解压的GLB，不引入WASM、mesh/texture codec或worker；静态gzip传输需要支持DecompressionStream的现代浏览器。额外中层会增加绘制与驻留，仍需新版浏览器审计。旧资源留档但不首载，默认低档分辨率不动。
+
+离线重建：准备 Poly Haven Pine Tree 01 的1K glTF及引用文件，保留其extensionsUsed/Required声明，运行 `node scripts/prepare-xianxia-pine.mjs /path/to/pine_tree_01_1k.gltf`；中层运行 `node scripts/prepare-xianxia-mid-pine.mjs public/xianxia/surface/pine-medium.glb`。准备机需 `@gltf-transform/core`、`extensions`、`functions` 4.2.1，`meshoptimizer` 0.24.0 和 `sharp`（本次0.35.5）；这些只用于离线资产制作，不加入浏览器运行时。来源与改制见资产许可文件。
 
 ## 正式单场景接入接口（山洞会话使用）
 

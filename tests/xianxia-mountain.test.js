@@ -59,6 +59,7 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
     }
     return {scene};
   });
+  t.mock.method(GLTFLoader.prototype,'parseAsync',function(){return this.loadAsync();});
   const renderer={capabilities:{maxTextureSize:4096,getMaxAnisotropy:()=>8},extensions:{has:name=>name==='WEBGL_compressed_texture_etc'},toneMapping:THREE.ACESFilmicToneMapping,toneMappingExposure:.96,outputColorSpace:THREE.SRGBColorSpace};
   const original={...renderer},host=new THREE.Scene(),sun=new THREE.DirectionalLight();host.add(sun);
   host.background=new THREE.Color('#8ca18c');host.environment=new THREE.Texture();host.fog=new THREE.FogExp2('#8ca18c',.0045);

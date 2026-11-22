@@ -31,9 +31,9 @@ forest-floor photograph is offset and quarter-turned in overlapping patches,
 with matching normal and roughness samples; its original colors are retained.
 The native crop only contributes grain, not the leaf distribution. Scattered
 rocks retain their captured scale. The four captured fern variants form
-irregular patches with uniform size factors of 0.55–1.15; their scaled root
-footprints are grounded against the same visible tiles, without new models,
-textures or an increased plant budget.
+irregular mixed-age patches with size factors of 0.55–2.4; their scaled root
+footprints are grounded against the same visible tiles. Low/High use at most
+190/350 placement candidates per native phase, before support/path rejection.
 Entry vegetation includes native-scale Pine Sapling Small by Poly Haven, CC0:
 https://polyhaven.com/a/pine_sapling_small
 Only one original approximately 1.05m seedling is retained, with quantized
@@ -136,7 +136,7 @@ https://polyhaven.com/a/kiara_1_dawn
 
 Changes: rock GLTF converted to binary GLB; mesh welding, simplification, pruning and deduplication with glTF Transform and Meshoptimizer; textures converted to embedded WebP. Separate low-quality rock GLBs use further simplification and 512 px textures. The old repeated rock-face cave and stacked entrance were removed; their source files remain for provenance. Scenery is instanced and distance-culled. Rocky trail photographs supply color, normal and displacement textures.
 
-Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
+Archived legacy renderer, not the current near-only entry: the three detailed pine_sapling_medium variants were lit and rendered offline to 1536x2048 transparent PNG impostors. They remain for provenance and the older optional scene only; the current streamed mountain uses real 3D small, medium and mature trees, not whole-tree camera-facing images.
 
 Captured cave geometry (Creative Commons Attribution 4.0 International)
 --------------------------------------------------------------------------
@@ -187,8 +187,9 @@ Mature pine canopy
 Mature pine canopy LODs — Pine Tree 01, Poly Haven, CC0.
 Photography: Rob Tuytel; modeling: Rico Cilliers.
 https://polyhaven.com/a/pine_tree_01 · https://polyhaven.com/license
-Variant B retains authored metre-scale trunk and branch geometry. This is a photo-textured tree model, not a terrain scan. Offline needle LODs preserve projected foliage coverage by widening individual disconnected needles without scaling the tree or its branches. Original vertex-color lighting is removed; both LODs reuse the near model's photographic materials under the host's shared HDR/ACES lighting. The far GLB contains geometry only. No runtime decoder, WASM, worker or provider request is introduced.
+Variant B retains authored metre-scale trunk and branch geometry. This is a photo-textured tree model, not a terrain scan. Offline needle LODs preserve projected foliage coverage by widening individual disconnected needles without scaling the tree or its branches. Original vertex-color lighting is removed; both LODs reuse the near model's photographic materials under the host's shared HDR/ACES lighting. The far GLB contains geometry only. No mesh/texture codec, WASM, worker or provider request is introduced.
 The v2 GLBs pad near-black empty areas of the opaque twig atlas from adjacent photographed texels before generating mipmaps. Colored source texels are retained; mip levels no longer mix unused black atlas space into fine needles. Runtime needle albedo is compensated once per shared material, with no emissive glow or change to host exposure. Older GLBs remain archived but are not requested by the current loader.
+The v3 mature and v1 medium LODs classify slender needle components by aspect ratio: the former radius-only method also enlarged small rounded cone scales and is no longer used. Coverage compensation measures needles only, averaged over three projection axes. The authored approximately 7.01m medium trees restore the missing middle canopy below approximately 14.9m adults and above 1.05m seedlings; whole trees are not enlarged. Authored material specular/IOR properties are retained. Four GLB LODs are transported with standard gzip and native browser decompression, without a new JavaScript codec. Older source versions are not requested.
 
 Fonts
 -----

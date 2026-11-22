@@ -8,6 +8,7 @@ import {decodeMountainGeometry,distantMountainGeometry,mountainStation,MOUNTAIN_
 import {MountainTileSurface} from './xianxia-mountain-surface.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {mountainPathDistance} from './xianxia-mountain-route.js';
+import {loadCompressedModel} from './xianxia-model.js';
 
 const ROOT='/xianxia/surface/';
 const random=n=>{const f=Math.sin(n*127.1+311.7)*43758.5453;return f-Math.floor(f);};
@@ -65,13 +66,24 @@ export function mountainPinePlacements(phase){
       trees.push({i:grove*3+member,x,z});
     }
   }
+  for(const [grove,[cx,cz]]of [[107,-120],[120,-121],[138,-121],[153,-120],[109,-99.5],[125,-100],[141,-99],[155,-104.5]].entries()){
+    for(const [member,[dx,dz]]of [[0,0],[3.2,-2.1],[-3.7,2.8]].entries()){
+      const x=cx+dx,z=cz+dz;
+      const start=MOUNTAIN_BASE_X+mountainStation(phase*16),end=MOUNTAIN_BASE_X+mountainStation((phase+1)*16);
+      if(x<start||x>=end||mountainPathDistance(x,z)<2.2)continue;
+      trees.push({i:100+grove*3+member,x,z,middle:true});
+    }
+  }
   return trees;
 }
 
 const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
 
 async function pineSources(quality){
-  const loader=new GLTFLoader(),[small,near,far]=await Promise.all(['pine.glb','pine-mature-v2-near.glb','pine-mature-v2-far.glb'].map(file=>loader.loadAsync(ROOT+file)));
+  const loader=new GLTFLoader(),[small,near,far,midNear,midFar]=await Promise.all([
+    loader.loadAsync(ROOT+'pine.glb'),
+    ...['pine-mature-v3-near','pine-mature-v3-far','pine-mid-v1-near','pine-mid-v1-far'].map(file=>loadCompressedModel(loader,ROOT+file+'.glb.gz',ROOT)),
+  ]);
   const tunedMaterials=new WeakSet();
   const normalize=scene=>scene.children.map(child=>{
     const group=child.clone(true),box=new THREE.Box3().setFromObject(group),center=box.getCenter(new THREE.Vector3()),roots=[];
@@ -95,17 +107,16 @@ async function pineSources(quality){
     tree.userData.rootContact=bottom.map(p=>[p.x-anchor.x,p.y-minimum,p.z-anchor.z]);
     return tree;
   });
-  const nearTrees=normalize(near.scene),farTrees=normalize(far.scene);
-  const trees=nearTrees.map((tree,i)=>{
+  const makeLODs=(near,far,distance)=>near.map((tree,i)=>{
     const materials=new Map();tree.traverse(mesh=>{if(mesh.isMesh)materials.set(mesh.material.name,mesh.material);});
-    const distant=farTrees[i];distant.traverse(mesh=>{
+    const distant=far[i];distant.traverse(mesh=>{
       if(!mesh.isMesh)return;
       mesh.material=materials.get(mesh.material.name);mesh.userData.collision=false;
     });
-    const lod=new THREE.LOD();lod.addLevel(tree,0);lod.addLevel(distant,quality==='low'?12:25,.15);
+    const lod=new THREE.LOD();lod.addLevel(tree,0);lod.addLevel(distant,distance,.15);
     lod.userData.rootContact=tree.userData.rootContact;return lod;
   });
-  return {saplings:normalize(small.scene),trees};
+  return {saplings:normalize(small.scene),trees:makeLODs(normalize(near.scene),normalize(far.scene),quality==='low'?12:25),middle:makeLODs(normalize(midNear.scene),normalize(midFar.scene),quality==='low'?6:12)};
 }
 
 export async function loadMountainField(world){
@@ -243,11 +254,11 @@ export async function loadMountainField(world){
       const tree=pines.saplings[i%pines.saplings.length].clone(true);
       tree.position.add(new THREE.Vector3(x,h-.06,z));tree.rotation.y=i*2.4;data.props.add(tree);
     }
-    for(const {i,x,z}of trees){
-      const tree=pines.trees[i%pines.trees.length].clone(true);
+    for(const {i,x,z,middle}of trees){
+      const source=middle?pines.middle:pines.trees,tree=source[i%source.length].clone(true);
       const angle=i*1.7,c=Math.cos(angle),s=Math.sin(angle),roots=tree.userData.rootContact;
-      const heights=roots.map(([px,py,pz])=>plantedFloor.heightAt(x+c*px+s*pz,z-s*px+c*pz)-py);
-      if(!heights.length||heights.some(h=>!Number.isFinite(h)))continue;
+      const heights=roots.map(([px,py,pz])=>{const h=plantedFloor.heightAt(x+c*px+s*pz,z-s*px+c*pz);return h==null?null:h-py;});
+      if(!heights.length||heights.some(h=>h==null||!Number.isFinite(h)))continue;
       const h=Math.min(...heights);
       tree.position.set(x,h-.08,z);tree.rotation.y=angle;
       data.props.add(tree);tree.updateMatrixWorld(true);
