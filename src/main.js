@@ -159,7 +159,9 @@ function updatePosition(position) {
     toast(`已到达${navigationTarget.name}。按 E 欣赏风景，按 P 留下照片。`); navigationTarget = null;
   }
   $('.location strong span').textContent = navigationTarget ? `· ${world.targetDirection(navigationTarget)}${navigationTarget.name} ${Math.ceil(Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z))}米` : `· ${region}`;
-  $('#region-world').textContent = world?.worldLink?.region === '青岚境' ? '青岚境' : '原生雨林';
+  const mountainRegion = world?.worldLink?.region === '青岚境';
+  $('#region-world').textContent = mountainRegion ? '青岚境' : '原生雨林';
+  $('#nav-world').firstChild.textContent = mountainRegion ? '青岚境 ' : '雨林之境 ';
   const points = [
     ...SPECIES.map(s => ({ ...s, kind: 'species' })),
     ...PLANT_SITES.filter(s => !progress.planted.includes(s.id)).map(s => ({ ...s, kind: 'plant' })),
