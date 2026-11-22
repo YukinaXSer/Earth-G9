@@ -85,6 +85,16 @@ test('the documented S184 roof and retained-sky artifact do not survive in eithe
   }
 });
 
+test('the hazy neutral-coloured W273 ridge remains opaque instead of leaving isolated treetop blocks',async()=>{
+  for(const [path,scale]of [[MOUNTAIN_HORIZON_CAPTURE.texture,1],[MOUNTAIN_HORIZON_CAPTURE.lowTexture,2/3]]){
+    const {data,info}=await sharp(readFileSync(new URL('../public'+path,import.meta.url))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    for(const [x,y]of [[2970,210],[3000,230]]){
+      const alpha=data[(Math.round(y*scale)*info.width+Math.round(x*scale))*4+3];
+      assert.ok(alpha>248,`photographed grey ridge was mistaken for sky at ${path} ${x},${y}`);
+    }
+  }
+});
+
 test('Low requests only its smaller ring while keeping the same host transforms and material pipeline',async t=>{
   const requests=[];
   t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async url=>{requests.push(url);return new THREE.Texture();});

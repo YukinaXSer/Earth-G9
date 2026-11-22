@@ -66,7 +66,7 @@ patch = np.stack([map_coordinates(pano[:, :, c].astype(float), [patch_y, patch_s
 photo = encoded(linear(pano.astype(float) / 255) * (1 - patch_weight[None, :, None]) + linear(patch) * patch_weight[None, :, None])
 r, g, b = np.moveaxis(photo, 2, 0)
 brightness = photo.mean(axis=2)
-land = ((g > b * 1.02) & (r < 160 / 255)) | (brightness < 45 / 255)
+land = ((g > b * 1.02) & (r < 160 / 255)) | (brightness < 115 / 255)
 land[:int(len(pano) * .35)] = False
 land[int(len(pano) * .51):] = True
 profile = median_filter(np.argmax(land[:-2] & land[1:-1] & land[2:], axis=0).astype(float), size=13, mode='wrap')
@@ -74,7 +74,7 @@ photo_y = np.arange(len(pano))[:, None]
 silhouette = smooth((photo_y - profile[None, :] + .7) / 1.4)
 inside = distance_transform_edt(silhouette > .99)
 outside = distance_transform_edt(silhouette < .01)
-foreground = (inside >= 6) & land & ((g > b * 1.08) | (brightness < .25))
+foreground = (inside >= 6) & land
 background = outside >= 8
 fg = distance_transform_edt(~foreground, return_distances=False, return_indices=True)
 bg = distance_transform_edt(~background, return_distances=False, return_indices=True)
