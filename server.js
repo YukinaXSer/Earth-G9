@@ -7,7 +7,7 @@ import { createGzip } from 'node:zlib';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), process.env.STATIC_DIR || 'dist');
 const port = Number(process.env.PORT || 4173);
-const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.hdr': 'application/octet-stream', '.glb': 'model/gltf-binary', '.webmanifest': 'application/manifest+json' };
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.ktx': 'image/ktx', '.hdr': 'application/octet-stream', '.glb': 'model/gltf-binary', '.webmanifest': 'application/manifest+json' };
 
 const server = http.createServer(async (request, response) => {
   if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405, { Allow: 'GET, HEAD' }); response.end(); return; }
@@ -33,7 +33,7 @@ const server = http.createServer(async (request, response) => {
       const quality = parameters.map(parameter => parameter.trim()).find(parameter => parameter.startsWith('q='));
       return encoding === 'gzip' && (!quality || Number(quality.slice(2)) > 0);
     });
-    const gzip = acceptsGzip && ['.glb', '.hdr', '.js', '.css', '.svg', '.ttf', '.txt', '.html', '.webmanifest'].includes(extname(file));
+    const gzip = acceptsGzip && ['.glb', '.hdr', '.ktx', '.js', '.css', '.svg', '.ttf', '.txt', '.html', '.webmanifest'].includes(extname(file));
     if (gzip) headers['Content-Encoding'] = 'gzip';
     else headers['Content-Length'] = metadata.size;
     response.writeHead(200, headers);

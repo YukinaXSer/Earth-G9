@@ -39,4 +39,10 @@ test('production server allows embedded glTF textures and serves models with the
   const cached = await fetch(url, { headers: { 'If-None-Match': response.headers.get('etag') } });
   assert.equal(cached.status, 304);
   assert.equal((await cached.arrayBuffer()).byteLength, 0);
+  const detail = await fetch(`http://127.0.0.1:${port}/textures/near-banyan-normal.ktx`, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.headers.get('content-type'), 'image/ktx');
+  assert.equal(detail.headers.get('content-encoding'), 'gzip');
+  assert.equal(detail.headers.get('content-security-policy'), policy);
+  assert.ok((await detail.arrayBuffer()).byteLength > 0);
 });
