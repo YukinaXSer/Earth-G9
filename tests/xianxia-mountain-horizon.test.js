@@ -95,6 +95,16 @@ test('the hazy neutral-coloured W273 ridge remains opaque instead of leaving iso
   }
 });
 
+test('the east cliff skyline has no extra forest shelf across its native sky notches',async()=>{
+  for(const [path,scale]of [[MOUNTAIN_HORIZON_CAPTURE.texture,1],[MOUNTAIN_HORIZON_CAPTURE.lowTexture,2/3]]){
+    const {data,info}=await sharp(readFileSync(new URL('../public'+path,import.meta.url))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    for(const [x,y]of [[1210,200],[1510,200]]){
+      const alpha=data[(Math.round(y*scale)*info.width+Math.round(x*scale))*4+3];
+      assert.ok(alpha<16,`extra photographed ridge crosses the east cliff sky notch at ${path} ${x},${y}`);
+    }
+  }
+});
+
 test('Low requests only its smaller ring while keeping the same host transforms and material pipeline',async t=>{
   const requests=[];
   t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async url=>{requests.push(url);return new THREE.Texture();});

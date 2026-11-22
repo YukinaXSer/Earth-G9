@@ -101,22 +101,6 @@ py = (90 - elevation) / 180 * len(pano)
 # Keep only the distant wooded ridge, not the lakeshore, people or boardwalk.
 alpha = map_coordinates(photo_alpha, [py, px], order=1, mode='grid-wrap') * smooth((elevation - 2) / 1.5)
 base_rgb = np.stack([map_coordinates(photo_linear[:, :, c], [py, px], order=1, mode='grid-wrap') for c in range(3)], axis=2)
-# Two same-scale wooded sectors form a closed photographic backing behind the
-# lake-facing low saddle. Repeated photography, not reconstructed mountain shapes.
-period = width / 2
-left_length, right_length = 2550 * 3 / 8, 1750 * 3 / 8
-overlap = (left_length + right_length - period) / 2
-q = px % period
-left_x = (q - 150 * 3 / 8) % width
-right_q = (q - left_length + overlap) % period
-right_x = (right_q + 5650 * 3 / 8) % width
-left_weight = smooth(q / overlap) * smooth((left_length - q) / overlap)
-right_weight = smooth(right_q / overlap) * smooth((right_length - right_q) / overlap)
-left_alpha = map_coordinates(photo_alpha, [py, left_x], order=1, mode='grid-wrap') * left_weight
-right_alpha = map_coordinates(photo_alpha, [py, right_x], order=1, mode='grid-wrap') * right_weight
-forest_alpha = left_alpha + right_alpha
-forest_rgb = np.stack([(map_coordinates(photo_linear[:, :, c], [py, left_x], order=1, mode='grid-wrap') * left_alpha + map_coordinates(photo_linear[:, :, c], [py, right_x], order=1, mode='grid-wrap') * right_alpha) / np.maximum(forest_alpha, 1e-8) for c in range(3)], axis=2)
-forest_alpha *= smooth((elevation - 2) / 1.5)
 ex = (azimuth / east_angle + .5) * (east.shape[1] - 1)
 ey = (east_eye - elevation / east_vertical) * (east.shape[0] - 1)
 east_rgba = np.stack([map_coordinates(east[:, :, c], [ey, ex], order=1, mode='constant', cval=0) for c in range(4)], axis=2)
@@ -128,7 +112,6 @@ def over(front_rgb, front_alpha, back_rgb, back_alpha):
     return rgb, a
 
 
-base_rgb, alpha = over(base_rgb, alpha, forest_rgb, forest_alpha)
 combined, combined_alpha = over(linear(east_rgba[:, :, :3]), east_rgba[:, :, 3], base_rgb, alpha)
 foreground = alpha * smooth((np.abs(azimuth) - 45) / 13)
 combined, combined_alpha = over(base_rgb, foreground, combined, combined_alpha)
