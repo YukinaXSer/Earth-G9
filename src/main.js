@@ -363,7 +363,7 @@ app.addEventListener('click', event => {
   if (button.dataset.travel) {
     navigationTarget = null;
     const point = [...SPECIES, ...PLANT_SITES].find(s => s.id === button.dataset.travel);
-    if (!entered) enterWorld(); world.travelTo(point); closeModal(); toast(`已来到${point.name}附近，向前走几步即可互动。`); return;
+    if (!entered) { savedView = null; enterWorld(); } world.travelTo(point); closeModal(); toast(`已来到${point.name}附近，向前走几步即可互动。`); return;
   }
   switch (button.id) {
     case 'toggle-mission': {
