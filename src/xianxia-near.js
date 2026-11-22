@@ -33,19 +33,20 @@ export function gradeCaptureApproach(geometry){
   return geometry;
 }
 
-export function groundPropMatrix(geometry,index,x,z,rotation,{sink=.025}={}){
+export function groundPropMatrix(geometry,index,x,z,rotation,{sink=.025,scale=1}={}){
+  if(!Number.isFinite(scale)||scale<=0)throw new Error('Invalid grounded prop scale');
   geometry.computeBoundingBox();
   const box=geometry.boundingBox,positions=geometry.attributes.position,threshold=box.min.y+(box.max.y-box.min.y)*.2;
   const c=Math.cos(rotation),s=Math.sin(rotation);
   let height=Infinity,samples=0;
   for(let i=0;i<positions.count;i++){
     if(positions.getY(i)>threshold)continue;
-    const px=positions.getX(i),pz=positions.getZ(i);
+    const px=positions.getX(i)*scale,pz=positions.getZ(i)*scale;
     const floor=index.heightAt(x+c*px+s*pz,z-s*px+c*pz);if(floor==null)return null;
-    height=Math.min(height,floor-positions.getY(i));samples++;
+    height=Math.min(height,floor-positions.getY(i)*scale);samples++;
   }
   if(!samples)return null;
-  return new THREE.Matrix4().makeRotationY(rotation).setPosition(x,height-sink,z);
+  return new THREE.Matrix4().makeRotationY(rotation).scale(new THREE.Vector3(scale,scale,scale)).setPosition(x,height-sink,z);
 }
 
 export function groundProp(geometry,index,x,z,rotation,options){

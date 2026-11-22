@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
 import {createFloorIndex,XianxiaWorld} from '../src/xianxia-world.js';
 import {addPhotographicGround,ensureSurfaceNormals,nativeGroundTexture,nativeGroundVariant,loadPhotographicGround} from '../src/xianxia-surface.js';
+import {photographicSurfaceGLSL} from '../src/xianxia-surface-glsl.js';
 
 const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/manifest.json',import.meta.url)));
 const textures=Object.fromEntries(Object.keys(manifest.textures).map(id=>[id,new THREE.Texture()]));
@@ -75,6 +76,15 @@ test('standard lighting receives photographic color, roughness and correctly vie
   assert.match(shader.fragmentShader,/detailFade=1.-smoothstep\(\.0125,\.04,max\(length\(px\),length\(py\)\)\)/);
   assert.match(shader.fragmentShader,/if\(detailFade>\.001\)/);
   assert.equal(shader.uniforms.groundMesoColor.value,textures.groundMesoColor);
+});
+
+test('ground scatters the full photograph with matching rotated normals instead of a fixed leaf grid',()=>{
+  assert.match(photographicSurfaceGLSL,/if\(isGround\)medium=photoPatch\(mc,mn,uv\*\.125,meanColor,dx\*\.125,dy\*\.125,true,true\)/);
+  assert.match(photographicSurfaceGLSL,/if\(!meso\)\{/);
+  assert.match(photographicSurfaceGLSL,/v\.xy=transpose\(R\)\*v\.xy/);
+  assert.match(photographicSurfaceGLSL,/detail=photoPatch\(c,n,uv,meanColor,dx,dy,!isGround,false\)/);
+  assert.match(photographicSurfaceGLSL,/macroColor\+=medium\.c\*w\[axis\]/);
+  assert.match(photographicSurfaceGLSL,/o\.r\+=medium\.r\*w\[axis\]/);
 });
 
 test('walking uses the visible terrain triangles, rejects walls, overhead rock and unsupported capture edges',()=>{

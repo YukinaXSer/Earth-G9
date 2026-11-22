@@ -17,31 +17,35 @@ vec3 faceRotate(vec3 v,vec3 from,vec3 to){
 vec2 photoOffset(vec2 id){
   return fract(sin(vec2(dot(id,vec2(127.1,311.7)),dot(id,vec2(269.5,183.3))))*43758.5453);
 }
-Surface photoPatch(sampler2D c,sampler2D n,vec2 uv,vec3 meanColor,vec2 dx,vec2 dy){
+Surface photoPatch(sampler2D c,sampler2D n,vec2 uv,vec3 meanColor,vec2 dx,vec2 dy,bool randomize,bool meso){
+  bool varied=stochastic&&randomize;
   vec2 skew=vec2(uv.x-uv.y*.577350269,uv.y*1.154700538);
   vec2 base=floor(skew),f=fract(skew),a,b,d;
   vec3 w;
   if(f.x+f.y<1.){a=base;b=base+vec2(1,0);d=base+vec2(0,1);w=vec3(1.-f.x-f.y,f.x,f.y);}
   else{a=base+vec2(1,1);b=base+vec2(0,1);d=base+vec2(1,0);w=vec3(f.x+f.y-1.,1.-f.x,1.-f.y);}
   w=pow(max(w,vec3(0.)),vec3(4.));w/=dot(w,vec3(1.));
-  if(!stochastic)w=vec3(1,0,0);
+  if(!varied)w=vec3(1,0,0);
   Surface o;o.c=vec3(0);o.n=vec3(0);o.r=0.;
   for(int i=0;i<3;i++){
     if(w[i]<.0001)continue;
     vec2 id=i==0?a:i==1?b:d;
-    vec2 rnd=photoOffset(id);
-    float angle=stochastic?floor(rnd.x*4.)*1.570796327:0.;
+    vec2 rnd=varied?photoOffset(id):vec2(0);
+    float angle=varied?floor(rnd.x*4.)*1.570796327:0.;
     mat2 R=mat2(cos(angle),sin(angle),-sin(angle),cos(angle));
-    vec2 q=R*uv+(stochastic?photoOffset(id+vec2(31,47)):vec2(0));
+    vec2 q=R*uv+(varied?photoOffset(id+vec2(31,47)):vec2(0));
     vec4 nr=textureGrad(n,q,R*dx,R*dy);
     vec3 v=nr.xyz*2.-1.;
     v.xy=transpose(R)*v.xy;
     o.c+=textureGrad(c,q,R*dx,R*dy).rgb*w[i];
     o.n+=v*w[i];o.r+=nr.a*w[i];
   }
-  float variance=sqrt(dot(w,w));
-  o.c=clamp((o.c-meanColor)/variance+meanColor,0.,1.);
-  o.n.xy*=.72/variance;o.n=normalize(o.n);
+  if(!meso){
+    float variance=sqrt(dot(w,w));
+    o.c=clamp((o.c-meanColor)/variance+meanColor,0.,1.);
+    o.n.xy*=.72/variance;
+  }
+  o.n=normalize(o.n);
   return o;
 }
 Surface projectSurface(sampler2D c,sampler2D n,sampler2D mc,sampler2D mn,vec3 meanColor,vec3 g,vec3 w,vec3 p,vec3 px,vec3 py,bool isGround){
@@ -59,18 +63,24 @@ Surface projectSurface(sampler2D c,sampler2D n,sampler2D mc,sampler2D mn,vec3 me
     vec2 uv=axis==0?ux:axis==1?uy:uz,dx=axis==0?xx:axis==1?yx:zx,dy=axis==0?xy:axis==1?yy:zy;
     Surface detail;detail.c=meanColor;detail.n=vec3(0,0,1);detail.r=1.;
     if(detailFade>.001){
-      detail=photoPatch(c,n,uv,meanColor,dx,dy);
+      detail=photoPatch(c,n,uv,meanColor,dx,dy,!isGround,false);
       detail.c=mix(meanColor,detail.c,detailFade);
       detail.n=normalize(mix(vec3(0,0,1),detail.n,detailFade));
     }
-    vec4 nr=textureGrad(mn,uv*.125,dx*.125,dy*.125);
-    vec3 m=normalize(nr.xyz*2.-1.);
+    Surface medium;
+    if(isGround)medium=photoPatch(mc,mn,uv*.125,meanColor,dx*.125,dy*.125,true,true);
+    else{
+      vec4 nr=textureGrad(mn,uv*.125,dx*.125,dy*.125);
+      medium.c=textureGrad(mc,uv*.125,dx*.125,dy*.125).rgb;
+      medium.n=normalize(nr.xyz*2.-1.);medium.r=nr.a;
+    }
+    vec3 m=medium.n;
     vec3 basis=axis==0?vec3(s.x,0,0):axis==1?vec3(0,s.y,0):vec3(0,0,s.z);
     vec3 detailN=axis==0?vec3(s.x*detail.n.z,detail.n.x,s.x*detail.n.y):axis==1?vec3(detail.n.x,s.y*detail.n.z,-s.y*detail.n.y):vec3(detail.n.x,s.z*detail.n.y,s.z*detail.n.z);
     vec3 macroN=axis==0?vec3(s.x*m.z,m.x,s.x*m.y):axis==1?vec3(m.x,s.y*m.z,-s.y*m.y):vec3(m.x,s.z*m.y,s.z*m.z);
     o.c+=detail.c*w[axis];o.n+=faceRotate(detailN,basis,g)*w[axis];
-    macroColor+=textureGrad(mc,uv*.125,dx*.125,dy*.125).rgb*w[axis];
-    macroNormal+=faceRotate(macroN,basis,g)*w[axis];o.r+=nr.a*w[axis];
+    macroColor+=medium.c*w[axis];
+    macroNormal+=faceRotate(macroN,basis,g)*w[axis];o.r+=medium.r*w[axis];
   }
   float grain=dot(o.c,vec3(.2126,.7152,.0722))/max(.001,dot(meanColor,vec3(.2126,.7152,.0722)));
   o.c=macroColor*pow(clamp(grain,.65,1.5),.25);

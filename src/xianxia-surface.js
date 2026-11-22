@@ -90,7 +90,7 @@ export function addPhotographicCapture(material,uniforms){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v5';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v6';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){
@@ -120,6 +120,6 @@ float photoPath(vec2 p){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,photoSurface.r,photoMask);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mix(normal,mat3(viewMatrix)*photoSurface.n,photoMask));');
   };
-  material.customProgramCacheKey=()=> 'xianxia-full-photo-plus-grain-v1';
+  material.customProgramCacheKey=()=> 'xianxia-full-photo-plus-grain-v2';
   material.needsUpdate=true;return material;
 }

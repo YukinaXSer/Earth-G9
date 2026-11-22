@@ -40,6 +40,26 @@ test('instanced ground placement preserves the same scale, foot embedding and te
   assert.equal(groundPropMatrix(template,index,100,100,0),null);
 });
 
+test('different fern sizes query their scaled footprint and keep every root embedded in the visible floor',()=>{
+  const floor=new THREE.PlaneGeometry(20,20).rotateX(-Math.PI/2).rotateZ(.2),index=createFloorIndex([floor],2);
+  const template=new THREE.BoxGeometry(.6,.8,.9).translate(0,.4,0),original=template.attributes.position.array.slice();
+  for(const scale of [.55,.83,1.15]){
+    const transform=groundPropMatrix(template,index,1,2,.7,{scale,sink:.02}),placed=template.clone().applyMatrix4(transform);
+    assert.ok(Math.abs(transform.determinant()-scale**3)<1e-9);
+    let highest=-Infinity;
+    for(let i=0;i<template.attributes.position.count;i++){
+      if(template.attributes.position.getY(i)>.01)continue;
+      const p=new THREE.Vector3().fromBufferAttribute(placed.attributes.position,i);
+      const clearance=p.y-index.heightAt(p.x,p.z);
+      assert.ok(clearance<=-.019999);highest=Math.max(highest,clearance);
+    }
+    assert.ok(Math.abs(highest+.02)<1e-6);
+  }
+  assert.deepEqual(template.attributes.position.array,original);
+  assert.equal(groundPropMatrix(template,index,9.5,0,0,{scale:2}),null);
+  for(const scale of [0,-1,NaN,Infinity])assert.throws(()=>groundPropMatrix(template,index,1,2,0,{scale}),/Invalid grounded prop scale/);
+});
+
 test('both photographic layers feed standard PBR, retaining the shared HDR, tone map and output stages',()=>{
   const uniforms={patchOrigin:{value:new THREE.Vector3()},forceMaterial:{value:-1}},material=addPhotographicCapture(new THREE.MeshStandardMaterial({envMapIntensity:.22}),uniforms);
   const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};

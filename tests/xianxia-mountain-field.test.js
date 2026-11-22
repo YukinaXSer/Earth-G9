@@ -5,6 +5,7 @@ import {decodeMountainGeometry,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,M
 import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
+import {mountainFernPlacement} from '../src/xianxia-mountain-field.js';
 
 function load(phase,lod){
   const b=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-'+lod+'.bin',import.meta.url));
@@ -49,4 +50,24 @@ test('near and far surface heights retain common clipped tile rims',()=>{
       }
     }
   }
+});
+
+test('fern patches repeat deterministically when streamed, with mixed sizes and irregular lateral clusters',()=>{
+  for(let phase=0;phase<4;phase++){
+    const samples=Array.from({length:225},(_,i)=>mountainFernPlacement(phase,i,45));
+    assert.deepEqual(samples,Array.from({length:225},(_,i)=>mountainFernPlacement(phase,i,45)));
+    assert.ok(Math.min(...samples.map(p=>p.scale))<.6);
+    assert.ok(Math.max(...samples.map(p=>p.scale))>1.1);
+    assert.ok(Math.max(...samples.map(p=>p.z))-Math.min(...samples.map(p=>p.z))>20);
+    for(const p of samples){
+      assert.ok(p.scale>=.55&&p.scale<1.15);
+      assert.ok(p.rotation>=0&&p.rotation<Math.PI*2&&p.variant>=0&&p.variant<1);
+      assert.ok(p.x>MOUNTAIN_BASE_X+mountainStation(phase*16)&&p.x<MOUNTAIN_BASE_X+mountainStation((phase+1)*16));
+      assert.ok(Math.abs(p.z-MOUNTAIN_BASE_Z)<MOUNTAIN_WIDTH/2);
+    }
+  }
+  const patch=Array.from({length:9},(_,i)=>mountainFernPlacement(1,25+i,25));
+  for(const a of patch)for(const b of patch)assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<2.71);
+  const contact=mountainFernPlacement(2,29,25,[[139,-100]]);
+  assert.equal(contact.x,139);assert.equal(contact.z,-100);
 });

@@ -8,9 +8,10 @@ The mountain-only entry now uses Coastal Cliff 04 by Poly Haven (CC0):
 https://polyhaven.com/a/coastal_cliff_04
 Native-scale scan surfaces are joined offline to a graded walking corridor
 derived from the captured height profile and Rocky Trail photographic
-displacement. Infill slopes are limited to 0.5 per axis before union
-(35.3 degrees maximum combined grade); cliff silhouettes, ledges and
-overhangs retain the scan's native geometry, without lateral planar caps.
+displacement. Revision 3 infill uses isotropically filtered captured support;
+its generated triangles remain below 45 degrees. Cliff silhouettes, ledges
+and overhangs retain the scan's native geometry, without backing shells or
+lateral planar caps.
 Four shared near/far tiles repeat with alternating X reflection.
 The two one-metre terminal bands blend the tangent between reflected blocks;
 the remaining captured interior is not enlarged. The visible baked triangles
@@ -25,8 +26,14 @@ https://ambientcg.com/a/Rock043L
 Full photographic layers repeat at 2.14m and 1.8m; native detail crops at .2675m
 and .225m add grain. Original albedo, normal and roughness are repacked into
 precompressed GPU texture blocks; source dimensions, crop bounds, format,
-licenses and checksums are listed in surface/manifest.json. Scattered rocks
-and ferns retain their captured scale and are grounded against visible tiles.
+licenses and checksums are listed in surface/manifest.json. The complete
+forest-floor photograph is offset and quarter-turned in overlapping patches,
+with matching normal and roughness samples; its original colors are retained.
+The native crop only contributes grain, not the leaf distribution. Scattered
+rocks retain their captured scale. The four captured fern variants form
+irregular patches with uniform size factors of 0.55–1.15; their scaled root
+footprints are grounded against the same visible tiles, without new models,
+textures or an increased plant budget.
 Entry vegetation includes native-scale Pine Sapling Small by Poly Haven, CC0:
 https://polyhaven.com/a/pine_sapling_small
 Only one original approximately 1.05m seedling is retained, with quantized

@@ -12,6 +12,21 @@ import {mountainPathDistance} from './xianxia-mountain-route.js';
 const ROOT='/xianxia/surface/';
 const random=n=>{const f=Math.sin(n*127.1+311.7)*43758.5453;return f-Math.floor(f);};
 
+export function mountainFernPlacement(phase,i,basePlants,contacts=[]){
+  const seed=i*31+phase*983+1021;
+  let u=phase*16+.6+random(i+phase*17)*14.8;
+  let z=i%4!==0?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5;
+  if(i>=basePlants){
+    const cluster=Math.floor((i-basePlants)/9)+phase*71;
+    const angle=random(seed+7)*Math.PI*2,radius=Math.sqrt(random(seed+13))*1.35;
+    u=phase*16+2+random(cluster+5107)*12+Math.cos(angle)*radius;
+    z=MOUNTAIN_BASE_Z+(random(cluster+6101)-.5)*(MOUNTAIN_WIDTH-5)+Math.sin(angle)*radius;
+  }
+  let x=MOUNTAIN_BASE_X+mountainStation(u);
+  if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(seed+19)*contacts.length)];
+  return {x,z,scale:.55+random(seed+23)*.6,rotation:random(seed+29)*Math.PI*2,variant:random(seed+37)};
+}
+
 async function sourceProps(){
   const loader=new GLTFLoader();
   return Promise.all(['boulders','stone_01-lod','rock_07-lod','fern'].map(async name=>{
@@ -167,18 +182,14 @@ export async function loadMountainField(world){
     const plantedFloor={heightAt:(x,z)=>Math.max(floor.heightAt(x,z)??-Infinity,...data.propIndices.map(index=>index.heightAt(x,z)??-Infinity))};
     const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?25:45),plantCount=world.quality==='low'?125:225;
     for(let i=0;i<plantCount;i++){
-      const u=phase*16+.6+random(i+phase*17)*14.8;
-      let x=MOUNTAIN_BASE_X+mountainStation(u);
-      const right=i%4!==0;
-      let z=i<basePlants?(right?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5):MOUNTAIN_BASE_Z+(random(i+phase*29+801)-.5)*(MOUNTAIN_WIDTH-1);
-      if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(i+phase*71)*contacts.length)];
-      if(mountainPathDistance(x,z)<.6)continue;
+      const {x,z,scale,rotation,variant:choice}=mountainFernPlacement(phase,i,basePlants,contacts);
+      if(mountainPathDistance(x,z)<Math.max(.6,scale*.65))continue;
       if(x<MOUNTAIN_ENTRANCE.approach.endX+.5&&Math.abs(z-MOUNTAIN_ENTRANCE.position.z)<1)continue;
       if(i>=basePlants){
         const heights=[[-.2,0],[.2,0],[0,-.2],[0,.2]].map(([dx,dz])=>plantedFloor.heightAt(x+dx,z+dz));
         if(heights.some(h=>!Number.isFinite(h))||Math.max(...heights)-Math.min(...heights)>.35)continue;
       }
-      const variant=i%sources[3].length,template=sources[3][variant],transform=groundPropMatrix(template.geometry,plantedFloor,x,z,i*2.4,{sink:.02});
+      const variant=Math.floor(choice*sources[3].length),template=sources[3][variant],transform=groundPropMatrix(template.geometry,plantedFloor,x,z,rotation,{sink:.02,scale});
       if(transform)ferns[variant].push(transform);
     }
     for(const [i,transforms]of ferns.entries()){
