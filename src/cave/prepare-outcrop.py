@@ -145,7 +145,7 @@ def terrain_contact(cave, route, mouths):
     ids = cKDTree(route[:, [0, 2]]).query(cave.triangles_center[:, [0, 2]])[1]
     floor = (d > -12) & (d < .2) & (cave.face_normals[:, 1] > .45) & (np.abs(cave.triangles_center[:, 1] - route[ids, 1]) < .8)
     footprint = shapely.union_all([shapely.Polygon(tri[:, [0, 2]]) for tri in cave.triangles[floor]]).buffer(-.025)
-    corners = np.array([center + side * x + outward * z for x, z in [(-1000, -1000), (1000, -1000), (1000, -8), (-1000, -8)]])
+    corners = np.array([center + side * x + outward * z for x, z in [(-1000, -1000), (1000, -1000), (1000, -4), (-1000, -4)]])
     deep = shapely.LineString(route[:, [0, 2]]).buffer(9).intersection(shapely.Polygon(corners[:, [0, 2]]))
     opening = shapely.union_all([footprint, deep])
     records = []
@@ -189,7 +189,7 @@ def source_scan(asset):
     source.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=5)
     ms = pymeshlab.MeshSet()
     ms.add_mesh(pymeshlab.Mesh(vertex_matrix=source.vertices, face_matrix=source.faces))
-    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=150000 if asset == 'coastal_cliff_02' else 90000, preservenormal=True, preservetopology=True, preserveboundary=True)
+    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=90000, preservenormal=True, preservetopology=True, preserveboundary=True)
     reduced = ms.current_mesh()
     mesh = trimesh.Trimesh(reduced.vertex_matrix(), reduced.face_matrix(), process=False)
     mesh.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=5)
@@ -221,7 +221,7 @@ def front_depth(mesh, points, outward, center):
     return depth
 
 
-def place_scan(scan, end, mouth, volume, upright=True):
+def place_scan(scan, end, mouth, volume):
     outward, center = np.array(mouth['outward']), np.array(mouth['floorCenter'])
     side = np.array([outward[2], 0, -outward[0]])
     boundary = boundary_vertices(scan)
@@ -231,27 +231,6 @@ def place_scan(scan, end, mouth, volume, upright=True):
     support = np.concatenate([(scan.vertices @ normals[i:i + 32].T).max(axis=0) - (scan.vertices[boundary] @ normals[i:i + 32].T).max(axis=0)
                               for i in range(0, len(normals), 32)])
     up = normals[support.argmax()]
-    if end == 0 and upright:
-        front = up
-        up = np.array([0., 1, 0]) - front * front[1]
-        up /= np.linalg.norm(up)
-        horizontal = np.cross(up, front)
-        vertices = scan.vertices @ np.column_stack([horizontal, up, front])
-        height = max(10, max(volume['radius'][0]) + volume['axisHeight'] + 5)
-        vertices[:, 0] -= np.mean([vertices[:, 0].min(), vertices[:, 0].max()])
-        vertices[:, 1] -= vertices[:, 1].min()
-        vertices[:, 2] -= vertices[:, 2].max()
-        scan.vertices = center + (vertices * ((height + 3) / np.ptp(vertices[:, 1])) - [0, 3, 0]) @ np.column_stack([side, [0, 1, 0], outward]).T
-        angle = np.arange(64) * (2 * np.pi / 64)
-        radius = np.array(volume['radius'][0]) + .15
-        ring = center + np.array(volume['side'][0]) * (radius * np.cos(angle))[:, None]
-        ring[:, 1] += volume['axisHeight'] + radius * np.sin(angle)
-        depths = front_depth(scan, ring, outward, center)
-        if not np.isfinite(depths).all():
-            raise ValueError('Forest cliff face does not cover scanned aperture')
-        shift = -depths.max() - .02
-        scan.vertices += outward * shift
-        return scan, shift
     horizontal = np.array([1., 0, 0]) - up * up[0]
     horizontal /= np.linalg.norm(horizontal)
     vertices = scan.vertices @ np.column_stack([horizontal, up, np.cross(horizontal, up)])
@@ -321,16 +300,9 @@ def main():
     ends = [0] if args.end == 'forest' else [0, 1]
     terrain_contact(cave, route, data['mouths'])
     scans, reports = [], []
-    for end, asset in enumerate(['coastal_cliff_02', 'coastal_cliff_04'][:1 if args.end == 'forest' else 2]):
+    for end, asset in enumerate(['coastal_cliff_04', 'coastal_cliff_04'][:1 if args.end == 'forest' else 2]):
         scan, tint = source_scan(asset)
         scan, shift = place_scan(scan, end, data['mouths'][end], volume)
-        if end == 0:
-            core, core_tint = source_scan('coastal_cliff_04')
-            core, _ = place_scan(core, end, data['mouths'][end], volume, upright=False)
-            shell = np.abs(radial_margin(core.vertices, volume, data['mouths']))
-            core.update_faces((shell[core.faces].min(axis=1) < 2.4) & aperture_faces(core, volume, data['mouths'], [end]))
-            scan = trimesh.util.concatenate([scan, core])
-            tint = np.vstack([tint, core_tint])
         scan, tint = refine_aperture(scan, tint, volume, data['mouths'], [end])
         gc.collect()
         print('Refined', asset, len(scan.faces), flush=True)
@@ -399,7 +371,7 @@ def main():
         moved[boundary[snap]] = True
         scan.update_faces(scan.nondegenerate_faces(height=1e-7))
         scan.update_faces(~contains(scan.triangles_center, actual_volume, data['mouths']))
-        slivers = rim_slivers(scan, moved)
+        slivers = rim_slivers(scan, moved) if end else np.zeros(len(scan.faces), dtype=bool)
         report['removedAfterResnap'] = int(slivers.sum())
         scan.update_faces(~slivers)
         displacement = np.linalg.norm(scan.vertices - original, axis=1)
