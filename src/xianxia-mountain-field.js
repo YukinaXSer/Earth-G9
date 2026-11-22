@@ -185,12 +185,12 @@ export async function loadMountainField(world){
       let h=-Infinity;for(const index of native.values())h=Math.max(h,index.heightAt(x,z)??-Infinity);
       return Number.isFinite(h)?h:null;
     }};
-    const placeRock=(template,x,z,sink,rotation)=>{
+    const placeRock=(template,x,z,sink,rotation,scale=1)=>{
       const box=template.boundingBox;
-      const radius=Math.hypot(box.max.x-box.min.x,box.max.z-box.min.z)/2;
+      const radius=Math.hypot(box.max.x-box.min.x,box.max.z-box.min.z)*scale/2;
       if(mountainPathDistance(x,z)<radius+.85)return;
       if(x>MOUNTAIN_ENTRANCE.position.x-radius-.5&&x<MOUNTAIN_ENTRANCE.approach.endX+radius+.5&&Math.abs(z-MOUNTAIN_ENTRANCE.position.z)<1+radius)return;
-      const geometry=groundProp(template.clone(),floor,x,z,rotation,{sink});
+      const geometry=groundProp(template.clone(),floor,x,z,rotation,{sink,scale});
       if(geometry){
         rocks.push(geometry);
         if(radius>.35){
@@ -219,11 +219,11 @@ export async function loadMountainField(world){
       placeRock(sources[1+i%2][0].geometry,x,z,.018,random(i+phase*19)*Math.PI*2);
     }
     for(let i=0;i<50;i++){
-      const shoulder=phase===0&&i===15?[99.6,-105.4]:null;
+      const shoulder=phase===0&&i===15?[99,-104.5]:null;
       const u=phase*16+.6+random(i+phase*71+901)*14.8,x=shoulder?.[0]??MOUNTAIN_BASE_X+mountainStation(u);
       const z=shoulder?.[1]??MOUNTAIN_BASE_Z+(random(i+phase*11+815)-.5)*(MOUNTAIN_WIDTH-2);
       const large=i%5===0;
-      placeRock(large?sources[0][i%sources[0].length].geometry:sources[1+i%2][0].geometry,x,z,large?.14:.025,random(i+503)*Math.PI*2);
+      placeRock(large?sources[0][i%sources[0].length].geometry:sources[1+i%2][0].geometry,x,z,large?.14:.025,random(i+503)*Math.PI*2,shoulder?2.4:1);
     }
     data.props=new THREE.Group();data.propIndices=[];
     for(const geometry of rocks){
