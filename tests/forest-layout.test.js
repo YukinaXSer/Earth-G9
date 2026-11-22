@@ -81,8 +81,20 @@ test('riparian ribbons follow actual dry bank contours rather than a fixed strip
 
 test('habitat instantiates every ground layer and rejects woody overlaps without removing the wider forest', () => {
   const trees = [], plants = [], colliders = [{ x: -48, z: 30, radius: 2 }];
-  const variants = [{ userData: { spread: 2, height: 3 } }, { userData: { spread: 4, height: 1 } }];
-  const habitat = { world: { lowDetail: true, colliders }, models: { get: () => variants }, backgroundTree: (...args) => trees.push(args), place: (...args) => plants.push(args) };
+  const variants = [[2, 3], [4, 1]].map(([spread, height]) => {
+    const group = new THREE.Group();
+    group.userData = { spread, height };
+    group.add(new THREE.Mesh(new THREE.BoxGeometry(spread, height, .2).translate(0, height / 2, 0)));
+    return group;
+  });
+  const habitat = {
+    world: { lowDetail: true, colliders }, models: { get: () => variants }, backgroundTree: (...args) => trees.push(args),
+    place: (...args) => {
+      plants.push(args);
+      const [, x, z, scale, angle] = args;
+      return [{ matrix: new THREE.Matrix4().compose(new THREE.Vector3(x, groundHeight(x, z), z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle), new THREE.Vector3(scale, scale, scale)) }];
+    },
+  };
   Habitat.prototype.composeForest.call(habitat);
   const layout = createForestLayout(true);
   assert.ok(trees.length > 250);

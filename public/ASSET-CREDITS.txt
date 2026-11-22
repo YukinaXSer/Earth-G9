@@ -73,7 +73,73 @@ the native wood base is embedded 1.3m below the local terrain. The already
 loaded capture and texture are shared, with no additional download.
 Root Cluster 01 bank/soil slabs are no longer placed as tree feet.
 
+Entrance Ficus close-up grain coordinates (near-banyan-grain.glb): extra
+metre-scale UVs and a wood mask only. The existing captured-banyan-low scan's
+triangle positions, normals, original atlas coordinates and colliders are
+retained; the near view expands indexed faces to carry per-corner UVs. No generated
+trunks, filled scan gaps or enlarged/rebaked capture atlas supply near detail.
+Original captured color remains outside the close range and on masked soil
+and leaves, and on upper branches beyond the near-player wood band. Close
+wood uses fine photographic detail from Fever Tree Bark below,
+not a newly captured Ficus-specific surface. It shares the existing two-slot
+near-wood budget and fade lifecycle with forest stems, only around the entrance.
+The photograph's broad color and large-scale normal slope are removed with a
+32px periodic Gaussian filter. This supplies fine pores, striations and scars
+without substituting the willow's coarse flaking plates for smooth Ficus bark.
+The original scan RGB supplies the warm low-frequency color and baked lighting.
+Fine detail is calibrated to its measured scene-linear RGB mean;
+normal detail uses relative Lambert
+response rather than illuminating that baked lighting a second time. Scene
+lighting, exposure and the accepted forest material are unchanged.
+Authoring: scripts/build-banyan-grain.py uses xatlas (MIT), NumPy, SciPy and
+Pillow, never browser/runtime dependencies. xatlas: https://github.com/jpcy/xatlas
+Python bindings: https://github.com/mworchel/xatlas-python
+GPU delivery retains the 2048px images and full mip chains, encoded offline by
+scripts/compress-banyan-grain.py as ETC2 RGB color and ETC2 RGBA8/EAC
+octahedral upper-hemisphere normals (X in alpha, Y in green) in KTX1.
+Total block storage is 8,388,648 bytes;
+no browser transcoder, dynamic code or CSP exception is needed. Compressed
+images are vertically flipped offline to match the original photographic UVs.
+Color mips are averaged in linear light; normal mips average and renormalize
+the original normal vectors before encoding. Unsupported ETC2 devices retain
+the original captured banyan without affecting forest near detail.
+Authoring-only codecs: etcpak 0.9.15 (MIT), https://github.com/K0lb3/etcpak
+and texture2ddecoder 1.0.6 (MIT), https://github.com/K0lb3/texture2ddecoder
+
 CC0 photographic PBR textures and environment from Poly Haven:
+- Fever Tree Bark, Dimitrios Savva: https://polyhaven.com/a/fever_tree_bark
+  2048px diffuse and matching OpenGL normal, filtered as described above and
+  retained as JPEG authoring inputs and GPU-compressed as described above.
+  Its measured fiber direction is aligned to each growth chart;
+  one tile spans the documented 1.36m. Used only for entrance Ficus microdetail,
+  not claimed as a species-specific Ficus reconstruction. License:
+  https://creativecommons.org/publicdomain/zero/1.0/
+- Bark Willow, photographed by Dimitrios Savva and processed by Dario Barresi:
+  https://polyhaven.com/a/bark_willow
+  2048px photographed diffuse and OpenGL normal for the limited near-trunk
+  meshes below. The scan's 39 existing seam-separated UV charts are rotated
+  by branch growth direction and rescaled to one metre in both directions.
+  This is generic willow bark,
+  not a species-specific reconstruction. LOW retains Lambert lighting;
+  no additional roughness or IBL pass is added.
+- Island Tree 02 near wood, Rob Tuytel (scanning/processing) and Rico Cilliers
+  (cleanup/processing): https://polyhaven.com/a/island_tree_02
+  near-forest-trunk.glb preserves the original 27,298 captured wood triangles
+  rather than the 348-triangle game LOD. Original leaves and twig meshes are
+  NOT restored. Only the two closest eligible tree stems within 12m can use it.
+  Only UV charts change; original positions are not replaced by generated
+  cylinders. Original atlas photos are not enlarged/rebaked: near clarity
+  comes from the separate metre-scale photographic maps. Projected low-LOD attributes provide
+  a single-draw geometry/material transition from 6m to 12m. Tree placement,
+  original colliders and distant meshes are unchanged. When a closer tree
+  requests an occupied detail slot, the outgoing stem finishes fading before
+  that slot is reused; incoming detail also fades in. At most two slots exist.
+  A fading stem retains its parent near group until that fade reaches zero,
+  so crossing the outer forest-LOD boundary cannot interrupt the transition.
+  Build script:
+  scripts/build-near-trunk.mjs, using the original Poly Haven glTF source.
+  Its map-trunk-grain.py preprocessing step needs NumPy and SciPy; these
+  are authoring dependencies only, never browser/runtime dependencies.
 - Forest Leaves 03 (captured leaf litter, normal, roughness and displacement): https://polyhaven.com/a/forest_leaves_03
   The displacement image is downsampled to an 8x8 low-frequency height field,
   remapped over 32m with 1.1m relief for terrain art direction. This is a
@@ -122,7 +188,9 @@ tree crowns are still sourced mesh geometry, not generated blob primitives.
 Two additional tree LODs reduce twig/leaf geometry while retaining the
 source's total leaf surface area through per-cluster size compensation.
 These are three-dimensional textured meshes, not forest photographs or
-billboards; the full source-tree geometry replaces them near the player.
+billboards. Nearby trees replace the distant canopy LOD with reduced render
+meshes, not original-density foliage; the separately limited near-wood mesh
+is described above.
 
 Sky-only HDRI: Overcast Soil (Pure Sky), Sergej Majboroda (original) and
 Jarod Guest (sky edits), https://polyhaven.com/a/overcast_soil_puresky

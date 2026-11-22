@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { capturedCollider, colliderContains, createColliderIndex } from '../src/captured-collisions.js';
+import { capturedCollider, colliderBoundsContain, colliderContains, createColliderIndex, refineCollider } from '../src/captured-collisions.js';
 import { Rainforest } from '../src/world.js';
 
 test('captured wood uses transformed surface columns without blocking air gaps or overhead branches', () => {
@@ -45,4 +45,56 @@ test('a late animal collider updates the spatial index and cannot trap a player 
   assert.ok(world.colliderIndex.query(-1.9, 30).includes(collider));
   assert.ok(!colliderContains(collider, world.position.x, world.position.z));
   assert.ok(world.position.distanceTo(new THREE.Vector3(-1.9, 0, 30)) <= 1.01);
+});
+
+function boxVariant(width, height, depth, x = 0, y = height / 2) {
+  const variant = new THREE.Group();
+  variant.add(new THREE.Mesh(new THREE.BoxGeometry(width, height, depth).translate(x, y, 0)));
+  return variant;
+}
+
+test('low logs use their actual height without changing the existing knee-high clearance', () => {
+  const log = boxVariant(3, .36, .25);
+  const collider = refineCollider({ x: 0, z: 0, radius: 2 }, log, new THREE.Matrix4());
+  assert.ok(Math.abs(collider.maxY - .36) < 1e-6);
+  assert.ok(!colliderContains(collider, 0, 0, .4, 0));
+  assert.ok(colliderBoundsContain(collider, 0, 0, .4, 0));
+  assert.ok(colliderContains(collider, 0, 0, .4, -.3));
+  assert.ok(colliderContains(collider, 0, 0, .4));
+});
+
+test('mesh refinement removes radial padding but still blocks actual tall wood', () => {
+  const trunk = boxVariant(.3, 3, .3);
+  const collider = refineCollider({ x: 0, z: 0, radius: 1 }, trunk, new THREE.Matrix4());
+  assert.ok(!colliderContains(collider, .9, 0, .4, 0));
+  assert.ok(colliderContains(collider, .5, 0, .4, 0));
+  assert.ok(colliderContains(collider, 0, 0, .4, 0));
+});
+
+test('captured broad-phase columns cannot turn a visible side gap into a wall', () => {
+  const trunk = boxVariant(.02, 3, .1, -.09), geometry = trunk.children[0].geometry;
+  const before = Array.from(geometry.attributes.position.array);
+  const collider = capturedCollider(trunk, new THREE.Matrix4());
+  assert.ok(collider.parts.some(part => colliderContains(part, .55, 0, .4, 0)));
+  assert.ok(!colliderContains(collider, .55, 0, .4, 0));
+  assert.ok(colliderBoundsContain(collider, .55, 0, .4, 0));
+  assert.ok(colliderContains(collider, .3, 0, .4, 0));
+  assert.deepEqual(Array.from(geometry.attributes.position.array), before);
+});
+
+test('overhead wood stays passable until it intersects the actual player height band', () => {
+  const branch = boxVariant(3, .2, .2, 0, 3);
+  const collider = refineCollider({ x: 0, z: 0, radius: 2 }, branch, new THREE.Matrix4());
+  assert.ok(!colliderContains(collider, 0, 0, .4, 0));
+  assert.ok(colliderContains(collider, 0, 0, .4, 1.2));
+});
+
+test('surface clearance follows rotation, translation and nonuniform instance scale', () => {
+  const trunk = boxVariant(.4, 3, .4), matrix = new THREE.Matrix4().compose(
+    new THREE.Vector3(10, 1, 20), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 3), new THREE.Vector3(2, .5, 1.5)
+  );
+  const collider = refineCollider({ x: 10, z: 20, radius: 2 }, trunk, matrix);
+  const near = new THREE.Vector3(.3, 1, 0).applyMatrix4(matrix), far = new THREE.Vector3(.5, 1, 0).applyMatrix4(matrix);
+  assert.ok(colliderContains(collider, near.x, near.z, .4, 1));
+  assert.ok(!colliderContains(collider, far.x, far.z, .4, 1));
 });

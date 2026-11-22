@@ -43,4 +43,10 @@ test('production server allows embedded glTF textures and serves models with the
   assert.equal(ktx.status,200);assert.equal(ktx.headers.get('content-type'),'image/ktx2');
   assert.equal(ktx.headers.get('content-encoding'),'gzip');
   assert.ok(!ktx.headers.get('content-security-policy').includes('wasm-unsafe-eval'));
+  const detail = await fetch(`http://127.0.0.1:${port}/textures/near-banyan-normal.ktx`, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.headers.get('content-type'), 'image/ktx');
+  assert.equal(detail.headers.get('content-encoding'), 'gzip');
+  assert.equal(detail.headers.get('content-security-policy'), policy);
+  assert.ok((await detail.arrayBuffer()).byteLength > 0);
 });
