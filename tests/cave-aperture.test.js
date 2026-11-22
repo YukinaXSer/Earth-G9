@@ -42,3 +42,33 @@ test('whole scanned floor triangles straddling the exit survive centroid clippin
   assert.deepEqual(Array.from(mesh.geometry.index.array), [0, 1, 2]);
   assert.equal(geometry.index.count, 6);
 });
+
+test('native cliff keeps photographed shader callbacks without sharing the exit clipping plane', () => {
+  const root = new T.Group(), material = new T.MeshStandardMaterial();
+  material.onBeforeCompile = shader => { shader.uniforms.nativePhoto = { value: 1 }; };
+  const cliff = new T.Mesh(new T.BoxGeometry(), material); cliff.name = 'coastal-cliff-04-native-capture';
+  const other = new T.Mesh(new T.BoxGeometry(), material); root.add(cliff, other);
+  const original = cliff.geometry.index.array.slice();
+  const plane = limitMountainToExit(root, mouths[1], { nativeCliff: true });
+  assert.notEqual(cliff.material, material);
+  assert.equal(cliff.material.onBeforeCompile, material.onBeforeCompile);
+  assert.equal(cliff.material.customProgramCacheKey, material.customProgramCacheKey);
+  assert.deepEqual(cliff.material.clippingPlanes, []);
+  assert.equal(other.material.clippingPlanes[0], plane);
+  assert.deepEqual(cliff.geometry.index.array, original);
+  assert.doesNotThrow(() => limitMountainToExit(new T.Group(), mouths[1], { nativeCliff: true }));
+});
+
+test('native cliff opening extends beyond the recessed tube with only whole-triangle deletion', () => {
+  const root = new T.Group(), geometry = new T.BufferGeometry();
+  geometry.setAttribute('position', new T.Float32BufferAttribute([-.2, .2, 2.5, .2, .2, 2.5, 0, 1, 2.5, -.2, 0, 2.5, .2, 0, 2.5, 0, 0, 3] , 3));
+  geometry.setIndex([0, 1, 2, 3, 4, 5]);
+  const mesh = new T.Mesh(geometry); mesh.name = 'coastal-cliff-04-native-capture'; root.add(mesh);
+  const options = { nativeCliff: true, outwardDepth: 1.5 };
+  assert.equal(clipMountainAperture(root, new T.Matrix4(), volume, mouths, options), 1);
+  assert.deepEqual(Array.from(mesh.geometry.index.array), [3, 4, 5]);
+  assert.equal(geometry.index.count, 6);
+  assert.deepEqual(mesh.geometry.attributes.position.array, geometry.attributes.position.array);
+  assert.equal(clipMountainAperture(new T.Group(), new T.Matrix4(), volume, mouths, options), 0);
+  assert.throws(() => clipMountainAperture(root, new T.Matrix4(), volume, mouths, { outwardDepth: -1 }), RangeError);
+});

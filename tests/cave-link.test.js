@@ -43,7 +43,8 @@ mountain.applyMatrix4(link.transform);
 const fitData = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
 const nativeMesh = new T.Mesh(gradeCaptureApproach(captureGeometry(capture.buffer.slice(capture.byteOffset, capture.byteOffset + capture.byteLength))));
 nativeMesh.name = 'capture-grounded-rock'; link.mountain.group.add(nativeMesh);
-clipMountainAperture(link.mountain.group, link.transform.clone().invert(), fitData.volume, caveData.mouths);
+clipMountainAperture(link.mountain.group, link.transform.clone().invert(), fitData.volume, caveData.mouths,
+  { nativeCliff: fitData.mouths[1].strategy === 'native-cliff', outwardDepth: fitData.mouths[1].nativeOpeningExtensionMetres ?? 0 });
 const nativeIndex = new CaveFloorIndex(nativeMesh.geometry.clone().applyMatrix4(nativeMesh.matrixWorld), []);
 const cliffs = [forest, mountain], obstaclePositions = [];
 for (const cliff of cliffs) {
@@ -138,6 +139,14 @@ for (const end of [0, 1]) test(`${end ? 'mountain' : 'forest'} scan has no sky g
 
 test('the fitted mountain outcrop has no centroids inside the scanned cave or extruded aperture', () => {
   const fit = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
+  if (fit.mouths[1].strategy === 'native-cliff') {
+    assert.equal(mountain.getObjectByProperty('isMesh', true), undefined);
+    assert.equal(fit.mouths[1].rockTriangles, 0);
+    assert.equal(fit.mouths[1].createdFaces, 0);
+    assert.ok(fit.mouths[1].tubeRecessMetres >= .5 && fit.mouths[1].tubeRecessMetres <= 1);
+    assert.ok(fit.mouths[1].tubeTrianglesAfterRecess < fit.mouths[1].tubeTrianglesBeforeRecess);
+    return;
+  }
   assert.equal(fit.createdFaces, 0);
   const inverse = link.transform.clone().invert(), centroid = new T.Vector3(), vertex = new T.Vector3();
   for (const cliff of cliffs) cliff.updateMatrixWorld(true);

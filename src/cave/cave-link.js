@@ -81,9 +81,11 @@ export class CaveLink {
       await this.mountain.prepare(host.camera);
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
-      limitMountainToExit(this.mountain.group, this.mouths[1]);
       const fit = this.fit;
-      this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths);
+      const nativeCliff = fit.mouths[1].strategy === 'native-cliff';
+      limitMountainToExit(this.mountain.group, this.mouths[1], { nativeCliff });
+      this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths,
+        { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0 });
       this.phase = 'upload-mountain';
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
       this.mountain.group.traverse(m => { if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value); });
