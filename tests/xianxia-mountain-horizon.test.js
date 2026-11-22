@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {mountainHorizonGeometry,loadMountainHorizon,MOUNTAIN_HORIZON_VIEW} from '../src/xianxia-mountain-horizon.js';
-import {TERRAIN_SOURCE,surveyedElevation} from '../src/xianxia-terrain.js';
+import {mountainHorizonGeometry,loadMountainHorizon,MOUNTAIN_HORIZON_CAPTURE} from '../src/xianxia-mountain-horizon.js';
 import {XianxiaMountain} from '../src/xianxia-mountain.js';
 import {XianxiaWorld} from '../src/xianxia-world.js';
 
@@ -30,22 +30,27 @@ test('standalone backdrop loads once and records background failure without chan
   assert.match(failure.horizonError.message,/background download unavailable/);assert.equal(failure.floorIndex,support);
 });
 
-test('distant backdrop retains measured elevation and photographic coordinates from a physically distant viewpoint',()=>{
-  const g=mountainHorizonGeometry(),data=TERRAIN_SOURCE,p=g.attributes.position,angle=g.userData.yaw,view=MOUNTAIN_HORIZON_VIEW;
-  assert.equal(p.count,data.width*data.height);assert.ok(g.index.count<110000);
-  for(let j=0;j<data.height;j+=7)for(let i=0;i<data.width;i+=9){
-    const id=j*data.width+i,x=data.x0+i*data.step,z=data.z0+j*data.step;
-    assert.ok(Math.abs(p.getY(id)-(data.heights[id]-surveyedElevation(view.x,view.z)-1.85))<.001);
-    assert.ok(Math.abs(p.getX(id)-(Math.cos(angle)*(x-view.x)+Math.sin(angle)*(z-view.z)))<.001);
-    assert.ok(Math.abs(g.attributes.uv.getX(id)-(x-data.satellite.x0)/data.satellite.size)<1e-6);
+test('captured distant band preserves angular pixel proportions without enclosing the sky or stretching a photo pole',()=>{
+  const g=mountainHorizonGeometry(),p=g.attributes.position,uv=g.attributes.uv,capture=MOUNTAIN_HORIZON_CAPTURE;
+  assert.ok(g.index.count/3<=2200);assert.ok(capture.angle<Math.PI);
+  for(let i=0;i<p.count;i++){
+    const radius=Math.hypot(p.getX(i),p.getZ(i)),azimuth=Math.atan2(p.getZ(i),p.getX(i));
+    const elevation=Math.atan2(p.getY(i),radius);
+    assert.ok(Math.abs(radius-capture.radius)<.001);
+    assert.ok(Math.abs(azimuth-(uv.getX(i)-.5)*capture.angle)<1e-6);
+    assert.ok(Math.abs(elevation-(capture.eye-1+uv.getY(i))*capture.angle*capture.height/capture.width)<1e-6);
   }
-  for(let i=0;i<data.width;i++)assert.equal(g.attributes.horizonFade.getX(i),0);
-  let peak=-Infinity,visible=0;
-  for(let i=0;i<p.count;i++)if(g.attributes.horizonFade.getX(i)>.001){
-    const r=Math.hypot(p.getX(i),p.getZ(i));assert.ok(r>view.near-.001);
-    peak=Math.max(peak,Math.atan2(p.getY(i),r));visible++;
-  }
-  assert.ok(visible>1000&&peak>5*Math.PI/180&&peak<15*Math.PI/180);
+  const [a,b,c]=Array.from(g.index.array.slice(0,3)).map(id=>new THREE.Vector3().fromBufferAttribute(p,id));
+  assert.ok(new THREE.Vector3().crossVectors(b.clone().sub(a),c.clone().sub(a)).dot(a)<0);
+});
+
+test('backdrop derivative has an alpha mask and a bounded download rather than reloading the old full photograph',()=>{
+  const file=readFileSync(new URL('../public/xianxia/textures/huangshan-distant.webp',import.meta.url));
+  assert.equal(file.toString('ascii',0,4),'RIFF');assert.equal(file.toString('ascii',8,12),'WEBP');
+  assert.equal(file.toString('ascii',12,16),'VP8X');assert.ok(file[20]&16);
+  assert.equal(file.readUIntLE(24,3)+1,MOUNTAIN_HORIZON_CAPTURE.width);
+  assert.equal(file.readUIntLE(27,3)+1,MOUNTAIN_HORIZON_CAPTURE.height);
+  assert.ok(file.length<120000);
 });
 
 test('deferred distant mesh leaves host sky, fog, camera and lighting untouched under parent translation/yaw',async t=>{
@@ -58,9 +63,9 @@ test('deferred distant mesh leaves host sky, fog, camera and lighting untouched 
   host.add(mountain.group);mountain.group.position.set(200.415,-.385,-428.606);mountain.group.rotation.y=2.8613;
   host.add(camera);camera.position.set(80,2,-400);
   const mesh=await loadMountainHorizon(mountain);host.updateMatrixWorld(true);mesh.onBeforeRender(renderer,host,camera);
-  assert.deepEqual(requests,['/xianxia/textures/huangshan-satellite.webp']);
+  assert.deepEqual(requests,[MOUNTAIN_HORIZON_CAPTURE.texture]);
   assert.equal(mesh.parent,mountain.group);assert.equal(mesh.material.depthWrite,false);assert.equal(mesh.material.toneMapped,true);
-  assert.equal(mesh.material.transparent,false);assert.equal(mesh.material.side,THREE.FrontSide);
+  assert.equal(mesh.material.transparent,true);assert.equal(mesh.material.side,THREE.FrontSide);assert.equal(mesh.material.alphaTest,.001);
   assert.equal(mesh.material.map.colorSpace,THREE.SRGBColorSpace);assert.equal(mesh.frustumCulled,false);
   assert.ok(mesh.getWorldPosition(new THREE.Vector3()).distanceTo(camera.getWorldPosition(new THREE.Vector3()))<1e-6);
   assert.equal(host.background,background);assert.equal(host.environment,environment);assert.equal(host.fog,fog);
@@ -69,8 +74,8 @@ test('deferred distant mesh leaves host sky, fog, camera and lighting untouched 
   const shader={vertexShader:THREE.ShaderLib.basic.vertexShader,fragmentShader:THREE.ShaderLib.basic.fragmentShader};
   mesh.material.onBeforeCompile(shader);
   assert.match(shader.vertexShader,/gl_Position.z=gl_Position.w/);
-  assert.match(shader.fragmentShader,/mix\(fogColor,gl_FragColor.rgb,distantFade\)/);
-  assert.doesNotMatch(shader.fragmentShader,/diffuseColor.a\*=distantFade/);
+  assert.match(shader.vertexShader,/vFogDepth\*=.15/);
+  assert.equal(shader.fragmentShader,THREE.ShaderLib.basic.fragmentShader);
 });
 
 test('near readiness does not await or fail with the optional horizon',async()=>{

@@ -1,6 +1,6 @@
 青岚境 / Earth 2 Xianxia — material provenance
 ===========================================
-This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses a complete photographed landscape, with measured Huangshan elevations beyond it; neither is a profile invented around the route. The background photograph is not walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
+This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses scanned rocks and photographically derived gentle ground; the distant band uses a credited Huangshan photograph, not reconstructed elevations or walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
 
 Close-scale photographed landscape
 ----------------------------------
@@ -86,12 +86,9 @@ Source tile URLs and SHA-256 hashes: src/xianxia-terrain-data.json.
 Reproducer: scripts/import-xianxia-terrain.py EXISTING_DOWNLOAD_CACHE_DIRECTORY
 (Python dependencies: numpy, Pillow, requests).
 
-The non-walkable mountain backdrop instead uses the same measured grid at
-native spacing from a surveyed eye at local (1517, 298) m, with eye elevation
-sampled there plus 1.85 m. It retains only terrain beyond 1.4 km, translated
-and yaw-rotated without vertical exaggeration, with the same satellite UVs.
-Opaque surface colors fade into host haze rather than translucent terrain
-layers; this changes neither near geometry nor the host rendering pipeline.
+The former non-walkable DEM backdrop also used this measured grid. It failed
+visual checks (near green slopes, weak ridge, then underside cutouts) and is
+not the current backdrop or any close walkable support.
 
 EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)
 https://cloudless.eox.at/
@@ -109,6 +106,16 @@ Source: https://commons.wikimedia.org/wiki/File:Environment_of_huangshan.jpg
 License: Creative Commons Attribution 2.0 Generic
 https://creativecommons.org/licenses/by/2.0/
 Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
+
+Current distant-only derivative: huangshan-distant.webp, 1024x387 RGBA.
+The original 3840x1172 capture is cropped to its left 3100 pixels to exclude
+foreground pine branches, downsampled, sky-masked, edge-padded for mipmaps,
+and faded at its sides and bottom. No generative fill or height reconstruction.
+Reproducer: scripts/prepare-xianxia-horizon.py (numpy, scipy, Pillow).
+It is a single camera-following 135-degree photographic band, not a closed
+sky sphere or reachable terrain. Angular framing is authored, not a claim
+of measured camera calibration or three-dimensional relief. Host sky/HDR,
+ACES/sRGB, exposure and weather remain shared; near ground is unchanged.
 
 Poly Haven resources — CC0 1.0 Universal
 --------------------------------------
