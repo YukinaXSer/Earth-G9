@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import sharp from 'sharp';
 import * as THREE from 'three';
 import {mountainHorizonGeometry,loadMountainHorizon,MOUNTAIN_HORIZON_CAPTURE} from '../src/xianxia-mountain-horizon.js';
 import {XianxiaMountain} from '../src/xianxia-mountain.js';
@@ -30,14 +31,15 @@ test('standalone backdrop loads once and records background failure without chan
   assert.match(failure.horizonError.message,/background download unavailable/);assert.equal(failure.floorIndex,support);
 });
 
-test('captured distant band preserves angular pixel proportions without enclosing the sky or stretching a photo pole',()=>{
+test('captured distant ring closes azimuth without enclosing the sky or stretching a photo pole',()=>{
   const g=mountainHorizonGeometry(),p=g.attributes.position,uv=g.attributes.uv,capture=MOUNTAIN_HORIZON_CAPTURE;
-  assert.ok(g.index.count/3<=2200);assert.ok(capture.angle<Math.PI);
+  assert.ok(g.index.count/3<=4200);assert.equal(capture.angle,2*Math.PI);
   for(let i=0;i<p.count;i++){
     const radius=Math.hypot(p.getX(i),p.getZ(i)),azimuth=Math.atan2(p.getZ(i),p.getX(i));
     const elevation=Math.atan2(p.getY(i),radius);
     assert.ok(Math.abs(radius-capture.radius)<.001);
-    assert.ok(Math.abs(azimuth-(uv.getX(i)-.5)*capture.angle)<1e-6);
+    assert.ok(Math.abs(Math.cos(azimuth)-Math.cos((uv.getX(i)-.5)*capture.angle))<1e-6);
+    assert.ok(Math.abs(Math.sin(azimuth)-Math.sin((uv.getX(i)-.5)*capture.angle))<1e-6);
     assert.ok(Math.abs(elevation-(capture.eye-1+uv.getY(i))*capture.angle*capture.height/capture.width)<1e-6);
   }
   const [a,b,c]=Array.from(g.index.array.slice(0,3)).map(id=>new THREE.Vector3().fromBufferAttribute(p,id));
@@ -50,7 +52,33 @@ test('backdrop derivative has an alpha mask and a bounded download rather than r
   assert.equal(file.toString('ascii',12,16),'VP8X');assert.ok(file[20]&16);
   assert.equal(file.readUIntLE(24,3)+1,MOUNTAIN_HORIZON_CAPTURE.width);
   assert.equal(file.readUIntLE(27,3)+1,MOUNTAIN_HORIZON_CAPTURE.height);
-  assert.ok(file.length<128000);
+  assert.ok(file.length<256000);
+});
+
+test('both panorama tiers have a sky-free top and bottom, closed seam and mountain silhouette in every azimuth',async()=>{
+  for(const [path,width,height]of [[MOUNTAIN_HORIZON_CAPTURE.texture,3072,432],[MOUNTAIN_HORIZON_CAPTURE.lowTexture,2048,288]]){
+    const file=readFileSync(new URL('../public'+path,import.meta.url));
+    const {data,info}=await sharp(file).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    assert.equal(info.width,width);assert.equal(info.height,height);assert.ok(file.length<256000);
+    for(let x=0;x<width;x++){
+      assert.equal(data[x*4+3],0);assert.equal(data[((height-1)*width+x)*4+3],0);
+      let top=height;
+      for(let y=0;y<height;y++)if(data[(y*width+x)*4+3]>127){top=y;break;}
+      assert.ok(top<height*.65,`missing positive-elevation ridge at ${path} column ${x}`);
+    }
+    let seam=0;
+    for(let y=0;y<height;y++)for(let c=0;c<4;c++)seam+=Math.abs(data[(y*width)*4+c]-data[(y*width+width-1)*4+c]);
+    assert.ok(seam/(height*4)<4);
+  }
+});
+
+test('Low requests only its smaller ring while keeping the same host transforms and material pipeline',async t=>{
+  const requests=[];
+  t.mock.method(THREE.TextureLoader.prototype,'loadAsync',async url=>{requests.push(url);return new THREE.Texture();});
+  const mountain=new XianxiaMountain({quality:'low'}),mesh=await loadMountainHorizon(mountain);
+  assert.deepEqual(requests,[MOUNTAIN_HORIZON_CAPTURE.lowTexture]);
+  assert.equal(mesh.material.map.wrapS,THREE.RepeatWrapping);
+  assert.equal(mesh.material.map.colorSpace,THREE.SRGBColorSpace);assert.equal(mesh.material.toneMapped,true);
 });
 
 test('deferred distant mesh leaves host sky, fog, camera and lighting untouched under parent translation/yaw',async t=>{

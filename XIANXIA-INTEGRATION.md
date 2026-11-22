@@ -56,11 +56,13 @@ mountain.loadHorizon().catch(error => reportBackgroundFailure(error));
 
 也可在构造时传 `renderHorizon:true`，在近景 `load()` 完成后自动启动同一任务；它不延迟近景 Promise。`loadHorizon()` 幂等，返回远景 Mesh 的 Promise；失败记录在 `horizonError`，不让近景行走失败，宿主仍应上报错误。需要确定远景就绪时显式等待该 Promise，并在出洞前完成宿主的编译/上传预热。
 
-远景使用已有授权的 François Philipp 黄山实拍，离线裁去前景松枝、移除天空、羽化两端和下沿，得到1024×387的带透明边界照片。仅投到山本地`+X`朝向的135°柱面带，水平/垂直按同一角像素比例投影；不是镜像闭合的360°球，不伸到脚下或拉伸照片极点，也不替代宿主天空。它随相机平移、不可走近，整体朝向随山组yaw；不加入脚底/碰撞查询或射线拾取。单层照片不会像先前DEM多个透明面互相叠画；这是实拍远山投影，不声称是实测三维地形或真实相机标定。
+旧版只有山本地东向135°黄山照片带，西/西北在带外；3米原档短走不构成洞口路线验收。新版以 Alex Radosnov / Poly Haven 的真实360°云南属都湖全景的林木山脊闭合整周，在东向保留 François Philipp 黄山实拍，靠前景山脊衔接旧端点。离线去天空、合成、填充透明像素RGB、羽化下沿；游戏只投一个闭合柱面环带，没有重复/镜像景物、照片极点或脚下全景拉伸。它是两处实拍的美术合成，不声称为单张黄山360°摄影、数字孪生或实测三维地形。全部出处和变更见素材署名。
+
+High 为3072×432 / 155378B，Low为2048×288 / 81558B，每档只下载一张；近景Low模型、贴图、植被密度、画面缓冲分辨率均不变。环带随相机平移、不可走近，朝向随山组yaw，不加入脚底/碰撞查询或射线拾取。仅闭合水平方位，不包住天空；环带上下沿透明，保留宿主天空。
 
 背景保留宿主 ACES/sRGB、天空和天气雾颜色，不新建灯光、不改全局曝光/雾或 camera。仅该材质投到最远深度且不写深度，让实际近景始终遮住它；无需将宿主220米的远裁剪扩大到几公里。照片已含大气层次，只叠加按径向距离缩放的宿主天气雾，避免同一座峰随鼠标朝向改变浓淡；缩放是视觉参数，不声称测得摄影距离，不改变宿主近地雾。宿主平移/yaw和220米相机的自动检查通过，**正式穿洞视角的视觉验收仍待完成**。
 
-先前DEM远景改视点/不透明合成后，在300米处仅剩低矮远脊，317米处又暴露了裁去近层产生的天空三角孔，因此不再用该粗高程面承担背景轮廓。当前改用上述实拍带，保留共享ACES、曝光、sRGB和天气雾；第二版 `huangshan-distant-v2.webp` 为121724B，用摄影前/背景颜色求雾中边缘的连续透明度，替换首版逐列硬阈值造成的切断轮廓，并以亮度退底避免彩边。新URL不覆盖已缓存的首版。文件大小**不是新冷载或观感验收**。复现：`python3 scripts/prepare-xianxia-horizon.py`，依赖numpy/scipy/Pillow，默认读取仓库已有的授权原图WebP；游戏端只加载派生图，不加载原大图，不需运行时解码器/worker。
+先前DEM远景有低矮绿脊和天空三角孔，不再承担背景轮廓；135°第二版则不能覆盖西/西北。新版URL不覆盖已缓存旧图。文件大小**不是新冷载、全向观感或洞口往返验收**，须在新修订中实际录下从洞口走出数百米再回洞口并沿途转向。复现：先运行`python3 scripts/prepare-xianxia-horizon.py`得到中间黄山图，再运行`python3 scripts/prepare-xianxia-horizon-ring.py --panorama <署名中的原全景JPEG> --east public/xianxia/textures/huangshan-distant-v2.webp --output public/xianxia/textures/mountain-distant-ring-v3.webp`，依赖numpy/scipy/Pillow；运行时不加载原全景，不需解码器/worker。
 
 ## 本次范围
 基于 Earth-G9 稳定主图（已同步最新动物与镜头功能），不启用正式主入口洞穴。相对 origin/main，src/main.js、src/world.js、src/wildlife.js、src/habitat.js、src/data.js 和原素材许可保持不变。

@@ -107,15 +107,34 @@ License: Creative Commons Attribution 2.0 Generic
 https://creativecommons.org/licenses/by/2.0/
 Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
 
-Current distant-only derivative: huangshan-distant-v2.webp, 1024x387 RGBA. The earlier huangshan-distant.webp remains archived, not loaded.
+Intermediate distant-only derivative: huangshan-distant-v2.webp, 1024x387 RGBA. The earlier huangshan-distant.webp remains archived, not loaded.
 The original 3840x1172 capture is cropped to its left 3100 pixels to exclude
 foreground pine branches, downsampled, sky-masked, edge-padded for mipmaps,
 and faded at its sides and bottom. No generative fill or height reconstruction.
 Reproducer: scripts/prepare-xianxia-horizon.py (numpy, scipy, Pillow).
-It is a single camera-following 135-degree photographic band, not a closed
-sky sphere or reachable terrain. Angular framing is authored, not a claim
-of measured camera calibration or three-dimensional relief. Host sky/HDR,
+Current ring: mountain-distant-ring-v3.webp (3072x432 RGBA; 155378 B),
+mountain-distant-ring-v3-low.webp (2048x288 RGBA; 81558 B).
+The east-facing Huangshan view is reframed and composited behind the
+forested ridges of the genuine 360-degree Shudu Lake panorama (below).
+Reproducer: scripts/prepare-xianxia-horizon-ring.py (numpy, scipy, Pillow).
+The panorama is rotated, sky-masked, mip-edge-padded and bottom-faded;
+its continuous forested ridgeline overlaps the former photograph endpoints.
+No mirrored/repeated scenery, generative fill, closed sky sphere, pole
+stretch or reachable photographic ground. This is an authored composite
+of two captures, not a single Huangshan 360 photograph, digital twin,
+measured camera calibration or three-dimensional relief. Host sky/HDR,
 ACES/sRGB, exposure and weather remain shared; near ground is unchanged.
+
+Shudu Lake — Alex Radosnov / Poly Haven, CC0 1.0 Universal
+https://polyhaven.com/a/shudu_lake
+https://polyhaven.com/license
+https://creativecommons.org/publicdomain/zero/1.0/
+Capture location: 27.904654 N, 99.938984 E, Yunnan, China.
+Original full tonemapped equirectangular panorama: 8192x4096 JPEG,
+https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/shudu_lake.jpg
+MD5 cb579edf160dcdf86d52e748209cd190, 35529116 B.
+The original full panorama/HDR is NOT loaded by the game. Only the two
+small ring derivatives are distributed; each quality tier requests one.
 
 Poly Haven resources — CC0 1.0 Universal
 --------------------------------------
