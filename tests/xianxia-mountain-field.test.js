@@ -33,7 +33,7 @@ test('mature pine groves belong to their streamed phase and keep the walking lin
 test('mature pine LODs stay within the replaced sapling download and use native glTF geometry',()=>{
   let total=0;
   for(const lod of ['near','far']){
-    const bytes=readFileSync(new URL('../public/xianxia/surface/pine-mature-'+lod+'.glb',import.meta.url));total+=bytes.length;
+    const bytes=readFileSync(new URL('../public/xianxia/surface/pine-mature-v2-'+lod+'.glb',import.meta.url));total+=bytes.length;
     const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
     assert.ok(!json.extensionsRequired?.some(name=>/draco|meshopt|basisu/i.test(name)));
     assert.equal(json.nodes.filter(n=>n.mesh!==undefined).length,1);
@@ -93,7 +93,7 @@ test('fern patches repeat deterministically when streamed, with mixed sizes and 
     assert.ok(Math.max(...samples.map(p=>p.scale))>1.1);
     assert.ok(Math.max(...samples.map(p=>p.z))-Math.min(...samples.map(p=>p.z))>20);
     for(const p of samples){
-      assert.ok(p.scale>=.55&&p.scale<1.15);
+      assert.ok(p.scale>=.55&&p.scale<2.4);
       assert.ok(p.rotation>=0&&p.rotation<Math.PI*2&&p.variant>=0&&p.variant<1);
       assert.ok(p.x>MOUNTAIN_BASE_X+mountainStation(phase*16)&&p.x<MOUNTAIN_BASE_X+mountainStation((phase+1)*16));
       assert.ok(Math.abs(p.z-MOUNTAIN_BASE_Z)<MOUNTAIN_WIDTH/2);
@@ -101,6 +101,8 @@ test('fern patches repeat deterministically when streamed, with mixed sizes and 
   }
   const patch=Array.from({length:9},(_,i)=>mountainFernPlacement(1,25+i,25));
   for(const a of patch)for(const b of patch)assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<2.71);
-  const contact=mountainFernPlacement(2,29,25,[[139,-100]]);
+  const contact=mountainFernPlacement(2,37,25,[[139,-100]]);
   assert.equal(contact.x,139);assert.equal(contact.z,-100);
+  const grove=mountainFernPlacement(2,29,25,[[139,-100]]);
+  assert.ok(mountainPinePlacements(2).some(tree=>Math.hypot(tree.x-grove.x,tree.z-grove.z)<=1.36));
 });

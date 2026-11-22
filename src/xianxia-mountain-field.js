@@ -16,15 +16,25 @@ export function mountainFernPlacement(phase,i,basePlants,contacts=[]){
   const seed=i*31+phase*983+1021;
   let u=phase*16+.6+random(i+phase*17)*14.8;
   let z=MOUNTAIN_BASE_Z+(random(i+phase*73+207)-.5)*(MOUNTAIN_WIDTH-1);
+  let grove;
   if(i>=basePlants){
     const cluster=Math.floor((i-basePlants)/9)+phase*71;
     const angle=random(seed+7)*Math.PI*2,radius=Math.sqrt(random(seed+13))*1.35;
     u=phase*16+2+random(cluster+5107)*12+Math.cos(angle)*radius;
     z=MOUNTAIN_BASE_Z+(random(cluster+6101)-.5)*(MOUNTAIN_WIDTH-3)+Math.sin(angle)*radius;
+    const trees=mountainPinePlacements(phase);
+    if(cluster%2===0&&trees.length){
+      const tree=trees[Math.floor(cluster/2)%trees.length];
+      grove=[tree.x+Math.cos(angle)*radius,tree.z+Math.sin(angle)*radius];
+    }
   }
   let x=MOUNTAIN_BASE_X+mountainStation(u);
-  if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(seed+19)*contacts.length)];
-  return {x,z,scale:.55+random(seed+23)*.6,rotation:random(seed+29)*Math.PI*2,variant:random(seed+37)};
+  if(grove){
+    x=THREE.MathUtils.clamp(grove[0],MOUNTAIN_BASE_X+mountainStation(phase*16+.6),MOUNTAIN_BASE_X+mountainStation((phase+1)*16-.6));
+    z=THREE.MathUtils.clamp(grove[1],MOUNTAIN_BASE_Z-MOUNTAIN_WIDTH/2+.7,MOUNTAIN_BASE_Z+MOUNTAIN_WIDTH/2-.7);
+  }else if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(seed+19)*contacts.length)];
+  const scale=i>=basePlants?1+random(seed+23)*1.4:.55+random(seed+23)*.85;
+  return {x,z,scale,rotation:random(seed+29)*Math.PI*2,variant:random(seed+37)};
 }
 
 async function sourceProps(){
@@ -61,7 +71,8 @@ export function mountainPinePlacements(phase){
 const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
 
 async function pineSources(quality){
-  const loader=new GLTFLoader(),[small,near,far]=await Promise.all(['pine.glb','pine-mature-near.glb','pine-mature-far.glb'].map(file=>loader.loadAsync(ROOT+file)));
+  const loader=new GLTFLoader(),[small,near,far]=await Promise.all(['pine.glb','pine-mature-v2-near.glb','pine-mature-v2-far.glb'].map(file=>loader.loadAsync(ROOT+file)));
+  const tunedMaterials=new WeakSet();
   const normalize=scene=>scene.children.map(child=>{
     const group=child.clone(true),box=new THREE.Box3().setFromObject(group),center=box.getCenter(new THREE.Vector3()),roots=[];
     group.traverse(child=>{
@@ -76,6 +87,8 @@ async function pineSources(quality){
       if(!child.isMesh)return;
       const leaf=child.material.name.includes('twig');
       child.material.envMapIntensity=leaf?1:.35;
+      if(leaf&&!tunedMaterials.has(child.material))child.material.color.multiplyScalar(1.5);
+      tunedMaterials.add(child.material);
       child.castShadow=true;child.receiveShadow=true;
     });
     const tree=new THREE.Group();tree.add(group);
@@ -205,7 +218,7 @@ export async function loadMountainField(world){
       data.props.add(mesh);data.propIndices.push(createFloorIndex([merged],2));
     }
     const plantedFloor={heightAt:(x,z)=>Math.max(floor.heightAt(x,z)??-Infinity,...data.propIndices.map(index=>index.heightAt(x,z)??-Infinity))};
-    const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?25:45),plantCount=world.quality==='low'?125:225;
+    const ferns=sources[3].map(()=>[]),basePlants=phase===0?(world.quality==='low'?75:125):(world.quality==='low'?60:100),plantCount=world.quality==='low'?190:350;
     for(let i=0;i<plantCount;i++){
       const {x,z,scale,rotation,variant:choice}=mountainFernPlacement(phase,i,basePlants,contacts);
       if(mountainPathDistance(x,z)<Math.max(.6,scale*.65))continue;
@@ -221,7 +234,7 @@ export async function loadMountainField(world){
       if(!transforms.length)continue;
       const template=sources[3][i],mesh=new THREE.InstancedMesh(template.geometry,template.material,transforms.length);
       transforms.forEach((transform,i)=>mesh.setMatrixAt(i,transform));mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
-      mesh.name='grounded-mountain-ferns';data.props.add(mesh);
+      mesh.name='grounded-mountain-ferns';mesh.receiveShadow=true;data.props.add(mesh);
     }
     for(let i=0;i<11;i++){
       const x=MOUNTAIN_BASE_X+mountainStation(phase*16+1+(i<7?2+i*1.7:random(i+phase*13)*14)),z=MOUNTAIN_BASE_Z+(i<7?-1+random(i+phase*13)*4:(random(i+phase*31+913)-.5)*(MOUNTAIN_WIDTH-2)),h=plantedFloor.heightAt(x,z);
