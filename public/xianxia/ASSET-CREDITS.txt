@@ -30,7 +30,10 @@ licenses and checksums are listed in surface/manifest.json. The complete
 forest-floor photograph is offset and quarter-turned in overlapping patches,
 with matching normal and roughness samples; its original colors are retained.
 The native crop only contributes grain, not the leaf distribution. Scattered
-rocks retain their captured scale. The four captured fern variants form
+rocks retain their captured scale except one complete shoulder boulder,
+uniformly enlarged 2.4 times without altering its proportions. Visible
+geometry, grounding, route clearance and collision share that transform;
+no extra rock model or generated surface is added. The four captured fern variants form
 irregular mixed-age patches with size factors of 0.55–2.4; their scaled root
 footprints are grounded against the same visible tiles. Low/High use at most
 190/350 placement candidates per native phase, before support/path rejection.
