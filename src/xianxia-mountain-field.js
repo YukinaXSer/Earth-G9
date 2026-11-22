@@ -219,7 +219,7 @@ export async function loadMountainField(world){
       placeRock(sources[1+i%2][0].geometry,x,z,.018,random(i+phase*19)*Math.PI*2);
     }
     for(let i=0;i<50;i++){
-      const shoulder=phase===0&&i===15?[99.4,-105.7]:null;
+      const shoulder=phase===0&&i===15?[99.6,-105.4]:null;
       const u=phase*16+.6+random(i+phase*71+901)*14.8,x=shoulder?.[0]??MOUNTAIN_BASE_X+mountainStation(u);
       const z=shoulder?.[1]??MOUNTAIN_BASE_Z+(random(i+phase*11+815)-.5)*(MOUNTAIN_WIDTH-2);
       const large=i%5===0;
