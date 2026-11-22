@@ -7,16 +7,16 @@ import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
 
-test('mountain navigation follows the visible surface in both mirrored directions',()=>{
+test('the complete kilometre terrain route follows visible triangles in both mirrored directions',()=>{
   const surface=new MountainTileSurface();
   for(let phase=0;phase<4;phase++){
     const data=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-near.bin',import.meta.url));
     const geometry=decodeMountainGeometry(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
     if(!phase)gradeCaptureApproach(geometry);
     const index=createFloorIndex([geometry],2);
-    for(let block=-1;block<=2;block++)surface.set(block,phase,[index]);
+    for(let block=-1;block<=16;block++)surface.set(block,phase,[index]);
   }
-  const route=mountainRoute(2);
+  const route=mountainRoute();
   for(let j=1;j<route.length;j++){
     const a=route[j-1],b=route[j],count=Math.ceil(Math.hypot(b[0]-a[0],b[2]-a[2])/.1);
     for(let i=1;i<=count;i++){
