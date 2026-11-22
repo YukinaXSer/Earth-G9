@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as T from 'three';
@@ -8,16 +8,15 @@ import { CaveLink } from '../src/cave/cave-link.js';
 import { CaveFloorIndex, nearestRoute, placeScannedCliff, fitCaveMouthCliffs } from '../src/cave/cave-space.js';
 import { prepareCavePhysics } from '../src/cave/cave-physics.js';
 import { findWalk, simulateWalk } from '../src/cave/cave-check.js';
-import { captureGeometry, gradeCaptureApproach } from '../src/xianxia-near.js';
-import { createFloorIndex } from '../src/xianxia-world.js';
 import { MOUNTAIN_ENTRANCE } from '../src/xianxia-mountain.js';
 import { START, BOUNDS, groundHeight } from '../src/data.js';
 import { TERRAIN } from '../src/ground-relief.js';
 import { insideScannedCave } from '../src/cave/cave-volume.js';
 import caveData from '../src/cave/cave-data.json' with { type: 'json' };
-import { clipMountainAperture } from '../src/cave/cave-aperture.js';
 import { CaveRayIndex } from '../src/cave/cave-rays.js';
 import { CAVE_TEXTURE_SETS } from '../src/cave/cave-material.js';
+import { loadProductionMountain } from './production-mountain-fixture.js';
+import mountainEyes from './cave-mountain-eyes.json' with { type: 'json' };
 
 const host = { scene: new T.Scene(), rain: new T.Group(), rainy: false, lowDetail: false, position: new T.Vector3(START.x, 0, START.z), keys: new Set(), colliderIndex: { query: () => [] } };
 host.canMove = Rainforest.prototype.canMove; host.groundHeight = Rainforest.prototype.groundHeight;
@@ -28,8 +27,6 @@ const mesh = gltf.scene.getObjectByProperty('isMesh', true), positions = new Flo
 for (let i = 0; i < positions.length / 3; i++) point.fromBufferAttribute(mesh.geometry.attributes.position, i).applyMatrix4(mesh.matrixWorld).applyMatrix4(link.transform).toArray(positions, i * 3);
 const physics = prepareCavePhysics({ positions, indices: new Uint32Array(mesh.geometry.index.array), route: link.route, mouths: link.mouths, grade: MOUNTAIN_ENTRANCE.approach.grade, prepared: true });
 link.floor = Object.assign(Object.create(CaveFloorIndex.prototype), structuredClone(physics.floor));
-const capture = readFileSync(new URL('../public/xianxia/surface/capture.bin', import.meta.url));
-link.mountain.world.floorIndex = createFloorIndex([gradeCaptureApproach(captureGeometry(capture.buffer.slice(capture.byteOffset, capture.byteOffset + capture.byteLength)))], 2);
 link.ready = true; link.caveAttached = true;
 const cliffBytes = readFileSync(new URL('../public/cave/outcrop.glb', import.meta.url));
 const cliff = (await new GLTFLoader().parseAsync(cliffBytes.buffer.slice(cliffBytes.byteOffset, cliffBytes.byteOffset + cliffBytes.byteLength), '')).scene;
@@ -41,11 +38,17 @@ const mountainBytes = readFileSync(new URL('../public/cave/mouth-mountain.glb', 
 const mountain = (await new GLTFLoader().parseAsync(mountainBytes.buffer.slice(mountainBytes.byteOffset, mountainBytes.byteOffset + mountainBytes.byteLength), '')).scene;
 mountain.applyMatrix4(link.transform);
 const fitData = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
-const nativeMesh = new T.Mesh(gradeCaptureApproach(captureGeometry(capture.buffer.slice(capture.byteOffset, capture.byteOffset + capture.byteLength))));
-nativeMesh.name = 'capture-grounded-rock'; link.mountain.group.add(nativeMesh);
-clipMountainAperture(link.mountain.group, link.transform.clone().invert(), fitData.volume, caveData.mouths,
-  { nativeCliff: fitData.mouths[1].strategy === 'native-cliff', outwardDepth: fitData.mouths[1].nativeOpeningExtensionMetres ?? 0 });
-const nativeIndex = new CaveFloorIndex(nativeMesh.geometry.clone().applyMatrix4(nativeMesh.matrixWorld), []);
+const nativeIndex = await loadProductionMountain(link, fitData, caveData.mouths);
+after(() => nativeIndex.dispose());
+test('mountain fixture loads production native-v3 terrain and instanced props', () => {
+  assert.equal(link.mountain.world.floorIndex.constructor.name, 'MountainTileSurface');
+  assert.ok(link.mountain.group.getObjectByName('native-mountain'));
+  assert.ok(nativeIndex.parts > 100);
+  assert.equal(link.mountain.group.getObjectByName('coastal-cliff-04-native-capture'), undefined);
+  let instanced = 0, batched = 0;
+  link.mountain.group.traverse(mesh => { if (mesh.isInstancedMesh) instanced++; if (mesh.isBatchedMesh) batched++; });
+  assert.ok(instanced > 0); assert.ok(batched > 0);
+});
 const cliffs = [forest, mountain], obstaclePositions = [];
 for (const cliff of cliffs) {
   cliff.updateMatrixWorld(true);
@@ -93,12 +96,13 @@ for (const end of [0, 1]) test(`${end ? 'mountain' : 'forest'} scan has no sky g
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i) + TERRAIN.centerZ; p.setXYZ(i, x, groundHeight(x, z), z); }
   link.openTerrain(ground);
   const terrain = new CaveFloorIndex(ground, []), body = Object.assign(Object.create(CaveFloorIndex.prototype), physics.floor);
-  const surfaces = new CaveRayIndex([body, link.dressingIndex, terrain, nativeIndex]), tube = new CaveRayIndex([body]);
+  const surfaces = new CaveRayIndex([body, link.dressingIndex, terrain]), tube = new CaveRayIndex([body]);
   const cast = (origin, direction, maximum, onlyBody = false) => {
-    return (onlyBody ? tube : surfaces).cast(origin, direction, maximum);
+    return onlyBody ? tube.cast(origin, direction, maximum) : Math.min(surfaces.cast(origin, direction, maximum), nativeIndex.cast(origin, direction, maximum));
   };
   const mouth = link.mouths[end], center = new T.Vector3(...mouth.floorCenter), forward = new T.Vector3(...mouth.outward), side = new T.Vector3(forward.z, 0, -forward.x), eyes = [];
-  for (const distance of end ? [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : [4, 6, 9, 12]) for (const lateral of end ? [-2, -1.5, -1, -.5, 0, .5, 1, 1.5, 2] : [-3, -1.5, 0, 1.5, 3]) {
+  if (end) eyes.push(...mountainEyes.map(p => new T.Vector3(...p)));
+  else for (const distance of [4, 6, 9, 12]) for (const lateral of [-3, -1.5, 0, 1.5, 3]) {
     const eye = center.clone().addScaledVector(forward, distance).addScaledVector(side, lateral);
     const height = end ? link.mountain.groundHeight(eye.x, eye.z) : groundHeight(eye.x, eye.z);
     if (eyes.length >= 20 || height == null || (end && !host.canMove(eye.x, eye.z, eye.x, eye.z))) continue;
@@ -230,7 +234,7 @@ test('unit-scale yaw/translation joins the exact mountain contract and excludes 
   assert.deepEqual(link.mountain.group.scale.toArray(), [1, 1, 1]);
   const direction = new T.Vector3(1, 0, 0).transformDirection(link.mountain.group.matrixWorld);
   assert.ok(direction.distanceTo(new T.Vector3(...link.mouths[1].outward)) < 1e-10);
-  const geometry = captureGeometry(capture.buffer.slice(capture.byteOffset, capture.byteOffset + capture.byteLength));
+  const geometry = link.mountain.world.ground.geometry.clone();
   geometry.applyMatrix4(link.mountain.group.matrixWorld); geometry.computeBoundingBox();
   assert.ok(geometry.boundingBox.max.z < BOUNDS.minZ - 40);
   console.log(`Forest mouth world: ${link.mouths[0].floorCenter.join(', ')}`);

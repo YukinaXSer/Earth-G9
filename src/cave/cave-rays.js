@@ -16,15 +16,15 @@ export class CaveRayIndex {
     };
     this.root = build([...triangles]);
   }
-  cast(origin, direction, maximum) {
+  cast(origin, direction, maximum, clippingPlanes = [], minimum = .0005) {
     const ray = new Ray(origin, direction), hit = new Vector3();
     let nearest = maximum, found = false;
     const visit = node => {
       if (!node || (!node.box.containsPoint(origin) && (!ray.intersectBox(node.box, hit) || hit.distanceTo(origin) > nearest))) return;
       if (node.faces) {
-        for (const face of node.faces) if (ray.intersectTriangle(...face.vertices, false, hit)) {
+        for (const face of node.faces) if (ray.intersectTriangle(...face.vertices, false, hit) && !clippingPlanes.some(plane => plane.distanceToPoint(hit) < 0)) {
           const distance = hit.distanceTo(origin);
-          if (distance > .0005 && distance <= nearest) { nearest = distance; found = true; }
+          if (distance > minimum && distance <= nearest) { nearest = distance; found = true; }
         }
       } else { visit(node.left); visit(node.right); }
     };
