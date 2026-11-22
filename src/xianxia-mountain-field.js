@@ -15,12 +15,12 @@ const random=n=>{const f=Math.sin(n*127.1+311.7)*43758.5453;return f-Math.floor(
 export function mountainFernPlacement(phase,i,basePlants,contacts=[]){
   const seed=i*31+phase*983+1021;
   let u=phase*16+.6+random(i+phase*17)*14.8;
-  let z=i%4!==0?MOUNTAIN_BASE_Z-4.4+random(i+207)*7:MOUNTAIN_ENTRANCE.position.z-1.3-random(i+207)*2.5;
+  let z=MOUNTAIN_BASE_Z+(random(i+phase*73+207)-.5)*(MOUNTAIN_WIDTH-1);
   if(i>=basePlants){
     const cluster=Math.floor((i-basePlants)/9)+phase*71;
     const angle=random(seed+7)*Math.PI*2,radius=Math.sqrt(random(seed+13))*1.35;
     u=phase*16+2+random(cluster+5107)*12+Math.cos(angle)*radius;
-    z=MOUNTAIN_BASE_Z+(random(cluster+6101)-.5)*(MOUNTAIN_WIDTH-5)+Math.sin(angle)*radius;
+    z=MOUNTAIN_BASE_Z+(random(cluster+6101)-.5)*(MOUNTAIN_WIDTH-3)+Math.sin(angle)*radius;
   }
   let x=MOUNTAIN_BASE_X+mountainStation(u);
   if(i>=basePlants&&i%4===1&&contacts.length)[x,z]=contacts[Math.floor(random(seed+19)*contacts.length)];
@@ -45,12 +45,27 @@ async function sourceProps(){
   }));
 }
 
-async function pineSources(){
-  const loader=new GLTFLoader(),[small,medium]=await Promise.all([loader.loadAsync(ROOT+'pine.glb'),loader.loadAsync(ROOT+'pine-medium.glb')]);
+export function mountainPinePlacements(phase){
+  const trees=[];
+  for(const [grove,[cx,cz]]of [[119,-109],[127,-116.5],[135,-110],[154,-97.96]].entries()){
+    for(const [member,[dx,dz]]of [[0,0],[3.6,-2.3],[-4.1,2.5]].entries()){
+      const x=cx+dx,z=cz+dz;
+      const start=MOUNTAIN_BASE_X+mountainStation(phase*16),end=MOUNTAIN_BASE_X+mountainStation((phase+1)*16);
+      if(x<start||x>=end||mountainPathDistance(x,z)<1.7)continue;
+      trees.push({i:grove*3+member,x,z});
+    }
+  }
+  return trees;
+}
+
+const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.name);
+
+async function pineSources(quality){
+  const loader=new GLTFLoader(),[small,near,far]=await Promise.all(['pine.glb','pine-mature-near.glb','pine-mature-far.glb'].map(file=>loader.loadAsync(ROOT+file)));
   const normalize=scene=>scene.children.map(child=>{
     const group=child.clone(true),box=new THREE.Box3().setFromObject(group),center=box.getCenter(new THREE.Vector3()),roots=[];
     group.traverse(child=>{
-      if(!child.isMesh||!child.material.name.includes('bark'))return;
+      if(!pineWood(child))return;
       const p=child.geometry.attributes.position;
       for(let i=0;i<p.count;i++)roots.push(new THREE.Vector3(p.getX(i),p.getY(i),p.getZ(i)).applyMatrix4(child.matrixWorld));
     });
@@ -61,18 +76,30 @@ async function pineSources(){
       if(!child.isMesh)return;
       const leaf=child.material.name.includes('twig');
       child.material.envMapIntensity=leaf?1:.35;
-      if(leaf)child.material.color.multiplyScalar(1.5);
+      child.castShadow=true;child.receiveShadow=true;
     });
-    const tree=new THREE.Group();tree.add(group);return tree;
+    const tree=new THREE.Group();tree.add(group);
+    tree.userData.rootContact=bottom.map(p=>[p.x-anchor.x,p.y-minimum,p.z-anchor.z]);
+    return tree;
   });
-  return {saplings:normalize(small.scene),trees:normalize(medium.scene)};
+  const nearTrees=normalize(near.scene),farTrees=normalize(far.scene);
+  const trees=nearTrees.map((tree,i)=>{
+    const materials=new Map();tree.traverse(mesh=>{if(mesh.isMesh)materials.set(mesh.material.name,mesh.material);});
+    const distant=farTrees[i];distant.traverse(mesh=>{
+      if(!mesh.isMesh)return;
+      mesh.material=materials.get(mesh.material.name);mesh.userData.collision=false;
+    });
+    const lod=new THREE.LOD();lod.addLevel(tree,0);lod.addLevel(distant,quality==='low'?12:25,.15);
+    lod.userData.rootContact=tree.userData.rootContact;return lod;
+  });
+  return {saplings:normalize(small.scene),trees};
 }
 
 export async function loadMountainField(world){
   const response=await fetch(ROOT+'mountain-v3.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
   const manifest=await response.json();
   if(manifest.period!==MOUNTAIN_PERIOD||manifest.tiles?.length!==4||manifest.profile?.length!==257)throw new Error('Invalid mountain surface manifest');
-  const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),sourceProps(),pineSources()]);
+  const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),sourceProps(),pineSources(world.quality)]);
   const profileBytes=new Uint8Array(manifest.profile.length*4);
   manifest.profile.forEach(([l,r],i)=>profileBytes.set([l,r,0,255],i*4));
   const profile=new THREE.DataTexture(profileBytes,manifest.profile.length,1);
@@ -80,7 +107,7 @@ export async function loadMountainField(world){
   const uniforms={
     patchOrigin:{value:CAPTURE_SHIFT.clone()},captureWorldToLocal:{value:new THREE.Matrix4()},captureNormalToWorld:{value:new THREE.Matrix3()},
     forceMaterial:{value:-1},stochastic:{value:true},captureUseGroundCover:{value:true},microMeters:{value:new THREE.Vector2(resources.manifest.textures.groundColor.physicalTileMeters,resources.manifest.textures.wallColor.physicalTileMeters)},
-    captureReflectance:{value:new THREE.Vector2(.35,.38)}
+    captureReflectance:{value:new THREE.Vector2(.27,.38)}
   };
   uniforms.groundMean={value:new THREE.Vector3(...resources.manifest.groundMean)};
   uniforms.wallMean={value:new THREE.Vector3(...resources.manifest.wallMean)};
@@ -121,7 +148,9 @@ export async function loadMountainField(world){
   const slots=new Map();
   const rockMaterial=addPhotographicCapture(material.clone(),{...uniforms,forceMaterial:{value:0}});
   function decorate(phase,data){
-    const rocks=[],trees=[],contacts=[],floor={heightAt:(x,z)=>{
+    const rocks=[],trees=mountainPinePlacements(phase),contacts=[],floor={heightAt:(x,z)=>{
+      const cell=mountainCell(Math.floor((x-MOUNTAIN_BASE_X)/MOUNTAIN_PERIOD),Math.floor((z-MOUNTAIN_BASE_Z+MOUNTAIN_WIDTH/2)/MOUNTAIN_WIDTH));
+      x=(x-cell.x)*cell.scaleX;z=(z-cell.z)*cell.scaleZ;
       const height=data.index.heightAt(x,z);if(height!=null)return height;
       let h=-Infinity;for(const index of native.values())h=Math.max(h,index.heightAt(x,z)??-Infinity);
       return Number.isFinite(h)?h:null;
@@ -165,10 +194,6 @@ export async function loadMountainField(world){
       const large=i%5===0;
       placeRock(large?sources[0][i%sources[0].length].geometry:sources[1+i%2][0].geometry,x,z,large?.14:.025,random(i+503)*Math.PI*2);
     }
-    if(phase===0)for(const [i,x,z]of[[0,119,-109],[1,127,-116.5],[2,135,-110]]){
-      trees.push({i,x,z});
-    }
-    if(phase===3)trees.push({i:phase,x:MOUNTAIN_BASE_X+mountainStation(phase*16+8),z:MOUNTAIN_BASE_Z+11});
     data.props=new THREE.Group();data.propIndices=[];
     for(const geometry of rocks){
       for(const name of Object.keys(geometry.attributes))if(!['position','normal'].includes(name))geometry.deleteAttribute(name);
@@ -206,14 +231,16 @@ export async function loadMountainField(world){
       tree.position.add(new THREE.Vector3(x,h-.06,z));tree.rotation.y=i*2.4;data.props.add(tree);
     }
     for(const {i,x,z}of trees){
-      if(mountainPathDistance(x,z)<.8)continue;
-      const h=plantedFloor.heightAt(x,z);if(!Number.isFinite(h))continue;
       const tree=pines.trees[i%pines.trees.length].clone(true);
-      tree.position.add(new THREE.Vector3(x,h-.12,z));tree.rotation.y=i*1.7;
+      const angle=i*1.7,c=Math.cos(angle),s=Math.sin(angle),roots=tree.userData.rootContact;
+      const heights=roots.map(([px,py,pz])=>plantedFloor.heightAt(x+c*px+s*pz,z-s*px+c*pz)-py);
+      if(!heights.length||heights.some(h=>!Number.isFinite(h)))continue;
+      const h=Math.min(...heights);
+      tree.position.set(x,h-.08,z);tree.rotation.y=angle;
       data.props.add(tree);tree.updateMatrixWorld(true);
       const wood=[];
       tree.traverse(child=>{
-        if(!child.isMesh||!child.material.name.includes('bark'))return;
+        if(!pineWood(child)||child.userData.collision===false)return;
         const source=child.geometry,geometry=new THREE.BufferGeometry(),position=source.attributes.position,values=new Float32Array(position.count*3);
         for(let i=0;i<position.count;i++)values.set([position.getX(i),position.getY(i),position.getZ(i)],i*3);
         geometry.setAttribute('position',new THREE.Float32BufferAttribute(values,3));geometry.setIndex(source.index);

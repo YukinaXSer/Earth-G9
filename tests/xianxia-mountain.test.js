@@ -75,7 +75,7 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   const mesh=mountain.world.ground;host.updateMatrixWorld(true);mesh.onBeforeRender();
   const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
   mesh.material.onBeforeCompile(shader);
-  assert.deepEqual(shader.uniforms.captureReflectance.value.toArray(),[.35,.38]);
+  assert.deepEqual(shader.uniforms.captureReflectance.value.toArray(),[.27,.38]);
   assert.equal(shader.uniforms.captureUseGroundCover.value,true);
   assert.equal(mesh.geometry.attributes.groundCover.normalized,true);
   const ferns=[];mountain.group.traverse(object=>{if(object.name==='grounded-mountain-ferns')ferns.push(object);});

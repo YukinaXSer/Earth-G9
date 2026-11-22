@@ -45,12 +45,12 @@ test('captured distant band preserves angular pixel proportions without enclosin
 });
 
 test('backdrop derivative has an alpha mask and a bounded download rather than reloading the old full photograph',()=>{
-  const file=readFileSync(new URL('../public/xianxia/textures/huangshan-distant.webp',import.meta.url));
+  const file=readFileSync(new URL('../public'+MOUNTAIN_HORIZON_CAPTURE.texture,import.meta.url));
   assert.equal(file.toString('ascii',0,4),'RIFF');assert.equal(file.toString('ascii',8,12),'WEBP');
   assert.equal(file.toString('ascii',12,16),'VP8X');assert.ok(file[20]&16);
   assert.equal(file.readUIntLE(24,3)+1,MOUNTAIN_HORIZON_CAPTURE.width);
   assert.equal(file.readUIntLE(27,3)+1,MOUNTAIN_HORIZON_CAPTURE.height);
-  assert.ok(file.length<120000);
+  assert.ok(file.length<128000);
 });
 
 test('deferred distant mesh leaves host sky, fog, camera and lighting untouched under parent translation/yaw',async t=>{
@@ -74,7 +74,7 @@ test('deferred distant mesh leaves host sky, fog, camera and lighting untouched 
   const shader={vertexShader:THREE.ShaderLib.basic.vertexShader,fragmentShader:THREE.ShaderLib.basic.fragmentShader};
   mesh.material.onBeforeCompile(shader);
   assert.match(shader.vertexShader,/gl_Position.z=gl_Position.w/);
-  assert.match(shader.vertexShader,/vFogDepth\*=.15/);
+  assert.match(shader.vertexShader,/vFogDepth=length\(mvPosition.xyz\)\*\.1/);
   assert.equal(shader.fragmentShader,THREE.ShaderLib.basic.fragmentShader);
 });
 

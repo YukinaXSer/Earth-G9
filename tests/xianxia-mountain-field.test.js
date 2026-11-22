@@ -5,13 +5,46 @@ import {decodeMountainGeometry,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,M
 import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
-import {mountainFernPlacement} from '../src/xianxia-mountain-field.js';
+import {mountainFernPlacement,mountainPinePlacements} from '../src/xianxia-mountain-field.js';
+import {mountainPathDistance} from '../src/xianxia-mountain-route.js';
 
 function load(phase,lod){
   const b=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-'+lod+'.bin',import.meta.url));
   const geometry=decodeMountainGeometry(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
   return phase?geometry:gradeCaptureApproach(geometry);
 }
+
+test('mature pine groves belong to their streamed phase and keep the walking line open',()=>{
+  const placements=Array.from({length:4},(_,phase)=>{
+    const points=mountainPinePlacements(phase);
+    assert.deepEqual(points,mountainPinePlacements(phase));
+    for(const {x,z}of points){
+      assert.ok(x>=MOUNTAIN_BASE_X+mountainStation(phase*16));
+      assert.ok(x<MOUNTAIN_BASE_X+mountainStation((phase+1)*16));
+      assert.ok(mountainPathDistance(x,z)>=1.7);
+      assert.ok(Math.abs(z-MOUNTAIN_BASE_Z)<MOUNTAIN_WIDTH/2);
+    }
+    return points;
+  }).flat();
+  assert.ok(placements.length>=8);
+  assert.ok(new Set(placements.map(p=>p.i)).size===placements.length);
+});
+
+test('mature pine LODs stay within the replaced sapling download and use native glTF geometry',()=>{
+  let total=0;
+  for(const lod of ['near','far']){
+    const bytes=readFileSync(new URL('../public/xianxia/surface/pine-mature-'+lod+'.glb',import.meta.url));total+=bytes.length;
+    const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    assert.ok(!json.extensionsRequired?.some(name=>/draco|meshopt|basisu/i.test(name)));
+    assert.equal(json.nodes.filter(n=>n.mesh!==undefined).length,1);
+    if(lod==='far'){
+      assert.equal(json.images?.length??0,0);
+      assert.ok(json.materials.some(m=>m.name.includes('twig')));
+      assert.ok(json.materials.some(m=>m.name.includes('trunk')));
+    }
+  }
+  assert.ok(total<=readFileSync(new URL('../public/xianxia/surface/pine-medium.glb',import.meta.url)).length);
+});
 
 test('native scanned entrance keeps the whole fixed eight-metre forecourt walkable',()=>{
   const surface=new MountainTileSurface();

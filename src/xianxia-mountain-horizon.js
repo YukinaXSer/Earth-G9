@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 export const MOUNTAIN_HORIZON_CAPTURE=Object.freeze({
-  texture:'/xianxia/textures/huangshan-distant.webp',width:1024,height:387,
+  texture:'/xianxia/textures/huangshan-distant-v2.webp',width:1024,height:387,
   radius:1500,angle:135*Math.PI/180,eye:.55,
 });
 
@@ -31,9 +31,10 @@ export async function loadMountainHorizon({world,group}){
   const material=new THREE.MeshBasicMaterial({map,transparent:true,alphaTest:.001,depthWrite:false,fog:true});
   material.onBeforeCompile=shader=>{
     shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position.z=gl_Position.w;');
-    shader.vertexShader=shader.vertexShader.replace('#include <fog_vertex>','#include <fog_vertex>\n #ifdef USE_FOG\n vFogDepth*=.15;\n #endif');
+    // The photograph already contains haze; residual weather fog is invariant under mouse-look.
+    shader.vertexShader=shader.vertexShader.replace('#include <fog_vertex>','#include <fog_vertex>\n #ifdef USE_FOG\n vFogDepth=length(mvPosition.xyz)*.1;\n #endif');
   };
-  material.customProgramCacheKey=()=> 'xianxia-photographic-distant-backdrop-v1';
+  material.customProgramCacheKey=()=> 'xianxia-photographic-distant-backdrop-v2';
   const mesh=new THREE.Mesh(mountainHorizonGeometry(),material),cameraPosition=new THREE.Vector3(),inverse=new THREE.Matrix4();
   mesh.name='Huangshan photographed distant ridge';mesh.renderOrder=-1000;mesh.frustumCulled=false;mesh.raycast=()=>{};
   mesh.userData.collision=false;group.add(mesh);

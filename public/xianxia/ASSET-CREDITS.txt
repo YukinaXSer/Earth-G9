@@ -107,7 +107,7 @@ License: Creative Commons Attribution 2.0 Generic
 https://creativecommons.org/licenses/by/2.0/
 Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
 
-Current distant-only derivative: huangshan-distant.webp, 1024x387 RGBA.
+Current distant-only derivative: huangshan-distant-v2.webp, 1024x387 RGBA. The earlier huangshan-distant.webp remains archived, not loaded.
 The original 3840x1172 capture is cropped to its left 3100 pixels to exclude
 foreground pine branches, downsampled, sky-masked, edge-padded for mipmaps,
 and faded at its sides and bottom. No generative fill or height reconstruction.
@@ -181,6 +181,13 @@ Licensed copies obtained from the public ScanSceneverse distribution:
 https://huggingface.co/datasets/Stable-X/ScanSceneverse
 This modified, repeated capture forms a fictional cave. It does not claim
 that the real cave connects a rainforest to Huangshan or Dartmoor.
+
+Mature pine canopy
+-----------------
+Mature pine canopy LODs — Pine Tree 01, Poly Haven, CC0.
+Photography: Rob Tuytel; modeling: Rico Cilliers.
+https://polyhaven.com/a/pine_tree_01 · https://polyhaven.com/license
+Variant B retains authored metre-scale trunk and branch geometry. This is a photo-textured tree model, not a terrain scan. Offline needle LODs preserve projected foliage coverage by widening individual disconnected needles without scaling the tree or its branches. Original vertex-color lighting is removed; both LODs reuse the near model's photographic materials under the host's shared HDR/ACES lighting. The far GLB contains geometry only. No runtime decoder, WASM, worker or provider request is introduced.
 
 Fonts
 -----
