@@ -7,6 +7,7 @@ Mouth hillside: Poly Haven coastal_cliff_01 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_01
 Forest fitted mouth: Poly Haven coastal_cliff_02 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_02
+The aperture's encasing scan is reused coastal_cliff_04, CC0.
 Mountain fitted mouth: Poly Haven coastal_cliff_04 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_04
 Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.

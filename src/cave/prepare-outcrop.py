@@ -202,6 +202,15 @@ def boundary_vertices(mesh):
     return np.unique(edges)
 
 
+def rim_slivers(mesh, moved):
+    edges = np.linalg.norm(mesh.triangles - np.roll(mesh.triangles, -1, axis=1), axis=2)
+    lengths = edges.max(axis=1)
+    aspect = lengths * lengths / np.maximum(2 * mesh.area_faces, 1e-15)
+    cosine = (edges * edges + np.roll(edges, -1, axis=1) ** 2 - np.roll(edges, -2, axis=1) ** 2) / np.maximum(2 * edges * np.roll(edges, -1, axis=1), 1e-15)
+    minimum_angle = np.arccos(np.clip(cosine, -1, 1)).min(axis=1)
+    return moved[mesh.faces].any(axis=1) & ((aspect > 8) | (minimum_angle < np.deg2rad(6)))
+
+
 def front_depth(mesh, points, outward, center):
     depth = np.full(len(points), -np.inf)
     for start in range(0, len(points), 256):
@@ -212,7 +221,7 @@ def front_depth(mesh, points, outward, center):
     return depth
 
 
-def place_scan(scan, end, mouth, volume):
+def place_scan(scan, end, mouth, volume, upright=True):
     outward, center = np.array(mouth['outward']), np.array(mouth['floorCenter'])
     side = np.array([outward[2], 0, -outward[0]])
     boundary = boundary_vertices(scan)
@@ -222,7 +231,7 @@ def place_scan(scan, end, mouth, volume):
     support = np.concatenate([(scan.vertices @ normals[i:i + 32].T).max(axis=0) - (scan.vertices[boundary] @ normals[i:i + 32].T).max(axis=0)
                               for i in range(0, len(normals), 32)])
     up = normals[support.argmax()]
-    if end == 0:
+    if end == 0 and upright:
         front = up
         up = np.array([0., 1, 0]) - front * front[1]
         up /= np.linalg.norm(up)
@@ -267,6 +276,9 @@ def place_scan(scan, end, mouth, volume):
     relative = scan.vertices - center
     scan.vertices = center + (relative @ side)[:, None] * side * (1.4 if end else 1) + (relative @ outward)[:, None] * outward * .5
     scan.vertices[:, 1] = center[1] + relative[:, 1] * (1.8 if end else 1.4)
+    if end:
+        scan.vertices -= outward * .25
+        shift -= .25
     return scan, shift
 
 
@@ -293,6 +305,7 @@ def export(path, mesh, colors, route, pipeline, volume, mouths, end):
     weight = np.clip((2.4 - np.abs(radial_margin(mesh.vertices, volume, mouths))) / 2, 0, 1)
     weight = weight * weight * (3 - 2 * weight)
     mesh.vertex_attributes['_CAVE_ROUTE'] = (end + (parameters - end) * weight).astype(np.float32)
+    mesh.remove_unreferenced_vertices()
     path.write_bytes(mesh.export(file_type='glb', include_normals=True))
 
 
@@ -311,6 +324,13 @@ def main():
     for end, asset in enumerate(['coastal_cliff_02', 'coastal_cliff_04'][:1 if args.end == 'forest' else 2]):
         scan, tint = source_scan(asset)
         scan, shift = place_scan(scan, end, data['mouths'][end], volume)
+        if end == 0:
+            core, core_tint = source_scan('coastal_cliff_04')
+            core, _ = place_scan(core, end, data['mouths'][end], volume, upright=False)
+            shell = np.abs(radial_margin(core.vertices, volume, data['mouths']))
+            core.update_faces((shell[core.faces].min(axis=1) < 2.4) & aperture_faces(core, volume, data['mouths'], [end]))
+            scan = trimesh.util.concatenate([scan, core])
+            tint = np.vstack([tint, core_tint])
         scan, tint = refine_aperture(scan, tint, volume, data['mouths'], [end])
         gc.collect()
         print('Refined', asset, len(scan.faces), flush=True)
@@ -368,15 +388,10 @@ def main():
             scan.update_faces(~needles)
             if len(scan.faces) == count:
                 break
-        edges = np.linalg.norm(scan.triangles - np.roll(scan.triangles, -1, axis=1), axis=2)
-        lengths = edges.max(axis=1)
-        aspect = lengths * lengths / np.maximum(2 * scan.area_faces, 1e-15)
-        cosine = (edges * edges + np.roll(edges, -1, axis=1) ** 2 - np.roll(edges, -2, axis=1) ** 2) / np.maximum(2 * edges * np.roll(edges, -1, axis=1), 1e-15)
-        minimum_angle = np.arccos(np.clip(cosine, -1, 1)).min(axis=1)
-        slivers = (end == 0) & moved[scan.faces].any(axis=1) & ((aspect > 8) | (minimum_angle < np.deg2rad(6)))
+        slivers = rim_slivers(scan, moved)
         report['removedRimSlivers'] = int(slivers.sum())
         scan.update_faces(~slivers)
-        boundary = boundary_vertices(scan) if end == 0 else np.array([], dtype=int)
+        boundary = boundary_vertices(scan)
         final_rim = quantized[boundary_vertices(tube)]
         distance, ids = cKDTree(final_rim).query(original[boundary])
         snap = distance <= .4
@@ -384,10 +399,13 @@ def main():
         moved[boundary[snap]] = True
         scan.update_faces(scan.nondegenerate_faces(height=1e-7))
         scan.update_faces(~contains(scan.triangles_center, actual_volume, data['mouths']))
+        slivers = rim_slivers(scan, moved)
+        report['removedAfterResnap'] = int(slivers.sum())
+        scan.update_faces(~slivers)
         displacement = np.linalg.norm(scan.vertices - original, axis=1)
         report.update(rockTriangles=len(scan.faces), snappedVertices=int(moved.sum()), maxSnapMetres=float(displacement.max()),
                       removedNeedles=removed_needles, removedFolded=removed_folded, insideCentroids=int(contains(scan.triangles_center, actual_volume, data['mouths']).sum()), baseDepthMetres=float(data['mouths'][end]['floorCenter'][1] - scan.bounds[0, 1]))
-        unique, inverse = trimesh.grouping.unique_rows(scan.vertices) if end == 0 else (np.arange(len(scan.vertices)), np.arange(len(scan.vertices)))
+        unique, inverse = trimesh.grouping.unique_rows(scan.vertices)
         scan = trimesh.Trimesh(scan.vertices[unique], inverse[scan.faces], process=False)
         scan.update_faces(scan.nondegenerate_faces(height=1e-7))
         scan.update_faces(scan.unique_faces())
