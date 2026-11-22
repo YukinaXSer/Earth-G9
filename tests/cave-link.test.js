@@ -135,13 +135,13 @@ for (const end of [0, 1]) test(`${end ? 'mountain' : 'forest'} scan has no sky g
   console.log(`${fit.mouth} mouth: ${eyes.length} eyes, ${rays} sky-gap rays, ${boundary.length} boundary edges checked`);
 });
 
-test('outcrop triangles have no centroids inside the scanned cave or extruded aperture', () => {
+test('the fitted mountain outcrop has no centroids inside the scanned cave or extruded aperture', () => {
   const fit = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
   assert.equal(fit.createdFaces, 0);
   const inverse = link.transform.clone().invert(), centroid = new T.Vector3(), vertex = new T.Vector3();
   for (const cliff of cliffs) cliff.updateMatrixWorld(true);
   let count = 0;
-  for (const cliff of cliffs) cliff.traverse(mesh => {
+  for (const cliff of [mountain]) cliff.traverse(mesh => {
     if (!mesh.isMesh) return;
     const p = mesh.geometry.attributes.position, index = mesh.geometry.index;
     for (let i = 0; i < index.count; i += 3) {
@@ -159,8 +159,28 @@ test('outcrop triangles have no centroids inside the scanned cave or extruded ap
   assert.equal(insideScannedCave([NaN, 0, 0], fit.volume, caveData.mouths), false);
   assert.throws(() => insideScannedCave([0, 0, 0], { route: [[0, 0, 0]] }, []), TypeError);
   assert.equal(fit.mouths.length, 2);
-  for (const mouth of fit.mouths) { assert.equal(mouth.insideCentroids, 0); assert.equal(mouth.createdFaces, 0); assert.ok(mouth.maxSnapMetres <= .4); assert.ok(mouth.maxApertureEdgeBeforeCut <= .0800001); }
+  for (const mouth of fit.mouths.filter(m => !m.source?.uid)) { assert.equal(mouth.insideCentroids, 0); assert.equal(mouth.createdFaces, 0); assert.ok(mouth.maxSnapMetres <= .4); assert.ok(mouth.maxApertureEdgeBeforeCut <= .0800001); }
   console.log(`Centroid exclusion: ${count} scan triangles checked`);
+});
+
+test('the forest mouth uses the uniformly scaled natural entrance with native macro tint and no added caps', () => {
+  const fit = fitData.mouths[0];
+  assert.equal(fit.source.uid, '6b0765f8887a47e1b0a063a118293c83');
+  assert.equal(fit.source.license, 'CC BY 4.0');
+  assert.deepEqual(fit.source.atlasResolution, [1024, 1024]);
+  assert.ok(Math.abs(fit.openingWidthMetres - 5.1) < .2);
+  assert.ok(Math.abs(fit.openingHeightMetres - 3.1) < .2);
+  assert.ok(fit.neckWidthMetres > 3.5 && fit.neckHeightMetres > 2.8);
+  assert.ok(fit.uniformScale > 0 && fit.overlapMetres >= .3 && fit.overlapMetres <= .5);
+  assert.equal(fit.createdFaces, 0);
+  assert.ok(fit.rockTriangles < fit.source.triangles / 2);
+  assert.ok(forestBytes.byteLength < 8502724);
+  forest.traverse(mesh => {
+    if (!mesh.isMesh) return;
+    assert.ok(mesh.geometry.attributes.color.count > 1000);
+    const normals = mesh.geometry.attributes.normal, v = new T.Vector3();
+    for (let i = 0; i < normals.count; i++) assert.ok(Math.abs(v.fromBufferAttribute(normals, i).length() - 1) < .001);
+  });
 });
 
 test('unit-scale yaw/translation joins the exact mountain contract and excludes forest overlap', () => {

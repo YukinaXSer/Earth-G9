@@ -211,7 +211,7 @@ def route_parameters(vertices, route):
     return np.where(choices[0][0] < choices[1][0], choices[0][1], choices[1][1])
 
 
-def export_glb(path, mesh, colors, route):
+def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry Passage, cave-dive-make, CC BY 4.0'):
     lo, hi = mesh.bounds
     extent = hi - lo
     normals = mesh.vertex_normals * extent
@@ -238,7 +238,7 @@ def export_glb(path, mesh, colors, route):
             accessor.update(min=[0, 0, 0], max=[65535, 65535, 65535])
         accessors.append(accessor)
     gltf = {'asset': {'version': '2.0', 'generator': 'Earth-G9 prepare-cave.py',
-                      'copyright': 'Bageshawe Resurgence Dry Passage, cave-dive-make, CC BY 4.0'},
+                      'copyright': copyright},
             'extensionsUsed': ['KHR_mesh_quantization'], 'extensionsRequired': ['KHR_mesh_quantization'],
             'scene': 0, 'scenes': [{'nodes': [0]}],
             'nodes': [{'mesh': 0, 'translation': lo.tolist(), 'scale': extent.tolist()}],

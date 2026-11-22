@@ -5,7 +5,18 @@ calathea, pachira, anthurium, shrub-03 and shrub-04 assets credited below.
 Loaded only for the low tier after the first frame; original photographs reused.
 Mouth hillside: Poly Haven coastal_cliff_01 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_01
-Both fitted mouths: Poly Haven coastal_cliff_04 real cliff scan, CC0.
+Forest mouth: Rocky cave entrance — Nature-témoin (speleotv), CC BY 4.0.
+https://sketchfab.com/3d-models/rocky-cave-entrance-6b0765f8887a47e1b0a063a118293c83
+https://creativecommons.org/licenses/by/4.0/
+Source obtained through Allen AI Objaverse (203,884 imported triangles).
+Modified: uniform scale and rigid placement, decimation and regenerated normals,
+whole-triangle removal at the interior overlap and shared walking floor; no caps.
+Its native 1024x1024 photographed atlas is blurred and sampled into linear vertex
+macro tint, not enlarged. Close detail uses the existing photographed triplanar PBR.
+Interior macro colour blends to the tube over the 0.35 m overlap.
+public/cave/mouth-forest.glb; preparation: scripts/prepare-cave-entrance.py;
+source hash, placement and measured sections: public/cave/mouth-fit.json.
+Mountain fitted mouth: Poly Haven coastal_cliff_04 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_04
 Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.
 Mouth boulders reuse the rainforest moss-rock scan credited below.
