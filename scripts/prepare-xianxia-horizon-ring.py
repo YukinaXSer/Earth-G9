@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 from PIL import Image
-from scipy.ndimage import map_coordinates, median_filter
+from scipy.ndimage import distance_transform_edt, map_coordinates, median_filter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--panorama', type=Path, required=True)
@@ -56,15 +56,67 @@ for rotation in np.arange(0, 1, 1 / 1024):
     if best is None or loss < best[0]:
         best = (loss, rotation, heights)
 rotation = best[1]
+
+# Same-scale forest photography replaces the lakeside hut sector. The existing
+# Huangshan alignment stays fixed; no mirrored or generated hillside is used.
+patch_x = np.arange(len(profile))
+patch_weight = smooth((patch_x - 7480 * 3 / 8) / 30) * smooth((8010 * 3 / 8 - patch_x) / 30)
+patch_y, patch_source_x = np.meshgrid(np.arange(len(pano)), patch_x - 630 * 3 / 8, indexing='ij')
+patch = np.stack([map_coordinates(pano[:, :, c].astype(float), [patch_y, patch_source_x], order=1, mode='grid-wrap') for c in range(3)], axis=2) / 255
+photo = encoded(linear(pano.astype(float) / 255) * (1 - patch_weight[None, :, None]) + linear(patch) * patch_weight[None, :, None])
+r, g, b = np.moveaxis(photo, 2, 0)
+brightness = photo.mean(axis=2)
+land = ((g > b * 1.02) & (r < 160 / 255)) | (brightness < 45 / 255)
+land[:int(len(pano) * .35)] = False
+land[int(len(pano) * .51):] = True
+profile = median_filter(np.argmax(land[:-2] & land[1:-1] & land[2:], axis=0).astype(float), size=13, mode='wrap')
+photo_y = np.arange(len(pano))[:, None]
+silhouette = smooth((photo_y - profile[None, :] + .7) / 1.4)
+inside = distance_transform_edt(silhouette > .99)
+outside = distance_transform_edt(silhouette < .01)
+foreground = (inside >= 6) & land & ((g > b * 1.08) | (brightness < .25))
+background = outside >= 8
+fg = distance_transform_edt(~foreground, return_distances=False, return_indices=True)
+bg = distance_transform_edt(~background, return_distances=False, return_indices=True)
+photo_linear = linear(photo)
+f, sky = photo_linear[fg[0], fg[1]], photo_linear[bg[0], bg[1]]
+direction = f - sky
+matte = np.sum((photo_linear - sky) * direction, axis=2) / np.maximum(np.sum(direction * direction, axis=2), 1e-6)
+matte = np.maximum(matte, 1 - np.min(photo_linear / np.maximum(sky, 1e-6), axis=2))
+matte = np.where((g > b * 1.08) & (g > r * .75), 1, np.clip(matte, 0, 1))
+photo_alpha = np.minimum(silhouette, matte)
+luma_weights = np.array([.2126, .7152, .0722])
+luma, sky_luma = photo_linear @ luma_weights, sky @ luma_weights
+foreground_luma = np.maximum(0, (luma - (1 - photo_alpha) * sky_luma) / np.maximum(photo_alpha, 1e-6))
+photo_linear = np.clip(photo_linear * (foreground_luma / np.maximum(luma, 1e-6))[:, :, None], 0, 1)
+nearest = distance_transform_edt(photo_alpha < .95, return_distances=False, return_indices=True)
+photo_linear[photo_alpha < .001] = photo_linear[nearest[0][photo_alpha < .001], nearest[1][photo_alpha < .001]]
+
 width, height = 3072, 432
 u, v = np.meshgrid(np.linspace(0, 1, width), np.linspace(0, 1, height))
 azimuth = (u - .5) * 360
 elevation = (.65 - v) * 360 * height / width
 px = ((u + rotation) % 1) * len(profile)
 py = (90 - elevation) / 180 * len(pano)
-top = np.interp(px, np.arange(len(profile)), profile, period=len(profile))
-alpha = smooth((py - top) / 1.5) * (1 - smooth((-elevation - .5) / 3.5))
-rgb = np.stack([map_coordinates(pano[:, :, c].astype(float), [np.maximum(py, top + 2), px], order=1, mode='grid-wrap') for c in range(3)], axis=2) / 255
+# Keep only the distant wooded ridge, not the lakeshore, people or boardwalk.
+alpha = map_coordinates(photo_alpha, [py, px], order=1, mode='grid-wrap') * smooth((elevation - 2) / 1.5)
+base_rgb = np.stack([map_coordinates(photo_linear[:, :, c], [py, px], order=1, mode='grid-wrap') for c in range(3)], axis=2)
+# Two same-scale wooded sectors form a closed photographic backing behind the
+# lake-facing low saddle. Repeated photography, not reconstructed mountain shapes.
+period = width / 2
+left_length, right_length = 2550 * 3 / 8, 1750 * 3 / 8
+overlap = (left_length + right_length - period) / 2
+q = px % period
+left_x = (q - 150 * 3 / 8) % width
+right_q = (q - left_length + overlap) % period
+right_x = (right_q + 5650 * 3 / 8) % width
+left_weight = smooth(q / overlap) * smooth((left_length - q) / overlap)
+right_weight = smooth(right_q / overlap) * smooth((right_length - right_q) / overlap)
+left_alpha = map_coordinates(photo_alpha, [py, left_x], order=1, mode='grid-wrap') * left_weight
+right_alpha = map_coordinates(photo_alpha, [py, right_x], order=1, mode='grid-wrap') * right_weight
+forest_alpha = left_alpha + right_alpha
+forest_rgb = np.stack([(map_coordinates(photo_linear[:, :, c], [py, left_x], order=1, mode='grid-wrap') * left_alpha + map_coordinates(photo_linear[:, :, c], [py, right_x], order=1, mode='grid-wrap') * right_alpha) / np.maximum(forest_alpha, 1e-8) for c in range(3)], axis=2)
+forest_alpha *= smooth((elevation - 2) / 1.5)
 ex = (azimuth / east_angle + .5) * (east.shape[1] - 1)
 ey = (east_eye - elevation / east_vertical) * (east.shape[0] - 1)
 east_rgba = np.stack([map_coordinates(east[:, :, c], [ey, ex], order=1, mode='constant', cval=0) for c in range(4)], axis=2)
@@ -76,19 +128,31 @@ def over(front_rgb, front_alpha, back_rgb, back_alpha):
     return rgb, a
 
 
-base_rgb = linear(rgb)
+base_rgb, alpha = over(base_rgb, alpha, forest_rgb, forest_alpha)
 combined, combined_alpha = over(linear(east_rgba[:, :, :3]), east_rgba[:, :, 3], base_rgb, alpha)
 foreground = alpha * smooth((np.abs(azimuth) - 45) / 13)
 combined, combined_alpha = over(base_rgb, foreground, combined, combined_alpha)
 combined_alpha *= 1 - smooth((v - .85) / .15)
 rgba = np.rint(np.clip(np.dstack((encoded(combined), combined_alpha)), 0, 1) * 255).astype(np.uint8)
+
+
+def pad_transparent_rgb(pixels):
+    empty = pixels[:, :, 3] == 0
+    nearest = distance_transform_edt(empty, return_distances=False, return_indices=True)
+    pixels[empty, :3] = pixels[nearest[0][empty], nearest[1][empty], :3]
+
+
 rgba[[0, -1], :, 3] = 0
+rgba[:, -1] = rgba[:, 0]
+pad_transparent_rgb(rgba)
 rgba[:, -1] = rgba[:, 0]
 output = Image.fromarray(rgba)
 output.save(args.output, quality=92, alpha_quality=100, method=6, exact=True)
 low = args.output.with_stem(args.output.stem + '-low')
 low_rgba = np.asarray(output.resize((2048, 288), Image.Resampling.LANCZOS)).copy()
 low_rgba[[0, -1], :, 3] = 0
+low_rgba[:, -1] = low_rgba[:, 0]
+pad_transparent_rgb(low_rgba)
 low_rgba[:, -1] = low_rgba[:, 0]
 Image.fromarray(low_rgba).save(low, quality=90, alpha_quality=100, method=6, exact=True)
 print('rotation / seam loss / native seam and centre elevations:', best)

@@ -112,16 +112,20 @@ The original 3840x1172 capture is cropped to its left 3100 pixels to exclude
 foreground pine branches, downsampled, sky-masked, edge-padded for mipmaps,
 and faded at its sides and bottom. No generative fill or height reconstruction.
 Reproducer: scripts/prepare-xianxia-horizon.py (numpy, scipy, Pillow).
-Current ring: mountain-distant-ring-v3.webp (3072x432 RGBA; 155378 B),
-mountain-distant-ring-v3-low.webp (2048x288 RGBA; 81558 B).
+Current ring: mountain-distant-ring-v4.webp (3072x432 RGBA),
+mountain-distant-ring-v4-low.webp (2048x288 RGBA), each below 256KB.
 The east-facing Huangshan view is reframed and composited behind the
 forested ridges of the genuine 360-degree Shudu Lake panorama (below).
 Reproducer: scripts/prepare-xianxia-horizon-ring.py (numpy, scipy, Pillow).
-The panorama is rotated, sky-masked, mip-edge-padded and bottom-faded;
-its continuous forested ridgeline overlaps the former photograph endpoints.
-No mirrored/repeated scenery, generative fill, closed sky sphere, pole
-stretch or reachable photographic ground. This is an authored composite
-of two captures, not a single Huangshan 360 photograph, digital twin,
+The panorama alignment is retained. Revision 4 replaces its lakeside hut
+sector with same-angular-scale forest photography, separates sky per pixel
+instead of filling columns below the first dark pixel, and excludes the
+low lakeshore, people and boardwalk. Two clean wooded sectors repeat as
+photographic backing behind the low saddle; this is not a geographically
+continuous 360-degree capture. No mirror, generated fill, closed sky sphere,
+pole stretch or reachable photographic ground is used. Transparent RGB is
+padded for mipmaps and the lower edge is feathered. This authored composite
+of two captures is not a single Huangshan 360 photograph, digital twin,
 measured camera calibration or three-dimensional relief. Host sky/HDR,
 ACES/sRGB, exposure and weather remain shared; near ground is unchanged.
 

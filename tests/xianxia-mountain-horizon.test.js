@@ -67,8 +67,21 @@ test('both panorama tiers have a sky-free top and bottom, closed seam and mounta
       assert.ok(top<height*.65,`missing positive-elevation ridge at ${path} column ${x}`);
     }
     let seam=0;
-    for(let y=0;y<height;y++)for(let c=0;c<4;c++)seam+=Math.abs(data[(y*width)*4+c]-data[(y*width+width-1)*4+c]);
+    for(let y=0;y<height;y++){
+      const left=y*width*4,right=(y*width+width-1)*4;
+      for(let c=0;c<3;c++)seam+=Math.abs(data[left+c]*data[left+3]-data[right+c]*data[right+3])/255;
+      seam+=Math.abs(data[left+3]-data[right+3]);
+    }
     assert.ok(seam/(height*4)<4);
+  }
+});
+
+test('the documented S184 roof and retained-sky artifact do not survive in either tier',async()=>{
+  for(const [path,scale]of [[MOUNTAIN_HORIZON_CAPTURE.texture,1],[MOUNTAIN_HORIZON_CAPTURE.lowTexture,2/3]]){
+    const {data,info}=await sharp(readFileSync(new URL('../public'+path,import.meta.url))).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    const pixel=(x,y)=>data.subarray((Math.round(y*scale)*info.width+Math.round(x*scale))*4,(Math.round(y*scale)*info.width+Math.round(x*scale))*4+4);
+    for(const [x,y]of [[2250,116],[2249,117]])assert.ok(pixel(x,y)[3]<8,'source sky around the conifer must not become an opaque tower');
+    const roof=pixel(2194,241);assert.ok(roof[3]>127&&roof[1]>roof[2]*1.05,'the source hut sector must contain actual forest photography');
   }
 });
 
