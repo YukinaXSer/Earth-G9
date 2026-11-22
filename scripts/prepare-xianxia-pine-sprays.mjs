@@ -53,7 +53,7 @@ for(const [lod,cell]of [['near',kind==='mature'?.35:.24],['far',kind==='mature'?
     }else{mesh.removePrimitive(p);p.dispose();}
   }
   if(lod==='far')for(const m of doc.getRoot().listMaterials())m.setBaseColorTexture(null);
-  await doc.transform(weld(),prune(),quantize({quantizePosition:16,quantizeNormal:8,quantizeTexcoord:12}),textureCompress({encoder:sharp,targetFormat:'webp',resize:[1024,1024],quality:95}),reorder({encoder:MeshoptEncoder,target:'size'}));
-  const family=kind==='mature'?'pine-mature-v4':'pine-mid-v2',path=resolve(output,family+'-'+lod+'.glb');
+  await doc.transform(weld(),prune({keepAttributes:true}),quantize({quantizePosition:16,quantizeNormal:8,quantizeTexcoord:12}),textureCompress({encoder:sharp,targetFormat:'webp',resize:[1024,1024],quality:95}),reorder({encoder:MeshoptEncoder,target:'size'}));
+  const family=kind==='mature'?'pine-mature-v5':'pine-mid-v3',path=resolve(output,family+'-'+lod+'.glb');
   await io.write(path,doc);writeFileSync(path+'.gz',gzipSync(readFileSync(path),{level:9}));console.log('OUTPUT',path,statSync(path).size,'gzip',statSync(path+'.gz').size,'BOUNDS',getBounds(doc.getRoot().listScenes()[0]));
 }

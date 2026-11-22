@@ -82,7 +82,7 @@ const pineWood=mesh=>mesh.isMesh&&/bark|trunk|dead_branches/.test(mesh.material.
 async function pineSources(quality){
   const loader=new GLTFLoader(),[small,near,far,midNear,midFar]=await Promise.all([
     loader.loadAsync(ROOT+'pine.glb'),
-    ...['pine-mature-v4-near','pine-mature-v4-far','pine-mid-v2-near','pine-mid-v2-far'].map(file=>loadCompressedModel(loader,ROOT+file+'.glb.gz',ROOT)),
+    ...['pine-mature-v5-near','pine-mature-v5-far','pine-mid-v3-near','pine-mid-v3-far'].map(file=>loadCompressedModel(loader,ROOT+file+'.glb.gz',ROOT)),
   ]);
   const tunedMaterials=new WeakSet();
   const normalize=scene=>scene.children.map(child=>{
