@@ -9,8 +9,9 @@ import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
 
 test('the complete kilometre terrain route follows visible triangles in both mirrored directions',()=>{
   const surface=new MountainTileSurface();
+  const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/mountain-v4.json',import.meta.url)));
   for(let phase=0;phase<4;phase++){
-    const data=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-near.bin',import.meta.url));
+    const data=readFileSync(new URL('../public/xianxia/surface/'+manifest.tiles[phase].near,import.meta.url));
     const geometry=decodeMountainGeometry(data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
     if(!phase)gradeCaptureApproach(geometry);
     const index=createFloorIndex([geometry],2);

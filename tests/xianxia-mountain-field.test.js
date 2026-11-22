@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
+import * as THREE from 'three';
 import {decodeMountainGeometry,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainStation} from '../src/xianxia-mountain-geometry.js';
 import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
@@ -9,11 +10,31 @@ import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
 import {mountainFernPlacement,mountainPinePlacements,mountainPineFamilies} from '../src/xianxia-mountain-field.js';
 import {mountainPathDistance} from '../src/xianxia-mountain-route.js';
 
+const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/mountain-v4.json',import.meta.url)));
+
 function load(phase,lod){
-  const b=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-'+lod+'.bin',import.meta.url));
+  const b=readFileSync(new URL('../public/xianxia/surface/'+manifest.tiles[phase][lod],import.meta.url));
   const geometry=decodeMountainGeometry(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
   return phase?geometry:gradeCaptureApproach(geometry);
 }
+
+test('off-path rock feet retain the captured surface rather than the old broad forecourt deformation',()=>{
+  const geometry=load(0,'near'),positions=geometry.attributes.position,indices=geometry.index;
+  // Original Coastal Cliff 04 LOD0 samples, rigidly translated into the mountain frame.
+  const samples=[[103.9031677,1.18783057,-117.20053],[103.931488,1.22102296,-117.042816],[104.314064,1.08575165,-116.86166]];
+  const triangle=new THREE.Triangle(),closest=new THREE.Vector3();
+  for(const sample of samples){
+    const point=new THREE.Vector3(...sample);let distance=Infinity;
+    for(let i=0;i<indices.count;i+=3){
+      triangle.a.fromBufferAttribute(positions,indices.getX(i));
+      triangle.b.fromBufferAttribute(positions,indices.getX(i+1));
+      triangle.c.fromBufferAttribute(positions,indices.getX(i+2));
+      if(triangle.getArea()<1e-12)continue;
+      triangle.closestPointToPoint(point,closest);distance=Math.min(distance,closest.distanceTo(point));
+    }
+    assert.ok(distance<.03,JSON.stringify({sample,distance}));
+  }
+});
 
 test('mature pine groves belong to their streamed phase and keep the walking line open',()=>{
   const placements=Array.from({length:4},(_,phase)=>{

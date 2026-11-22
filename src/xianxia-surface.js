@@ -67,8 +67,6 @@ export function addPhotographicCapture(material,uniforms){
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
       vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
-      vec3 faceG=normalize(cross(photoDx,photoDy));if(dot(faceG,photoG)<0.)faceG=-faceG;
-      if(dot(faceG,photoG)<.7071)photoG=faceG;
       vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
       float region=dot(vec4(posM,1.),groundRegion);
       if(captureUseProfile&&!captureUseGroundCover){
@@ -91,7 +89,7 @@ export function addPhotographicCapture(material,uniforms){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v7';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v8';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){

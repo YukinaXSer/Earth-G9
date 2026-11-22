@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import * as THREE from 'three';
-import {captureGeometry,CAPTURE_SHIFT,CAPTURE_START,groundProp,groundPropMatrix} from '../src/xianxia-near.js';
+import {captureGeometry,CAPTURE_SHIFT,CAPTURE_START,groundProp,groundPropMatrix,gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {addPhotographicCapture} from '../src/xianxia-surface.js';
 import {XianxiaDemoRuntime} from '../src/xianxia-demo-runtime.js';
@@ -16,6 +16,28 @@ test('native sample geometry keeps its original scale and triangles under one ri
   const index=createFloorIndex([geometry],2),x=CAPTURE_START.x+CAPTURE_SHIFT.x,z=CAPTURE_START.z+CAPTURE_SHIFT.z;
   assert.ok(Math.abs(index.heightAt(x,z)-CAPTURE_START.y)<.00001);
   assert.ok(index.canMove(x,z,x+.01,z));assert.equal(index.geometries[0],geometry);
+});
+
+test('forecourt grading leaves off-path captured rock positions and normals intact',()=>{
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute([104,1.2,-117.1,97.7,1.7,-118.1,114,1.1,-115.1,104,1,-115.1],3));
+  geometry.setAttribute('normal',new THREE.Float32BufferAttribute([.2,.9,.3,.2,-.9,.3,.2,.9,.3,0,1,0],3));
+  geometry.setAttribute('groundCover',new THREE.Uint8BufferAttribute([0,0,0,255],1,true));
+  const positions=geometry.attributes.position.array.slice(),normals=geometry.attributes.normal.array.slice();
+  gradeCaptureApproach(geometry);
+  assert.deepEqual(geometry.attributes.position.array.slice(0,9),positions.slice(0,9));
+  assert.deepEqual(geometry.attributes.normal.array.slice(0,9),normals.slice(0,9));
+  assert.deepEqual(Array.from(geometry.attributes.groundCover.array),[0,0,0,255]);
+  assert.ok(Math.abs(geometry.attributes.position.getY(3)-(.49862106783051635+3.5*.05087194464370546))<1e-6);
+});
+
+test('captured rock shading retains smooth authored normals without a per-triangle angle switch',()=>{
+  const material=addPhotographicCapture(new THREE.MeshStandardMaterial(),{});
+  const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
+  material.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader,/vec3 photoG=normalize\(normM\);if\(!gl_FrontFacing\)photoG=-photoG/);
+  assert.doesNotMatch(shader.fragmentShader,/photoG=faceG|dot\(faceG,photoG\)|\.7071/);
+  assert.match(shader.fragmentShader,/captureNormalToWorld\*photoSurface.n/);
 });
 
 test('rock support is queried from the actual surface and sunk without changing scale',()=>{

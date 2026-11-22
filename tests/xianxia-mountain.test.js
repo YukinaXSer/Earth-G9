@@ -70,6 +70,7 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   assert.equal(host.background,background);assert.equal(host.environment,environment);assert.equal(host.fog,fog);
   assert.deepEqual(renderer,original);assert.equal(mountain.world.horizon,undefined);
   assert.ok(requested.every(url=>url.startsWith('/xianxia/surface/')));
+  assert.ok(requested.includes('/xianxia/surface/mountain-v4.json'));
   assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,2);
   assert.equal(requested.filter(url=>url.endsWith('-far.bin')).length,4);
   assert.equal(mountain.groundHeight(1e6,1e6),null);

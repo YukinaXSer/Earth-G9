@@ -125,7 +125,7 @@ async function pineSources(quality){
 }
 
 export async function loadMountainField(world){
-  const response=await fetch(ROOT+'mountain-v3.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
+  const response=await fetch(ROOT+'mountain-v4.json');if(!response.ok)throw new Error('Mountain surface manifest unavailable');
   const manifest=await response.json();
   if(manifest.period!==MOUNTAIN_PERIOD||manifest.tiles?.length!==4||manifest.profile?.length!==257)throw new Error('Invalid mountain surface manifest');
   const [resources,sources,pines]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true,quality:world.quality}),sourceProps(),pineSources(world.quality)]);
