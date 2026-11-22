@@ -35,6 +35,9 @@ triangles only. Preparation: scripts/prepare-native-mountain-mouth.py.
 https://polyhaven.com/a/coastal_cliff_04
 Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.
 Mouth boulders reuse the rainforest moss-rock scan credited below.
+Mountain shard cover reuses its fourth boot-loaded Rock Moss Set 01 boulder,
+uniformly scaled, buried at least 0.35 m and shaded with existing granite PBR.
+It is visual dressing outside the 1.2 m route corridor; collision is unchanged.
 Mountain-side dressing also meets the existing Coastal Cliff 04 scan
 (public/xianxia/surface/capture.bin), credited in the mountain section below.
 Bageshawe Resurgence Dry Passage — cave-dive-make. CC BY 4.0.

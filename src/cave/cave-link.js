@@ -12,6 +12,7 @@ import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
 import { enableCaveShadows } from './cave-shadows.js';
 import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
+import { createMountainRockCover } from './cave-rock-cover.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -86,6 +87,9 @@ export class CaveLink {
       limitMountainToExit(this.mountain.group, this.mouths[1], { nativeCliff });
       this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths,
         { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0 });
+      const cover = createMountainRockCover(host.habitat.models, this.mouths[1], this.route, (x, z) => this.mountain.groundHeight(x, z), this.assets.material);
+      await warmCaveAssets({ root: cover, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      cover.visible = false; this.dressing.add(cover);
       this.phase = 'upload-mountain';
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
       this.mountain.group.traverse(m => { if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value); });
