@@ -235,6 +235,7 @@ export class CaveLink {
       this.mountain.group.visible = this.host.lowDetail ? near.along > this.bends[1] - 8 : t > .23;
       this.forestHidden = this.host.lowDetail ? near.along > this.bends[0] + 2 : t > .75;
     }
+    if (near.region !== 'cave') this.forestHidden = near.region === 'mountain';
     for (const group of this.dressing?.children ?? []) if (group.userData.caveEnd === 1) group.visible = this.ready && this.mountain.group.visible;
     if (this.forestHidden) {
       if (!this.wasForestHidden) this.forestVisibility = new Map(this.forestGroups.map(group => [group, group.visible]));
