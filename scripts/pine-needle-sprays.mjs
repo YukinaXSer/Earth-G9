@@ -1,0 +1,77 @@
+import {needleComponents} from './pine-needle-components.mjs';
+
+const dot=(a,b)=>a.reduce((sum,n,k)=>sum+n*b[k],0);
+const unit=v=>{const length=Math.hypot(...v);return length>1e-9?v.map(n=>n/length):[0,1,0];};
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+
+export function needleSprays(position,indices,uv,{cellSize=.35,aspect=.6,acceptUV=()=>true}={}){
+  if(!(cellSize>0)||!Number.isFinite(cellSize)||!(aspect>0)||!Number.isFinite(aspect))throw new Error('Invalid pine spray dimensions');
+  const needles=needleComponents(position,indices),cells=new Map(),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity],crown=[0,0,0];
+  let accepted=0;
+  for(const group of needles.groups){
+    const tex=[0,0];for(const i of group.vertices)for(let k=0;k<2;k++)tex[k]+=uv[i*2+k]/group.vertices.length;
+    if(!acceptUV(...tex))continue;
+    const key=group.center.map(n=>Math.floor(n/cellSize)).join(':');
+    if(!cells.has(key))cells.set(key,[]);cells.get(key).push(group);accepted++;
+    for(let k=0;k<3;k++)crown[k]+=group.center[k];
+    for(const i of group.vertices)for(let k=0;k<3;k++){min[k]=Math.min(min[k],position[i*3+k]);max[k]=Math.max(max[k],position[i*3+k]);}
+  }
+  if(!accepted)throw new Error('No photographed green needles found');
+  for(let k=0;k<3;k++)crown[k]/=accepted;
+  const output=[],normals=[],texcoords=[],triangles=[];
+  for(const groups of cells.values()){
+    const center=[0,0,0],lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+    for(const group of groups){
+      for(let k=0;k<3;k++)center[k]+=group.center[k]/groups.length;
+      for(const i of group.vertices)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],position[i*3+k]);hi[k]=Math.max(hi[k],position[i*3+k]);}
+    }
+    const covariance=Array.from({length:3},()=>[0,0,0]);
+    for(const group of groups){const delta=group.center.map((n,k)=>n-center[k]);for(let j=0;j<3;j++)for(let k=0;k<3;k++)covariance[j][k]+=delta[j]*delta[k];}
+    let axis=groups[0].axis;
+    for(let i=0;i<12;i++){const next=covariance.map(row=>dot(row,axis));if(Math.hypot(...next)<1e-9)break;axis=unit(next);}
+    const outward=[center[0]-crown[0],.7,center[2]-crown[2]];
+    if(dot(axis,outward)<0)axis=axis.map(n=>-n);
+    const first=unit(cross(axis,Math.abs(axis[1])<.9?[0,1,0]:[1,0,0])),second=cross(axis,first);
+    const span=axis.reduce((s,n,k)=>s+Math.abs(n)*(hi[k]-lo[k]),0),height=Math.min(.75,Math.max(.18,span*1.25)),width=height*aspect;
+    // Bend the ensemble normal around the canopy, not the flat photograph.
+    const normal=unit([outward[0],Math.hypot(outward[0],outward[2])*.7+.7,outward[2]]);
+    const rotation=center[0]*1.71+center[2]*.93;
+    for(let plane=0;plane<3;plane++){
+      const angle=rotation+plane*Math.PI/3,across=first.map((n,k)=>n*Math.cos(angle)+second[k]*Math.sin(angle)),base=output.length/3;
+      const faceNormal=cross(across,axis),shootAxis=unit(axis.map((n,k)=>n+faceNormal[k]*.25));
+      const corners=[[-1,-1],[1,-1],[1,1],[-1,1]];
+      for(let face=0;face<2;face++)for(const [x,y]of corners){
+        for(let k=0;k<3;k++)output.push(Math.max(min[k],Math.min(max[k],center[k]+across[k]*x*width/2+shootAxis[k]*y*height/2)));
+        normals.push(...normal);texcoords.push((x+1)/2,(1-y)/2);
+      }
+      triangles.push(base,base+1,base+2,base,base+2,base+3,base+4,base+6,base+5,base+4,base+7,base+6);
+    }
+  }
+  return {position:new Float32Array(output),normal:new Float32Array(normals),uv:new Float32Array(texcoords),indices:new Uint32Array(triangles),accepted,clusters:cells.size,bounds:{min,max}};
+}
+
+export function pineSprayAlpha(pixels,width,height){
+  if(!Number.isInteger(width)||!Number.isInteger(height)||pixels.length!==width*height*4||width<1||height<1)throw new Error('Invalid pine photograph');
+  const output=new Uint8Array(pixels);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=(y*width+x)*4,brightness=Math.max(...pixels.subarray(i,i+3)),edge=Math.min(x,y,width-1-x,height-1-y)/3;
+    output[i+3]=Math.round(pixels[i+3]*Math.min(1,Math.max(0,(brightness-12)/12))*Math.min(1,edge));
+  }
+  const labels=new Int32Array(width*height).fill(-1),queue=new Uint32Array(labels.length),sizes=[];
+  for(let start=0;start<labels.length;start++){
+    if(labels[start]!==-1||!output[start*4+3])continue;
+    const label=sizes.length;let head=0,tail=1;queue[0]=start;labels[start]=label;
+    while(head<tail){
+      const i=queue[head++],x=i%width,y=Math.floor(i/width);
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        const xx=x+dx,yy=y+dy,n=yy*width+xx;
+        if(xx<0||yy<0||xx>=width||yy>=height||labels[n]!==-1||!output[n*4+3])continue;
+        labels[n]=label;queue[tail++]=n;
+      }
+    }
+    sizes.push(tail);
+  }
+  const largest=sizes.reduce((best,size,i)=>best<0||size>sizes[best]?i:best,-1);
+  for(let i=0;i<labels.length;i++)if(labels[i]!==largest||!output[i*4+3])output.fill(0,i*4,i*4+4);
+  return output;
+}

@@ -33,13 +33,16 @@ test('mature pine groves belong to their streamed phase and keep the walking lin
 
 test('mature and middle pine LODs together cost less than the replaced sapling download and use native glTF geometry',()=>{
   let total=0;
-  for(const family of ['pine-mature-v3','pine-mid-v1'])for(const lod of ['near','far']){
+  for(const family of ['pine-mature-v4','pine-mid-v2'])for(const lod of ['near','far']){
     const compressed=readFileSync(new URL('../public/xianxia/surface/'+family+'-'+lod+'.glb.gz',import.meta.url));total+=compressed.length;
     const bytes=gunzipSync(compressed);assert.equal(bytes.toString('ascii',0,4),'glTF');
     const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
     assert.ok(!json.extensionsRequired?.some(name=>/draco|meshopt|basisu/i.test(name)));
     assert.ok((json.images??[]).every(image=>image.bufferView!==undefined));
     assert.equal(json.nodes.filter(n=>n.mesh!==undefined).length,1);
+    const spray=json.materials.find(m=>m.name.includes('sprays'));
+    assert.equal(spray.alphaMode,'MASK');assert.equal(spray.alphaCutoff,.18);assert.ok(!spray.doubleSided);
+    assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor,[.6,1,.7,1]);
     if(lod==='far'){
       assert.equal(json.images?.length??0,0);
       assert.ok(json.materials.some(m=>m.name.includes('twig')));

@@ -6,11 +6,13 @@
 
 落叶分布由完整实拍层打散取样，底色、法线与粗糙度同步旋转，细颗粒层不代替中尺度。蕨复用四个已有实拍变体，按缩放后的实际脚底求支撑；Low/High每块最多190/350个候选，再按路径净空和真实支撑剔除。散株与较成熟的蕨丛混合，丛生候选高约0.2–1米，约一半丛心关联松根，另一半关联岩脚或自然土坡；不把统一大小的幼株等距撒满。道具脚底跨分块边缘时查询相邻镜像的同一可见地面。提高林下覆盖会增加绘制工作，不能以旧版帧时冒充新性能；默认低档分辨率、共享光照、洞口和地形资源未改。
 
-松林有三个真实模型高度层：1.05米幼株、原生7.01米 Pine Sapling Medium C、约14.9米 Pine Tree 01 B。成年树干/枝干不缩放，新增中层也不放大；都从同一可见地表的根脚采样求支撑，空值不强转为零。保留木质碰撞，松针不参与脚底/身体碰撞。近/远LOD是原摄影材质三维模型的离线简化，不是整树景片。新针叶补偿用细长比排除松果鳞片，仅对针叶测量三轴投影覆盖；旧版只按半径判断，会误放大圆钝的松果。图集近黑空区仍用邻近实拍样本扩边，去掉原顶点光照，保留原始specular/IOR属性；针叶反照率只补偿一次，不加自发光或改全局曝光。低/高档成年树LOD为12/25米，中层为6/12米，均带15%滞回。
+松林有三个原生高度层：1.05米幼株、7.01米 Pine Sapling Medium C、约14.9米 Pine Tree 01 B。保留原比例木质枝系与真实根脚/身体碰撞，针叶不作脚底或身体支撑。低/高档成年树LOD为12/25米，中层6/12米，均带15%滞回。上一版逐针细长比补面积在真实High下仍稀薄偏棕，不能把投影面积数字当视觉通过。
 
-四个LOD以版本化 `pine-mature-v3-*.glb.gz` / `pine-mid-v1-*.glb.gz` 请求，文件合计7,683,793B，比上一版仅成年树的9,038,104B少；并不是整页HTTP冷载实测。远档不含独立纹理，复用各自近档材质。使用浏览器原生gzip解压和Three原生glTF解析，接受HTTP已解压的GLB，不引入WASM、mesh/texture codec或worker；静态gzip传输需要支持DecompressionStream的现代浏览器。额外中层会增加绘制与驻留，仍需新版浏览器审计。旧资源留档但不首载，默认低档分辨率不动。
+本版改用原始摄影图集中的针束近照，固定交叉在原模型绿色针叶簇的位置与主轴上；不是面对镜头的整树卡片，也不生成新的树干/枝条布局。近/远档分别聚合原始针叶点，针束顶点限制在原针叶外包范围内。照片亮度蒙版只保留连通针束，剔除旁边的图集填充岛并扩边RGB；原生241×410像素，不插值扩图。固定扇向交叉面避免从枝端观察消失，弯曲的簇法线近似针束平均朝向，不把照片当平板照明。使用MASK/.18阈值，不作BLEND或随机alpha噪点；针束单独校正暖偏，松果/树干不染绿，保留原始IOR/specular，无自发光、无曝光/宿主光照调整。
 
-离线重建：准备 Poly Haven Pine Tree 01 的1K glTF及引用文件，保留其extensionsUsed/Required声明，运行 `node scripts/prepare-xianxia-pine.mjs /path/to/pine_tree_01_1k.gltf`；中层运行 `node scripts/prepare-xianxia-mid-pine.mjs public/xianxia/surface/pine-medium.glb`。准备机需 `@gltf-transform/core`、`extensions`、`functions` 4.2.1，`meshoptimizer` 0.24.0 和 `sharp`（本次0.35.5）；这些只用于离线资产制作，不加入浏览器运行时。来源与改制见资产许可文件。
+四个LOD以版本化 `pine-mature-v4-*.glb.gz` / `pine-mid-v2-*.glb.gz` 请求，合计约3.1MB，低于上一版7.68MB；并不是整页HTTP冷载实测。远档不含独立纹理，复用各自近档材质。使用浏览器原生gzip解压和Three原生glTF解析，接受HTTP已解压的GLB，不引入WASM、mesh/texture codec或worker。针束会有alpha overdraw，不能用面数下降代替性能审计。旧资源留档但不首载，默认低档分辨率不动；本版整帧、短走与冷载待验。
+
+离线重建：准备 Poly Haven Pine Tree 01 的1K glTF及原始未扩边的针束图，保留extensionsUsed/Required声明，运行 `node scripts/prepare-xianxia-pine-sprays.mjs /path/to/pine_tree_01_1k.gltf mature public/xianxia/surface /path/to/pine_tree_01_twig_diff_1k.jpg`。中层用同一脚本，把输入替换为 `public/xianxia/surface/pine-medium.glb`，类型改为 `middle`，仍用同一原始针束近照。准备机需 `@gltf-transform/core`、`extensions`、`functions` 4.2.1，`meshoptimizer` 0.24.0 和 `sharp`（本次0.35.5）；这些只用于离线制作，不加入浏览器运行时。旧逐针脚本留作来源追溯，当前不使用。来源与改制见资产许可文件。
 
 ## 正式单场景接入接口（山洞会话使用）
 
