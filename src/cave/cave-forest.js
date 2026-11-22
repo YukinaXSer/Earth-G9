@@ -3,17 +3,36 @@ import { insideScannedCave } from './cave-volume.js';
 import { BOUNDS, groundHeight } from '../data.js';
 import { nearestRoute, mouthDistance } from './cave-space.js';
 
-export function cullForestInCave(habitat, dressing, worldToCave, volume, mouths) {
+export async function cullForestInCave(habitat, dressing, worldToCave, volume, mouths, yieldFrame = async () => {}) {
   if (!Array.isArray(habitat?.cells) || !volume?.route?.length) throw new TypeError('Cave vegetation requires loaded instances and profiles');
   const radius = Math.max(...volume.radius.flat()) + volume.axisHeight + volume.clearance;
   const bounds = new Box3().setFromPoints(volume.route.map(p => new Vector3(...p))).expandByScalar(radius);
-  const instance = new Matrix4(), matrix = new Matrix4(), point = new Vector3(), box = new Box3(), hidden = new Matrix4().makeScale(0, 0, 0), roots = new Set(), removed = new Map();
-  const intersects = (mesh, transform) => {
+  const instance = new Matrix4(), matrix = new Matrix4(), point = new Vector3(), box = new Box3(), hidden = new Matrix4().makeScale(0, 0, 0), roots = new Set(), rootX = new Set(), removed = new Map();
+  const geometryBounds = new Map(), transforms = new Map();
+  let deadline = performance.now() + 4;
+  const pause = async (force = false) => {
+    if (!force && performance.now() < deadline) return;
+    await yieldFrame();
+    deadline = performance.now() + 4;
+  };
+  const transformFor = mesh => {
+    if (!transforms.has(mesh)) {
+      mesh.updateWorldMatrix(true, false);
+      transforms.set(mesh, new Matrix4().multiplyMatrices(worldToCave, mesh.matrixWorld));
+    }
+    return transforms.get(mesh);
+  };
+  const intersects = async (mesh, transform) => {
     const geometry = mesh.geometry, positions = geometry.attributes.position;
     if (!positions) return false;
-    geometry.computeBoundingBox(); box.copy(geometry.boundingBox).applyMatrix4(transform);
+    if (!geometryBounds.has(geometry)) {
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      geometryBounds.set(geometry, geometry.boundingBox.clone());
+    }
+    box.copy(geometryBounds.get(geometry)).applyMatrix4(transform);
     if (!box.intersectsBox(bounds)) return false;
     for (let i = 0; i < positions.count; i++) {
+      if (i && i % 128 === 0) await pause(i % 2048 === 0);
       point.fromBufferAttribute(positions, i).applyMatrix4(transform);
       if (bounds.containsPoint(point) && insideScannedCave(point.toArray(), volume, mouths)) return true;
     }
@@ -23,24 +42,25 @@ export function cullForestInCave(habitat, dressing, worldToCave, volume, mouths)
   for (const tree of habitat.lodTrees ?? []) {
     for (const part of tree.parts) {
       const mesh = part.batch.mesh;
-      mesh.updateWorldMatrix(true, false);
-      matrix.multiplyMatrices(worldToCave, mesh.matrixWorld).multiply(part.matrix);
-      if (intersects(mesh, matrix)) trees.add(tree);
+      matrix.multiplyMatrices(transformFor(mesh), part.matrix);
+      if (await intersects(mesh, matrix)) trees.add(tree);
+      await pause();
     }
   }
   for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
-    mesh.updateWorldMatrix(true, false);
     for (let i = 0; i < mesh.count; i++) {
+      if (i % 128 === 0) await pause(i > 0 && i % 2048 === 0);
       mesh.getMatrixAt(i, instance);
       if (!instance.determinant()) continue;
-      matrix.multiplyMatrices(worldToCave, mesh.matrixWorld).multiply(instance);
-      if (intersects(mesh, matrix)) roots.add(instance.elements.join(','));
+      matrix.multiplyMatrices(transformFor(mesh), instance);
+      if (await intersects(mesh, matrix)) { roots.add(instance.elements.join(',')); rootX.add(instance.elements[12]); }
     }
   }
   for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
     for (let i = 0; i < mesh.count; i++) {
+      if (i % 128 === 0) await pause(i > 0 && i % 2048 === 0);
       mesh.getMatrixAt(i, instance);
-      if (!roots.has(instance.elements.join(','))) continue;
+      if (!rootX.has(instance.elements[12]) || !roots.has(instance.elements.join(','))) continue;
       mesh.setMatrixAt(i, hidden);
       if (!removed.has(mesh)) removed.set(mesh, new Set());
       removed.get(mesh).add(i);
@@ -55,7 +75,12 @@ export function cullForestInCave(habitat, dressing, worldToCave, volume, mouths)
   dressing?.updateWorldMatrix(true, true);
   for (const plant of [...(dressing?.children ?? [])]) {
     let inside = false;
-    plant.traverse(mesh => { if (mesh.isMesh && intersects(mesh, matrix.multiplyMatrices(worldToCave, mesh.matrixWorld))) inside = true; });
+    const meshes = [];
+    plant.traverse(mesh => { if (mesh.isMesh) meshes.push(mesh); });
+    for (const mesh of meshes) {
+      if (await intersects(mesh, transformFor(mesh))) { inside = true; break; }
+      await pause();
+    }
     if (!inside) continue;
     plant.removeFromParent();
     dressing.userData.colliders = dressing.userData.colliders.filter(c => Math.hypot(c.x - plant.position.x, c.z - plant.position.z) > .001);

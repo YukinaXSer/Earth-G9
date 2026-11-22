@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import { forestSurfaceContains, clipForestSurface, createMouthForest, cullForestInCave } from '../src/cave/cave-forest.js';
 
-test('cave profiles remove complete vegetation instances and LOD records, retaining canopy above the tube', () => {
+test('cave profiles remove complete vegetation instances and LOD records, retaining canopy above the tube', async () => {
   const geometry = new T.BoxGeometry(.2, .2, .2), material = new T.MeshBasicMaterial();
   const mesh = new T.InstancedMesh(geometry, material, 3), outside = geometry.clone().translate(8, 0, 0), sibling = new T.InstancedMesh(outside, material, 3);
   for (const cell of [mesh, sibling]) for (const [i, p] of [[0, [0, 1, -20]], [1, [8, 1, -20]], [2, [0, 12, -20]]]) cell.setMatrixAt(i, new T.Matrix4().makeTranslation(...p));
@@ -12,16 +12,52 @@ test('cave profiles remove complete vegetation instances and LOD records, retain
   const plant = new T.Mesh(geometry, material); plant.position.set(0, 1, -20); dressing.add(plant);
   const volume = { route: [[0, 0, 0], [0, 0, -20]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(64).fill(2), Array(64).fill(2)], axisHeight: 1, clearance: .15 };
   const ends = [{ floorCenter: [0, 0, 0], outward: [0, 0, 1] }, { floorCenter: [0, 0, -20], outward: [0, 0, -1] }];
-  assert.equal(cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends), 2);
+  assert.equal(await cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends), 2);
   assert.equal(habitat.lodTrees.length, 0); assert.equal(group.children.length, 0); assert.equal(dressing.children.length, 0);
   group.add(tree.group); habitat.lodTrees.push(tree);
-  cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends);
+  await cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends);
   assert.equal(habitat.lodTrees.length, 0, 'remove near LOD trees even when their instanced representation is hidden');
   const matrix = new T.Matrix4(); mesh.getMatrixAt(0, matrix); assert.equal(matrix.determinant(), 0);
   mesh.getMatrixAt(1, matrix); assert.equal(matrix.determinant(), 1); mesh.getMatrixAt(2, matrix); assert.equal(matrix.determinant(), 1);
-  assert.equal(cullForestInCave({ cells: [] }, null, new T.Matrix4(), volume, []), 0);
-  assert.throws(() => cullForestInCave(null, null, new T.Matrix4(), volume, []), TypeError);
+  assert.equal(await cullForestInCave({ cells: [] }, null, new T.Matrix4(), volume, []), 0);
+  await assert.rejects(cullForestInCave(null, null, new T.Matrix4(), volume, []), TypeError);
   geometry.dispose(); outside.dispose(); material.dispose();
+});
+
+test('cave culling computes shared bounds once and rejects transformed distant instances without vertex scans', async () => {
+  const geometry = new T.BoxGeometry(1, 1, 1), material = new T.MeshBasicMaterial();
+  let computations = 0, reads = 0;
+  const compute = geometry.computeBoundingBox.bind(geometry), getX = geometry.attributes.position.getX.bind(geometry.attributes.position);
+  geometry.computeBoundingBox = () => { computations++; compute(); };
+  geometry.attributes.position.getX = i => { reads++; return getX(i); };
+  const cells = [new T.InstancedMesh(geometry, material, 32), new T.InstancedMesh(geometry, material, 32)];
+  for (const mesh of cells) {
+    mesh.position.set(50, 0, 0);
+    for (let i = 0; i < mesh.count; i++) mesh.setMatrixAt(i, new T.Matrix4().makeTranslation(100 + i, 0, -10));
+  }
+  const dressing = new T.Group(); dressing.add(new T.Mesh(geometry, material)); dressing.position.set(500, 0, 0);
+  const volume = { route: [[0, 0, 0], [0, 0, -20]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(64).fill(2), Array(64).fill(2)], axisHeight: 1, clearance: .15 };
+  const tree = { parts: [{ batch: { mesh: cells[0] }, matrix: new T.Matrix4().makeTranslation(100, 0, -10), index: 0 }] };
+  assert.equal(await cullForestInCave({ cells, lodTrees: [tree] }, dressing, new T.Matrix4().makeTranslation(-50, 0, 0), volume, mouths), 0);
+  assert.equal(computations, 1, 'shared LOD, instance and dressing geometry must not recompute bounds per instance');
+  assert.equal(reads, geometry.attributes.position.count, 'only the single bounds computation may read distant vertices');
+  assert.equal(await cullForestInCave({ cells }, null, new T.Matrix4(), volume, mouths), 0);
+  assert.equal(computations, 1, 'reuse existing geometry bounds across culls');
+  geometry.dispose(); material.dispose();
+});
+
+test('dense cave intersections yield during vertex scans and propagate streaming failures', async () => {
+  const positions = new Float32Array(4096 * 3);
+  for (let i = 0; i < positions.length; i += 3) { positions[i] = 2.8; positions[i + 1] = 2.8; }
+  const geometry = new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(positions, 3)), material = new T.MeshBasicMaterial();
+  const mesh = new T.InstancedMesh(geometry, material, 1); mesh.setMatrixAt(0, new T.Matrix4().makeTranslation(0, 0, -10));
+  const volume = { route: [[0, 0, 0], [0, 0, -20]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(64).fill(2), Array(64).fill(2)], axisHeight: 1, clearance: .15 };
+  let frames = 0;
+  assert.equal(await cullForestInCave({ cells: [mesh] }, null, new T.Matrix4(), volume, mouths, async () => { frames++; }), 0);
+  assert.ok(frames > 0, 'a single dense instance must not monopolize a streaming frame');
+  await assert.rejects(cullForestInCave({ cells: [mesh] }, null, new T.Matrix4(), volume, mouths, async () => { throw new Error('stream interrupted'); }), /stream interrupted/);
+  const transform = new T.Matrix4(); mesh.getMatrixAt(0, transform); assert.equal(transform.determinant(), 1);
+  geometry.dispose(); material.dispose();
 });
 
 const bounds = { minX: -2, maxX: 2, minZ: -2, maxZ: 2 };

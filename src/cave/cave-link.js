@@ -70,9 +70,10 @@ export class CaveLink {
       this.phase = 'dress-mouths';
       await this.dress();
       await this.waitHidden();
+      await this.clearEntrance();
+      await this.waitHidden();
       host.ground.geometry = this.preparedTerrain;
       clipForestSurface(host.water.geometry, this.route, this.mouths);
-      this.clearEntrance();
       host.colliders.push(...this.forestDressing.userData.colliders);
       host.colliderIndex = createColliderIndex(host.colliders);
       host.scene.add(this.assets.root, this.dressing); this.caveAttached = true; this.addMouthLights(); this.state = 'loading-mountain';
@@ -176,7 +177,7 @@ export class CaveLink {
     g.setIndex(keep);
     clipForestSurface(g, this.route, this.mouths);
   }
-  clearEntrance() {
+  async clearEntrance() {
     const h = this.host, mouth = new T.Vector3(...this.mouths[0].floorCenter);
     h.colliders = h.colliders.filter(c => Math.hypot(c.x - mouth.x, c.z - mouth.z) > 12 + (c.radius ?? 1));
     h.colliderIndex = createColliderIndex(h.colliders);
@@ -191,7 +192,7 @@ export class CaveLink {
       for (let i = 0; i < cell.count; i++) { cell.getMatrixAt(i, matrix); point.setFromMatrixPosition(matrix); if (point.distanceTo(mouth) < 10) cell.setMatrixAt(i, hidden); }
       cell.instanceMatrix.needsUpdate = true;
     }
-    cullForestInCave(h.habitat, this.forestDressing, this.transform.clone().invert(), this.fit.volume, data.mouths);
+    await cullForestInCave(h.habitat, this.forestDressing, this.transform.clone().invert(), this.fit.volume, data.mouths, async () => { await frame(); await this.waitIdle(); await this.waitHidden(); });
   }
   regionAt(x, z) {
     const inCorridor = x >= this.bounds.min.x && x <= this.bounds.max.x && z >= this.bounds.min.z && z <= this.bounds.max.z;
