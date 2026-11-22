@@ -169,7 +169,8 @@ export class NearTrunks {
   update(position, trees, now = performance.now() / 1000) {
     const step = Math.min(.05, Math.max(0, now - (this.updatedAt ?? now - 1 / 60))) * 3;
     this.updatedAt = now;
-    const selected = trees.filter(tree => tree.near && tree.group && treeDetailDistance(tree, position) < NEAR_TRUNK_DISTANCE)
+    const selected = trees.filter(tree => tree.near && tree.group && treeDetailDistance(tree, position) < NEAR_TRUNK_DISTANCE &&
+      (!this.captureDisabled || tree.group.children.some(mesh => mesh.material.userData.nearTrunk && mesh.material.userData.nearTrunk !== 'capture')))
       .sort((a, b) => treeDetailDistance(a, position) - treeDetailDistance(b, position) ||
         Math.hypot(a.x - position.x, a.z - position.z) - Math.hypot(b.x - position.x, b.z - position.z))
       .slice(0, NEAR_TRUNK_LIMIT);

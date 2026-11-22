@@ -160,17 +160,17 @@ test('captured and forest stems share two slots and fade to their own exact sour
 });
 
 test('unavailable captured grain keeps the old capture without disabling forest upgrades', async () => {
-  const near = new NearTrunks(), t = capture(0, near), original = t.group.children[0].geometry;
+  const near = new NearTrunks(), t = capture(0, near), other = capture(1, near), original = t.group.children[0].geometry;
+  const forests = [tree(2), tree(3)], trees = [t, other, ...forests];
   near.assets = assets(); near.captureLayout = undefined;
   near.loadCapture = async () => { throw new Error('offline'); };
-  near.update(new THREE.Vector3(), [t]); await near.captureLoading;
-  near.update(new THREE.Vector3(), [t]);
+  near.update(new THREE.Vector3(), trees); await near.captureLoading;
+  near.update(new THREE.Vector3(), trees);
   assert.equal(near.captureDisabled, true);
   assert.equal(near.disabled, undefined);
   assert.equal(t.group.children[0].geometry, original);
-  const forest = tree(0);
-  near.update(new THREE.Vector3(), [forest]);
-  assert.equal(forest.group.children[0].geometry, near.assets.geometry);
+  assert.equal(near.active.size, 2, 'failed nearer captures must not consume either forest slot');
+  for (const forest of forests) assert.equal(forest.group.children[0].geometry, near.assets.geometry);
 });
 
 test('only entrance captured placements join the new parent LOD, with the original matrices', () => {
