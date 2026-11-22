@@ -1,7 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import { forestSurfaceContains, clipForestSurface, createMouthForest } from '../src/cave/cave-forest.js';
+import { forestSurfaceContains, clipForestSurface, createMouthForest, cullForestInCave } from '../src/cave/cave-forest.js';
+
+test('cave profiles remove complete vegetation instances and LOD records, retaining canopy above the tube', () => {
+  const geometry = new T.BoxGeometry(.2, .2, .2), material = new T.MeshBasicMaterial();
+  const mesh = new T.InstancedMesh(geometry, material, 3), outside = geometry.clone().translate(8, 0, 0), sibling = new T.InstancedMesh(outside, material, 3);
+  for (const cell of [mesh, sibling]) for (const [i, p] of [[0, [0, 1, -20]], [1, [8, 1, -20]], [2, [0, 12, -20]]]) cell.setMatrixAt(i, new T.Matrix4().makeTranslation(...p));
+  const group = new T.Group(), tree = { parts: [{ batch: { mesh }, index: 0, matrix: new T.Matrix4().makeTranslation(0, 1, -20) }], group: new T.Group() }; group.add(tree.group);
+  const habitat = { cells: [mesh, sibling], lodTrees: [tree] }, dressing = new T.Group(); dressing.userData.colliders = [];
+  const plant = new T.Mesh(geometry, material); plant.position.set(0, 1, -20); dressing.add(plant);
+  const volume = { route: [[0, 0, 0], [0, 0, -20]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(64).fill(2), Array(64).fill(2)], axisHeight: 1, clearance: .15 };
+  const ends = [{ floorCenter: [0, 0, 0], outward: [0, 0, 1] }, { floorCenter: [0, 0, -20], outward: [0, 0, -1] }];
+  assert.equal(cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends), 2);
+  assert.equal(habitat.lodTrees.length, 0); assert.equal(group.children.length, 0); assert.equal(dressing.children.length, 0);
+  group.add(tree.group); habitat.lodTrees.push(tree);
+  cullForestInCave(habitat, dressing, new T.Matrix4(), volume, ends);
+  assert.equal(habitat.lodTrees.length, 0, 'remove near LOD trees even when their instanced representation is hidden');
+  const matrix = new T.Matrix4(); mesh.getMatrixAt(0, matrix); assert.equal(matrix.determinant(), 0);
+  mesh.getMatrixAt(1, matrix); assert.equal(matrix.determinant(), 1); mesh.getMatrixAt(2, matrix); assert.equal(matrix.determinant(), 1);
+  assert.equal(cullForestInCave({ cells: [] }, null, new T.Matrix4(), volume, []), 0);
+  assert.throws(() => cullForestInCave(null, null, new T.Matrix4(), volume, []), TypeError);
+  geometry.dispose(); outside.dispose(); material.dispose();
+});
 
 const bounds = { minX: -2, maxX: 2, minZ: -2, maxZ: 2 };
 const route = [[0, 0, -2], [0, 0, -50]];

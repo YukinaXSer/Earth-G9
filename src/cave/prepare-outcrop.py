@@ -145,7 +145,7 @@ def terrain_contact(cave, route, mouths):
     ids = cKDTree(route[:, [0, 2]]).query(cave.triangles_center[:, [0, 2]])[1]
     floor = (d > -12) & (d < .2) & (cave.face_normals[:, 1] > .45) & (np.abs(cave.triangles_center[:, 1] - route[ids, 1]) < .8)
     footprint = shapely.union_all([shapely.Polygon(tri[:, [0, 2]]) for tri in cave.triangles[floor]]).buffer(-.025)
-    corners = np.array([center + side * x + outward * z for x, z in [(-1000, -1000), (1000, -1000), (1000, -4), (-1000, -4)]])
+    corners = np.array([center + side * x + outward * z for x, z in [(-1000, -1000), (1000, -1000), (1000, -8), (-1000, -8)]])
     deep = shapely.LineString(route[:, [0, 2]]).buffer(9).intersection(shapely.Polygon(corners[:, [0, 2]]))
     opening = shapely.union_all([footprint, deep])
     records = []
@@ -189,7 +189,7 @@ def source_scan(asset):
     source.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=5)
     ms = pymeshlab.MeshSet()
     ms.add_mesh(pymeshlab.Mesh(vertex_matrix=source.vertices, face_matrix=source.faces))
-    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=90000, preservenormal=True, preservetopology=True, preserveboundary=True)
+    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=150000 if asset == 'coastal_cliff_02' else 90000, preservenormal=True, preservetopology=True, preserveboundary=True)
     reduced = ms.current_mesh()
     mesh = trimesh.Trimesh(reduced.vertex_matrix(), reduced.face_matrix(), process=False)
     mesh.merge_vertices(merge_tex=True, merge_norm=True, digits_vertex=5)
@@ -222,6 +222,27 @@ def place_scan(scan, end, mouth, volume):
     support = np.concatenate([(scan.vertices @ normals[i:i + 32].T).max(axis=0) - (scan.vertices[boundary] @ normals[i:i + 32].T).max(axis=0)
                               for i in range(0, len(normals), 32)])
     up = normals[support.argmax()]
+    if end == 0:
+        front = up
+        up = np.array([0., 1, 0]) - front * front[1]
+        up /= np.linalg.norm(up)
+        horizontal = np.cross(up, front)
+        vertices = scan.vertices @ np.column_stack([horizontal, up, front])
+        height = max(10, max(volume['radius'][0]) + volume['axisHeight'] + 5)
+        vertices[:, 0] -= np.mean([vertices[:, 0].min(), vertices[:, 0].max()])
+        vertices[:, 1] -= vertices[:, 1].min()
+        vertices[:, 2] -= vertices[:, 2].max()
+        scan.vertices = center + (vertices * ((height + 3) / np.ptp(vertices[:, 1])) - [0, 3, 0]) @ np.column_stack([side, [0, 1, 0], outward]).T
+        angle = np.arange(64) * (2 * np.pi / 64)
+        radius = np.array(volume['radius'][0]) + .15
+        ring = center + np.array(volume['side'][0]) * (radius * np.cos(angle))[:, None]
+        ring[:, 1] += volume['axisHeight'] + radius * np.sin(angle)
+        depths = front_depth(scan, ring, outward, center)
+        if not np.isfinite(depths).all():
+            raise ValueError('Forest cliff face does not cover scanned aperture')
+        shift = -depths.max() - .02
+        scan.vertices += outward * shift
+        return scan, shift
     horizontal = np.array([1., 0, 0]) - up * up[0]
     horizontal /= np.linalg.norm(horizontal)
     vertices = scan.vertices @ np.column_stack([horizontal, up, np.cross(horizontal, up)])
@@ -249,7 +270,23 @@ def place_scan(scan, end, mouth, volume):
     return scan, shift
 
 
+def smooth_macro_tint(vertices, colors, spacing=1):
+    if not len(vertices):
+        return colors.copy()
+    cells, ids = np.unique(np.floor(vertices / spacing).astype(np.int64), axis=0, return_inverse=True)
+    count = np.bincount(ids)
+    centers = np.column_stack([np.bincount(ids, weights=vertices[:, k]) / count for k in range(3)])
+    tint = np.column_stack([np.bincount(ids, weights=colors[:, k]) / count for k in range(3)])
+    distance, nearest = cKDTree(centers).query(vertices, k=min(16, len(cells)))
+    if distance.ndim == 1:
+        return np.repeat(tint, len(vertices), axis=0)
+    weight = np.exp(-.5 * (distance / spacing) ** 2)
+    return (tint[nearest] * weight[:, :, None]).sum(axis=1) / weight.sum(axis=1)[:, None]
+
+
 def export(path, mesh, colors, route, pipeline, volume, mouths, end):
+    if end == 0:
+        colors = smooth_macro_tint(mesh.vertices, colors)
     colors = np.round(np.clip(colors, 0, 255)).astype(np.uint8)
     mesh.visual = trimesh.visual.ColorVisuals(mesh, vertex_colors=colors)
     parameters = pipeline.route_parameters(mesh.vertices, route)
@@ -271,7 +308,7 @@ def main():
     ends = [0] if args.end == 'forest' else [0, 1]
     terrain_contact(cave, route, data['mouths'])
     scans, reports = [], []
-    for end, asset in enumerate(['coastal_cliff_04', 'coastal_cliff_04'][:1 if args.end == 'forest' else 2]):
+    for end, asset in enumerate(['coastal_cliff_02', 'coastal_cliff_04'][:1 if args.end == 'forest' else 2]):
         scan, tint = source_scan(asset)
         scan, shift = place_scan(scan, end, data['mouths'][end], volume)
         scan, tint = refine_aperture(scan, tint, volume, data['mouths'], [end])

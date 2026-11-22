@@ -11,7 +11,7 @@ import { clipMountainAperture, limitMountainToExit } from './cave-aperture.js';
 import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
 import { enableCaveShadows } from './cave-shadows.js';
-import { clipForestSurface, createMouthForest } from './cave-forest.js';
+import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -81,9 +81,7 @@ export class CaveLink {
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
       limitMountainToExit(this.mountain.group, this.mouths[1]);
-      const response = await fetch('/cave/mouth-fit.json');
-      if (!response.ok) throw new Error('Missing scanned mouth profiles');
-      const fit = await response.json();
+      const fit = this.fit;
       this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths);
       this.phase = 'upload-mountain';
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
@@ -109,6 +107,9 @@ export class CaveLink {
     }
   }
   async dress() {
+    const response = await fetch('/cave/mouth-fit.json');
+    if (!response.ok) throw new Error('Missing scanned mouth profiles');
+    this.fit = await response.json();
     this.dressing = new T.Group(); this.dressing.name = 'Scanned cave mouth outcrops';
     const { scene: forest } = await new GLTFLoader().loadAsync('/cave/mouth-forest.glb');
     attachCaveRoute(forest, data.route);
@@ -190,6 +191,7 @@ export class CaveLink {
       for (let i = 0; i < cell.count; i++) { cell.getMatrixAt(i, matrix); point.setFromMatrixPosition(matrix); if (point.distanceTo(mouth) < 10) cell.setMatrixAt(i, hidden); }
       cell.instanceMatrix.needsUpdate = true;
     }
+    cullForestInCave(h.habitat, this.forestDressing, this.transform.clone().invert(), this.fit.volume, data.mouths);
   }
   regionAt(x, z) {
     const inCorridor = x >= this.bounds.min.x && x <= this.bounds.max.x && z >= this.bounds.min.z && z <= this.bounds.max.z;

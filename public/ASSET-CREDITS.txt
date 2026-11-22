@@ -5,7 +5,9 @@ calathea, pachira, anthurium, shrub-03 and shrub-04 assets credited below.
 Loaded only for the low tier after the first frame; original photographs reused.
 Mouth hillside: Poly Haven coastal_cliff_01 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_01
-Both fitted mouths: Poly Haven coastal_cliff_04 real cliff scan, CC0.
+Forest fitted mouth: Poly Haven coastal_cliff_02 real cliff scan, CC0.
+https://polyhaven.com/a/coastal_cliff_02
+Mountain fitted mouth: Poly Haven coastal_cliff_04 real cliff scan, CC0.
 https://polyhaven.com/a/coastal_cliff_04
 Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.
 Mouth boulders reuse the rainforest moss-rock scan credited below.

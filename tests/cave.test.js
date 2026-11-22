@@ -142,6 +142,7 @@ test('material injects world-metre triplanar colour, roughness and signed whiteo
   assert.match(shader.fragmentShader, /caveMappedNormal\(caveNormal2, caveGranitePosition\(caveP\), caveN\)/);
   assert.match(shader.fragmentShader, /caveOcclusion = mix\(caveOcclusion, 1.0, vCaveWallOnly\)/);
   assert.match(shader.fragmentShader, /1.0 - vCaveWallOnly/);
+  assert.match(shader.fragmentShader, /caveFloor = .*gl_FrontFacing \? 1.0 : 0.0/, 'exposed roof backs must not receive gravel-floor material');
   assert.deepEqual(material.defaultAttributeValues.caveWallOnly, [0]);
   assert.match(shader.fragmentShader, /mat3\(viewMatrix\) \* caveWorldNormal/);
   assert.match(shader.fragmentShader, /x.z \* n.x/); assert.match(shader.fragmentShader, /y.z \* n.y/); assert.match(shader.fragmentShader, /z.z \* n.z/);

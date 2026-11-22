@@ -1,6 +1,67 @@
-import { Group, Raycaster, Vector3 } from 'three';
+import { Box3, Group, Matrix4, Raycaster, Vector3 } from 'three';
+import { insideScannedCave } from './cave-volume.js';
 import { BOUNDS, groundHeight } from '../data.js';
 import { nearestRoute, mouthDistance } from './cave-space.js';
+
+export function cullForestInCave(habitat, dressing, worldToCave, volume, mouths) {
+  if (!Array.isArray(habitat?.cells) || !volume?.route?.length) throw new TypeError('Cave vegetation requires loaded instances and profiles');
+  const radius = Math.max(...volume.radius.flat()) + volume.axisHeight + volume.clearance;
+  const bounds = new Box3().setFromPoints(volume.route.map(p => new Vector3(...p))).expandByScalar(radius);
+  const instance = new Matrix4(), matrix = new Matrix4(), point = new Vector3(), box = new Box3(), hidden = new Matrix4().makeScale(0, 0, 0), roots = new Set(), removed = new Map();
+  const intersects = (mesh, transform) => {
+    const geometry = mesh.geometry, positions = geometry.attributes.position;
+    if (!positions) return false;
+    geometry.computeBoundingBox(); box.copy(geometry.boundingBox).applyMatrix4(transform);
+    if (!box.intersectsBox(bounds)) return false;
+    for (let i = 0; i < positions.count; i++) {
+      point.fromBufferAttribute(positions, i).applyMatrix4(transform);
+      if (bounds.containsPoint(point) && insideScannedCave(point.toArray(), volume, mouths)) return true;
+    }
+    return false;
+  };
+  const trees = new Set();
+  for (const tree of habitat.lodTrees ?? []) {
+    for (const part of tree.parts) {
+      const mesh = part.batch.mesh;
+      mesh.updateWorldMatrix(true, false);
+      matrix.multiplyMatrices(worldToCave, mesh.matrixWorld).multiply(part.matrix);
+      if (intersects(mesh, matrix)) trees.add(tree);
+    }
+  }
+  for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
+    mesh.updateWorldMatrix(true, false);
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, instance);
+      if (!instance.determinant()) continue;
+      matrix.multiplyMatrices(worldToCave, mesh.matrixWorld).multiply(instance);
+      if (intersects(mesh, matrix)) roots.add(instance.elements.join(','));
+    }
+  }
+  for (const mesh of habitat.cells) if (mesh.isInstancedMesh) {
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, instance);
+      if (!roots.has(instance.elements.join(','))) continue;
+      mesh.setMatrixAt(i, hidden);
+      if (!removed.has(mesh)) removed.set(mesh, new Set());
+      removed.get(mesh).add(i);
+    }
+    if (removed.has(mesh)) { mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); }
+  }
+  habitat.lodTrees = (habitat.lodTrees ?? []).filter(tree => {
+    if (!trees.has(tree) && !tree.parts.some(part => removed.get(part.batch.mesh)?.has(part.index))) return true;
+    for (const part of tree.parts) { part.batch.mesh.setMatrixAt(part.index, hidden); part.batch.mesh.instanceMatrix.needsUpdate = true; }
+    tree.group?.removeFromParent(); return false;
+  });
+  dressing?.updateWorldMatrix(true, true);
+  for (const plant of [...(dressing?.children ?? [])]) {
+    let inside = false;
+    plant.traverse(mesh => { if (mesh.isMesh && intersects(mesh, matrix.multiplyMatrices(worldToCave, mesh.matrixWorld))) inside = true; });
+    if (!inside) continue;
+    plant.removeFromParent();
+    dressing.userData.colliders = dressing.userData.colliders.filter(c => Math.hypot(c.x - plant.position.x, c.z - plant.position.z) > .001);
+  }
+  return [...removed.values()].reduce((sum, ids) => sum + ids.size, 0);
+}
 
 export function forestSurfaceContains(x, z, route, mouths, bounds = BOUNDS, width = 12) {
   if (x >= bounds.minX && x <= bounds.maxX && z >= bounds.minZ && z <= bounds.maxZ) return true;

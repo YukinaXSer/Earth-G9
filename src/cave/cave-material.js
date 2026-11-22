@@ -98,7 +98,7 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
         vec3 caveP = vCavePosition / caveRepeat;
         float caveInterior = smoothstep(0.04, 0.28, vCaveRoute);
         float caveMountain = smoothstep(0.72, 0.96, vCaveRoute);
-        float caveFloor = smoothstep(0.45, 0.78, caveN.y) * (1.0 - vCaveWallOnly);
+        float caveFloor = smoothstep(0.45, 0.78, caveN.y) * (1.0 - vCaveWallOnly) * (gl_FrontFacing ? 1.0 : 0.0);
         vec4 caveMix = vec4(1.0 - caveInterior, caveInterior - caveMountain, caveMountain, 0.0);
         caveMix *= 1.0 - caveFloor; caveMix.w = caveFloor;
         if (vCaveGranite > 0.5) caveMix = vec4(0.0, 0.0, 1.0, 0.0);
@@ -158,6 +158,6 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
         #include <opaque_fragment>
       `);
   };
-  material.customProgramCacheKey = () => 'cave-triplanar-final';
+  material.customProgramCacheKey = () => 'cave-triplanar-cliff-face';
   return material;
 }
