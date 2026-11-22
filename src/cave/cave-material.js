@@ -74,7 +74,7 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
   }
   const material = new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: DoubleSide });
   material.name = 'Photographed cave triplanar';
-  material.defaultAttributeValues = { ...material.defaultAttributeValues, caveWallOnly: [0], caveGranite: [0] };
+  material.defaultAttributeValues = { ...material.defaultAttributeValues, caveWallOnly: [0], caveGranite: [0], caveShade: [1] };
   const viewerBrightness = { value: 1 };
   material.userData.viewerBrightness = viewerBrightness;
   material.onBeforeCompile = shader => {
@@ -88,10 +88,13 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
       }
     });
     shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float caveShade;\nvarying float vCaveShade;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvCaveShade = caveShade;')
       .replace('#include <common>', '#include <common>\nattribute float caveRoute;\nattribute float caveWallOnly;\nattribute float caveGranite;\nvarying vec3 vCavePosition;\nvarying vec3 vCaveNormal;\nvarying float vCaveRoute;\nvarying float vCaveWallOnly;\nvarying float vCaveGranite;')
       .replace('#include <defaultnormal_vertex>', '#include <defaultnormal_vertex>\nvCaveNormal = inverseTransformDirection(transformedNormal, viewMatrix);')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvCavePosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvCaveRoute = caveRoute;\nvCaveWallOnly = caveWallOnly;\nvCaveGranite = caveGranite;');
     shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vCaveShade;')
       .replace('#include <common>', '#include <common>\n' + declarations)
       .replace('#include <map_fragment>', /* glsl */`
         vec3 caveN = normalize(vCaveNormal) * (gl_FrontFacing ? 1.0 : -1.0);
@@ -154,7 +157,7 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
         float caveDepth = min(vCaveRoute, 1.0 - vCaveRoute) * caveRouteLength;
         float caveOcclusion = caveDepth < 4.0 ? 1.0 - 0.5 * max(0.0, caveDepth) / 4.0 : 0.5 - 0.17 * clamp((caveDepth - 4.0) / 6.0, 0.0, 1.0);
         caveOcclusion = mix(caveOcclusion, 1.0, vCaveWallOnly);
-        outgoingLight *= min(1.0, caveOcclusion / max(0.25, caveViewerBrightness));
+        outgoingLight *= min(1.0, caveOcclusion / max(0.25, caveViewerBrightness)) * vCaveShade;
         #include <opaque_fragment>
       `);
   };

@@ -211,7 +211,7 @@ def route_parameters(vertices, route):
     return np.where(choices[0][0] < choices[1][0], choices[0][1], choices[1][1])
 
 
-def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry Passage, cave-dive-make, CC BY 4.0'):
+def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry Passage, cave-dive-make, CC BY 4.0', shade=None):
     lo, hi = mesh.bounds
     extent = hi - lo
     normals = mesh.vertex_normals * extent
@@ -221,6 +221,8 @@ def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry
               np.pad(np.round(np.clip(colors, 0, 1) * 255).astype('u1'), ((0, 0), (0, 1))),
               mesh.faces.astype('<u4').reshape(-1),
               np.c_[np.round(route_parameters(mesh.vertices, route) * 65535).astype('<u2'), np.zeros(len(mesh.vertices), dtype='<u2')]]
+    if shade is not None:
+        arrays.append(np.c_[np.round(np.clip(shade, 0, 1) * 255).astype('u1'), np.zeros((len(shade), 3), dtype='u1')])
     blob = bytearray()
     views, accessors = [], []
     for i, array in enumerate(arrays):
@@ -230,7 +232,7 @@ def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry
         if i != 3:
             views[-1]['byteStride'] = array.strides[0]
         blob.extend(array.tobytes())
-        accessor = {'bufferView': i, 'componentType': [5123, 5122, 5121, 5125, 5123][i],
+        accessor = {'bufferView': i, 'componentType': [5123, 5122, 5121, 5125, 5123, 5121][i],
                     'count': len(array), 'type': 'SCALAR' if i >= 3 else 'VEC3'}
         if i != 3:
             accessor['normalized'] = True
@@ -247,6 +249,8 @@ def export_glb(path, mesh, colors, route, *, copyright='Bageshawe Resurgence Dry
             'materials': [{'name': 'Scanned macro tint', 'doubleSided': True,
                            'pbrMetallicRoughness': {'metallicFactor': 0, 'roughnessFactor': 1}}],
             'buffers': [{'byteLength': len(blob)}], 'bufferViews': views, 'accessors': accessors}
+    if shade is not None:
+        gltf['meshes'][0]['primitives'][0]['attributes']['_CAVE_SHADE'] = 5
     header = json.dumps(gltf, separators=(',', ':')).encode()
     header += b' ' * (-len(header) % 4)
     blob += b'\0' * (-len(blob) % 4)

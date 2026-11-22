@@ -24,6 +24,8 @@ export function attachCaveRoute(root, route) {
   const point = new Vector3();
   root.traverse(mesh => {
     if (!mesh.isMesh) return;
+    const shade = mesh.geometry.getAttribute('_cave_shade');
+    if (shade) mesh.geometry.setAttribute('caveShade', shade);
     const baked = mesh.geometry.getAttribute('_cave_route');
     if (baked) { mesh.geometry.setAttribute('caveRoute', baked); return; }
     const positions = mesh.geometry.getAttribute('position'), parameters = new Float32Array(positions.count);

@@ -17,6 +17,7 @@ import { insideScannedCave } from '../src/cave/cave-volume.js';
 import caveData from '../src/cave/cave-data.json' with { type: 'json' };
 import { clipMountainAperture } from '../src/cave/cave-aperture.js';
 import { CaveRayIndex } from '../src/cave/cave-rays.js';
+import { CAVE_TEXTURE_SETS } from '../src/cave/cave-material.js';
 
 const host = { scene: new T.Scene(), rain: new T.Group(), rainy: false, lowDetail: false, position: new T.Vector3(START.x, 0, START.z), keys: new Set(), colliderIndex: { query: () => [] } };
 host.canMove = Rainforest.prototype.canMove; host.groundHeight = Rainforest.prototype.groundHeight;
@@ -178,9 +179,39 @@ test('the forest mouth uses the uniformly scaled natural entrance with native ma
   forest.traverse(mesh => {
     if (!mesh.isMesh) return;
     assert.ok(mesh.geometry.attributes.color.count > 1000);
+    const shade = mesh.geometry.getAttribute('_cave_shade');
+    assert.ok(shade && shade.count === mesh.geometry.attributes.position.count);
+    assert.ok(Array.from({ length: shade.count }, (_, i) => shade.getX(i)).some(value => value < .3));
     const normals = mesh.geometry.attributes.normal, v = new T.Vector3();
     for (let i = 0; i < normals.count; i++) assert.ok(Math.abs(v.fromBufferAttribute(normals, i).length() - 1) < .001);
+    const normalMatrix = new T.Matrix3().getNormalMatrix(mesh.matrixWorld);
+    let shaded = 0, downward = 0;
+    for (let i = 0; i < shade.count; i++) {
+      v.fromBufferAttribute(normals, i).applyNormalMatrix(normalMatrix);
+      const height = point.fromBufferAttribute(mesh.geometry.attributes.position, i).applyMatrix4(mesh.matrixWorld).y - link.mouths[0].floorCenter[1];
+      assert.ok(shade.getX(i) >= .09 && shade.getX(i) <= 1);
+      if (height < .79 || height > 3.91) assert.equal(shade.getX(i), 1, 'Floor and exterior top must not receive ceiling shade');
+      if (shade.getX(i) < .3) { shaded++; if (v.y < 0) downward++; }
+    }
+    assert.ok(shaded > 0 && downward / shaded > .7, 'Strong shade follows the inward ceiling surface');
   });
+});
+
+test('body coarsening keeps scanned floor and mouth triangles without broad baked AO', () => {
+  const reduction = fitData.mouths[0].bodyReduction;
+  assert.equal(reduction.bodyShade, false);
+  assert.equal(mesh.geometry.getAttribute('_cave_shade'), undefined);
+  assert.ok(reduction.protectedTriangles > 10000);
+  assert.equal(reduction.protectedMouthRadiusMetres, 6);
+  assert.ok(reduction.webTriangles < reduction.sourceTriangles * .7);
+  assert.ok(bytes.byteLength < 4500000);
+});
+
+test('deferred cave, mouth and PBR files remain below 28 MB including low-tier forest', () => {
+  const files = ['cave-fitted.glb', 'mouth-forest.glb', 'mouth-mountain.glb', 'mouth-fit.json', 'forest-low.glb',
+    ...CAVE_TEXTURE_SETS.flatMap(id => ['color', 'normal', 'roughness'].map(key => `${id}-${key}.webp`))];
+  const total = files.reduce((sum, file) => sum + readFileSync(new URL(`../public/cave/${file}`, import.meta.url)).byteLength, 0);
+  assert.ok(total <= 28000000, `Deferred payload ${total} bytes exceeds 28 MB`);
 });
 
 test('unit-scale yaw/translation joins the exact mountain contract and excludes forest overlap', () => {

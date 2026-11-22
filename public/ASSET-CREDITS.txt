@@ -14,6 +14,13 @@ whole-triangle removal at the interior overlap and shared walking floor; no caps
 Its native 1024x1024 photographed atlas is blurred and sampled into linear vertex
 macro tint, not enlarged. Close detail uses the existing photographed triplanar PBR.
 Interior macro colour blends to the tube over the 0.35 m overlap.
+Seated 0.5 m below its neck datum, with retained native ceiling overlap.
+The upper back is embedded in a uniformly scaled Coastal Cliff 01 scan already
+bundled with the cave; its photographed vertex tint and the existing PBR are reused.
+Moss rocks, ferns and shrubs over the top/flanks reuse the boot-loaded scans.
+Only the entrance's inward-facing ceiling carries baked shade, starting 1.4 m
+before the neck datum. The passage has no broad baked AO. Its non-floor walls
+are coarsened for delivery; original floor faces and both 6 m mouth regions remain.
 public/cave/mouth-forest.glb; preparation: scripts/prepare-cave-entrance.py;
 source hash, placement and measured sections: public/cave/mouth-fit.json.
 Mountain fitted mouth: Poly Haven coastal_cliff_04 real cliff scan, CC0.

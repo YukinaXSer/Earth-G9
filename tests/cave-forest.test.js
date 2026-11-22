@@ -122,3 +122,18 @@ test('mouth forest reuses loaded geometry and materials and roots vegetation on 
   assert.equal((await createMouthForest(new Map(), rock, mouth, floorRoute)).children.length, 0);
   await assert.rejects(createMouthForest(models, null, mouth, floorRoute), TypeError);
 });
+
+test('roof dressing stays on the supporting scan above the walkable cave clearance', async () => {
+  const template = new T.Group(), material = new T.MeshStandardMaterial();
+  template.add(new T.Mesh(new T.BoxGeometry(.2, 1, .2), material));
+  template.userData = { height: 1, spread: .2 };
+  const models = new Map(['fern', 'groundcover', 'rock'].map(key => [key, [template]]));
+  const rock = new T.Mesh(new T.BoxGeometry(30, 1, 30), material); rock.position.set(72, 6, -255);
+  const mouth = { floorCenter: [72, 0, -250], outward: [0, 0, 1] }, route = [[72, 0, -250], [72, 0, -290]];
+  const result = await createMouthForest(models, rock, mouth, route);
+  const overRoute = result.children.filter(p => Math.abs(p.position.x - 72) < 3);
+  assert.ok(overRoute.length > 0);
+  assert.ok(overRoute.every(p => p.position.y > 6));
+  assert.equal((await createMouthForest(new Map(), rock, mouth, route)).children.length, 0);
+  assert.equal((await createMouthForest(models, new T.Group(), mouth, route)).children.filter(p => Math.abs(p.position.x - 72) < 3).length, 0);
+});

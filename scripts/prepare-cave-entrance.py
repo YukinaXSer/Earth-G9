@@ -41,6 +41,28 @@ def section(mesh, origin, side, scale):
     return radius * scale
 
 
+def coarsen_body(mesh, colors, route):
+    centers = mesh.triangles_center
+    nearest = cKDTree(route[:, [0, 2]]).query(centers[:, [0, 2]])[1]
+    floor = (mesh.face_normals[:, 1] > .2) & (np.abs(centers[:, 1] - route[nearest, 1]) < 1.3)
+    ends = np.minimum(np.linalg.norm(centers - route[0], axis=1), np.linalg.norm(centers - route[-1], axis=1)) < 6
+    protected = floor | ends
+    fixed = mesh.submesh([protected], append=True)
+    walls = mesh.submesh([~protected], append=True)
+    walls.merge_vertices(digits_vertex=5)
+    ms = pymeshlab.MeshSet()
+    ms.add_mesh(pymeshlab.Mesh(vertex_matrix=walls.vertices, face_matrix=walls.faces))
+    ms.meshing_decimation_quadric_edge_collapse(targetfacenum=60000, preserveboundary=True,
+                                               preservenormal=True, boundaryweight=100, qualitythr=.5)
+    reduced = ms.current_mesh()
+    walls = trimesh.Trimesh(reduced.vertex_matrix(), reduced.face_matrix(), process=False)
+    result = trimesh.util.concatenate([fixed, walls])
+    tint = colors[cKDTree(mesh.vertices).query(result.vertices)[1]]
+    return result, tint, {'sourceTriangles': len(mesh.faces), 'protectedTriangles': int(protected.sum()),
+                          'webTriangles': len(result.faces), 'wallTargetTriangles': 60000,
+                          'protectedMouthRadiusMetres': 6, 'bodyShade': False}
+
+
 def prepare(source, fit, tube_source):
     spec = importlib.util.spec_from_file_location('prepare_cave', ROOT / 'scripts/prepare-cave.py')
     pipeline = importlib.util.module_from_spec(spec)
@@ -75,7 +97,7 @@ def prepare(source, fit, tube_source):
     anchor = np.array(fit['sourceAnchor'])
     forward = np.array(fit['sourceInward'])
     target = np.array(mouth_fit['volume']['route'][fit['tubeIndex']])
-    target[1] -= .15
+    target[1] -= .5
     inward = -np.array(data['mouths'][0]['outward'])
     yaw = np.arctan2(inward[0], inward[2]) - np.arctan2(forward[0], forward[2])
     rotation = trimesh.transformations.rotation_matrix(yaw, [0, 1, 0])[:3, :3]
@@ -97,7 +119,8 @@ def prepare(source, fit, tube_source):
     lo = np.floor(angle).astype(int) % 64
     radii = np.array(volume['radius'])
     radius = radii[profile, lo] * (1 - angle % 1) + radii[profile, (lo + 1) % 64] * (angle % 1)
-    back = (source_depth[mesh.faces].mean(axis=1) > .6) & (np.hypot(x, y) < radius + .05)
+    roof = (centers[:, 1] > 2.05) & (mesh.face_normals[:, 1] < -.25)
+    back = (source_depth[mesh.faces].mean(axis=1) > .6) & (np.hypot(x, y) < radius + .05) & ~roof
     keep = ~(back | (floor & path))
     mesh.update_faces(keep)
     mesh.update_faces(mesh.nondegenerate_faces(height=1e-6))
@@ -125,6 +148,7 @@ def prepare(source, fit, tube_source):
     tube_depth = (tube.triangles_center - np.array(data['mouths'][0]['floorCenter'])) @ inward
     tube_floor = (tube.face_normals[:, 1] > .45) & (tube.triangles[:, :, 1].max(axis=1) < .8)
     tube.update_faces((tube_depth > .25) | tube_floor)
+    tube, tube_tint, reduction = coarsen_body(tube, tube_tint, np.array(data['route']))
     pipeline.export_glb(tube_path, tube, tube_tint, np.array(data['route']))
     blend = np.clip((source_depth + .35) / .75, 0, 1)[:, None]
     nearest = cKDTree(tube.vertices).query(mesh.vertices)[1]
@@ -138,14 +162,32 @@ def prepare(source, fit, tube_source):
         if len(adjacent):
             normals[vertex] = mesh.face_normals[adjacent[np.argmax(mesh.area_faces[adjacent])]]
     mesh.vertex_normals = normals
+    inside = (1 - np.clip((np.abs(lateral[used]) - 2.1), 0, 1)) * (1 - np.clip((mesh.vertices[:, 1] - 3.3) / .6, 0, 1))
+    distance, neighbours = cKDTree(mesh.vertices).query(mesh.vertices, k=32, distance_upper_bound=.6)
+    weight = np.exp(-distance ** 2 / .45 ** 2)
+    smooth_y = (np.r_[normals[:, 1], 0][neighbours] * weight).sum(axis=1) / weight.sum(axis=1)
+    ceiling = np.clip((-smooth_y - .05) / .15, 0, 1)
+    shade = 1 - .9 * inside * ceiling * np.clip((source_depth[used] + 1.4) / .8, 0, 1) * np.clip((mesh.vertices[:, 1] - .8) / .8, 0, 1)
+    hill = trimesh.load(ROOT / 'public/cave/outcrop.glb', force='scene', process=False).to_mesh()
+    hill_colors = hill.visual.vertex_colors[:, :3] / 255
+    hill_center = (hill.bounds[0] + hill.bounds[1]) / 2
+    hill.vertices = (hill.vertices - hill_center) @ rotation.T * .24
+    hill.vertices[:, 1] += mesh.bounds[1, 1] + .6 - hill.bounds[1, 1]
+    hill.vertices[:, [0, 2]] += (target + inward * 4)[[0, 2]]
+    colors = np.concatenate([colors, hill_colors])
+    shade = np.concatenate([shade, np.ones(len(hill.vertices))])
+    mesh = trimesh.util.concatenate([mesh, hill])
     pipeline.export_glb(ROOT / 'public/cave/mouth-forest.glb', mesh, colors, np.array(data['route']),
-                        copyright='Rocky cave entrance, Nature-témoin / speleotv, CC BY 4.0')
+                        copyright='Rocky cave entrance, Nature-témoin / speleotv, CC BY 4.0; Coastal Cliff 01, Poly Haven, CC0', shade=shade)
     report = {**fit, 'mouth': 'forest', 'source': {'uid': UID, 'author': 'Nature-témoin / speleotv',
               'url': f'https://sketchfab.com/3d-models/rocky-cave-entrance-{UID}', 'license': 'CC BY 4.0',
               'sha256': hashlib.sha256(source.read_bytes()).hexdigest(), 'triangles': source_triangles,
               'atlasResolution': [1024, 1024], 'atlasUse': 'blurred macro vertex tint, not upscaled'},
               'overlapMetres': .35, 'tubeCutDepthMetres': .25, 'neckEndMetres': .6,
-              'seatingOffsetMetres': -.15, 'rockTriangles': len(mesh.faces), 'createdFaces': 0,
+              'seatingOffsetMetres': -.5, 'retainedRoofOverlap': True, 'rockTriangles': len(mesh.faces), 'createdFaces': 0,
+              'bodyReduction': reduction, 'ceilingShadeStartMetres': -1.4, 'ceilingShadeSmoothRadiusMetres': .6,
+              'hillside': {'source': 'https://polyhaven.com/a/coastal_cliff_01', 'license': 'CC0', 'uniformScale': .24,
+                          'triangles': len(hill.faces), 'bounds': hill.bounds.tolist()},
               'removedBackTriangles': int(back.sum()), 'removedPathFloorTriangles': int((floor & path).sum()),
               'rotationY': float(yaw), 'targetAnchor': target.tolist(),
               'openingWidthMetres': float(opening[0] + opening[32]), 'openingHeightMetres': float(opening[16] + opening[48]),

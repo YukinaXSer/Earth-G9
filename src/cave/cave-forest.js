@@ -127,16 +127,16 @@ export async function createMouthForest(models, rock, mouth, route, yieldFrame =
   const ray = new Raycaster(), down = new Vector3(0, -1, 0), position = new Vector3();
   rock.updateMatrixWorld(true);
   let placed = 0;
-  const place = async (key, lateral, depth, height, variantIndex = 0) => {
+  const place = async (key, lateral, depth, height, variantIndex = 0, roof = false) => {
     const variants = models?.get(key);
     if (!variants?.length) return;
     position.copy(center).addScaledVector(side, lateral).addScaledVector(forward, depth);
     if (position.x < BOUNDS.minX || position.x > BOUNDS.maxX || position.z < BOUNDS.minZ || position.z > BOUNDS.maxZ) return;
-    if (nearestRoute(position.x, position.z, route).distance < 4) return;
     let floor = groundHeight(position.x, position.z);
     ray.set(new Vector3(position.x, center.y + 80, position.z), down);
     const support = ray.intersectObject(rock, true).find(hit => hit.face.normal.y > .45);
     if (support) floor = Math.max(floor, support.point.y);
+    if (nearestRoute(position.x, position.z, route).distance < 4 && !(roof && support && floor > center.y + 4)) return;
     const template = variants[variantIndex % variants.length], clone = template.clone();
     const scale = height / template.userData.height;
     clone.position.set(position.x, floor - .12, position.z); clone.rotation.y = placed * 2.399963229728653;
@@ -152,6 +152,11 @@ export async function createMouthForest(models, rock, mouth, route, yieldFrame =
     await place('fern', lateral, depth, .8 + (placed % 3) * .15, placed);
     await place('groundcover', lateral + 1, depth - 1.5, 1.2, placed);
     if (placed % 3 === 0) await place('rock', lateral - 1, depth + 1, .55, placed);
+  }
+  for (const depth of [-2, -5, -8]) for (const lateral of [-7, -4, 0, 4, 7]) {
+    await place('fern', lateral, depth, .85, placed, true);
+    await place('groundcover', lateral + .7, depth, 1.1, placed, true);
+    await place('rock', lateral, depth - .8, .65, placed, true);
   }
   return group;
 }
