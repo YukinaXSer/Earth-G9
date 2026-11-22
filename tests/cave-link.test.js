@@ -147,7 +147,8 @@ test('the fitted mountain outcrop has no centroids inside the scanned cave or ex
     assert.equal(mountain.getObjectByProperty('isMesh', true), undefined);
     assert.equal(fit.mouths[1].rockTriangles, 0);
     assert.equal(fit.mouths[1].createdFaces, 0);
-    assert.ok(fit.mouths[1].tubeRecessMetres >= .5 && fit.mouths[1].tubeRecessMetres <= 1);
+    assert.equal(fit.mouths[1].tubeRecessMetres, 1.75);
+    assert.equal(fit.mouths[1].tubeRecessCriterion, 'all non-floor triangle vertices behind recess plane');
     assert.ok(fit.mouths[1].tubeTrianglesAfterRecess < fit.mouths[1].tubeTrianglesBeforeRecess);
     return;
   }

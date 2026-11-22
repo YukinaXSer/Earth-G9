@@ -14,7 +14,16 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / 'public/cave'
 
 
-def prepare(source, recess=.75):
+def recess_faces(mesh, mouth, recess):
+    if not np.isfinite(recess) or recess < 0:
+        raise ValueError('Recess must be finite and non-negative')
+    center = np.array(mouth['floorCenter'])
+    depth = (mesh.triangles - center) @ np.array(mouth['outward'])
+    floor = (mesh.face_normals[:, 1] > .2) & (abs(mesh.triangles_center[:, 1] - center[1]) < 1.3)
+    return (depth.max(axis=1) <= -recess) | floor
+
+
+def prepare(source, recess=1.75):
     raw = source.read_bytes()
     length = struct.unpack_from('<I', raw, 12)[0]
     document = json.loads(raw[20:20 + length])
@@ -36,10 +45,7 @@ def prepare(source, recess=.75):
     mesh = trimesh.Trimesh(positions, faces, process=False)
     data = json.loads((ROOT / 'src/cave/cave-data.json').read_text())
     mouth = data['mouths'][1]
-    center = np.array(mouth['floorCenter'])
-    depth = (mesh.triangles_center - center) @ np.array(mouth['outward'])
-    floor = (mesh.face_normals[:, 1] > .2) & (abs(mesh.triangles_center[:, 1] - center[1]) < 1.3)
-    mesh.update_faces((depth <= -recess) | floor)
+    mesh.update_faces(recess_faces(mesh, mouth, recess))
     used, inverse = np.unique(mesh.faces, return_inverse=True)
     mesh = trimesh.Trimesh(positions[used], inverse.reshape(-1, 3), process=False)
     normals = np.array(mesh.vertex_normals)
@@ -60,6 +66,7 @@ def prepare(source, recess=.75):
                         'source': {'url': 'https://polyhaven.com/a/coastal_cliff_04', 'license': 'CC0',
                                    'use': 'Existing host scanned cliff, tiles and grounded scan rocks'},
                         'createdFaces': 0, 'rockTriangles': 0, 'tubeRecessMetres': recess,
+                        'tubeRecessCriterion': 'all non-floor triangle vertices behind recess plane',
                         'nativeOpeningExtensionMetres': 1.5, 'tubeTrianglesBeforeRecess': len(faces),
                         'tubeTrianglesAfterRecess': len(mesh.faces), 'apertureGuards': guards}
     fit['mouths'][0]['bodyReduction']['webTriangles'] = len(mesh.faces)
@@ -71,5 +78,6 @@ def prepare(source, recess=.75):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--recess', type=float, default=1.75)
     args = parser.parse_args()
-    prepare(args.source)
+    prepare(args.source, args.recess)

@@ -21,12 +21,12 @@ Moss rocks, ferns and shrubs over the top/flanks reuse the boot-loaded scans.
 Only the entrance's inward-facing ceiling carries baked shade, starting 1.4 m
 before the neck datum. The passage has no broad baked AO. Its non-floor walls
 are coarsened for delivery, protecting floor faces and both 6 m mouth regions
-before the mountain wall rim is recessed 0.75 m into the native cliff.
+before the mountain wall rim is recessed 1.75 m into the native cliff.
 public/cave/mouth-forest.glb; preparation: scripts/prepare-cave-entrance.py;
 source hash, placement and measured sections: public/cave/mouth-fit.json.
 Mountain mouth: the host's existing Poly Haven coastal_cliff_04 scanned cliff,
 tiles and grounded scan rocks, CC0. No fitted mountain outcrop remains.
-The passage wall rim is recessed 0.75 m; native opening cuts delete whole
+The passage wall rim is recessed 1.75 m; native opening cuts delete whole
 triangles only. Preparation: scripts/prepare-native-mountain-mouth.py.
 https://polyhaven.com/a/coastal_cliff_04
 Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.
