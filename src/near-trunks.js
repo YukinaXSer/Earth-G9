@@ -17,7 +17,7 @@ export function treeDetailDistance(tree, position) {
 
 export function nearTrunkMaterial(source, assets, scale, grainMean) {
   const captured = source.isMeshBasicMaterial;
-  const octahedralNormal = captured && assets.normal.format === THREE.RGBA_ETC2_EAC_Format;
+  const octahedralNormal = assets.normal.format === THREE.RGBA_ETC2_EAC_Format;
   const material = captured ? new THREE.MeshLambertMaterial({ color: source.color, map: source.map, side: source.side,
     opacity: source.opacity, transparent: source.transparent, alphaTest: source.alphaTest, depthWrite: source.depthWrite }) : source.clone();
   if (captured) material.userData = { ...source.userData };
@@ -27,7 +27,7 @@ export function nearTrunkMaterial(source, assets, scale, grainMean) {
   material.normalMap.channel = 1;
   material.normalMap.repeat.set(scale, scale);
   material.normalScale.set(captured ? .12 : .4, captured ? .12 : .4);
-  material.customProgramCacheKey = () => captured ? `source-scan-near-trunk-v8-capture-${octahedralNormal}` : 'source-scan-near-trunk-v2';
+  material.customProgramCacheKey = () => captured ? `source-scan-near-trunk-v8-capture-${octahedralNormal}` : `source-scan-near-trunk-v3-${octahedralNormal}`;
   material.onBeforeCompile = shader => {
     shader.uniforms.trunkBlend = blend;
     shader.uniforms.trunkColor = { value: assets.color };
@@ -48,7 +48,8 @@ transformed = mix(trunkLodPosition, transformed, trunkBlend);
     const normalMaps = octahedralNormal ? THREE.ShaderChunk.normal_fragment_maps.replace(
       'vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;',
       `vec2 trunkOct = texture2D( normalMap, vNormalMapUv ).ag * 2.0 - 1.0;
-vec3 mapN = vec3(trunkOct, max(1.0 - abs(trunkOct.x) - abs(trunkOct.y), .0001));`) : '#include <normal_fragment_maps>';
+vec3 mapN = vec3(trunkOct, ${captured ? 'max(1.0 - abs(trunkOct.x) - abs(trunkOct.y), .0001)' : '1.0 - abs(trunkOct.x) - abs(trunkOct.y)'});
+${captured ? '' : 'mapN.xy -= sign(mapN.xy) * max(-mapN.z, 0.0);'}`) : '#include <normal_fragment_maps>';
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
 uniform float trunkBlend;
 uniform sampler2D trunkColor;
@@ -91,22 +92,33 @@ export class NearTrunks {
     this.onMaterial = onMaterial;
     this.active = new Set();
     this.cache = new WeakMap();
+    this.compressedSupported = captureSupported;
     this.captureDisabled = !captureSupported;
   }
 
+  loadGeometry() {
+    this.geometryLoading ??= new GLTFLoader().loadAsync('/models/near-forest-trunk.glb').then(gltf => {
+      let geometry;
+      gltf.scene.traverse(mesh => { if (mesh.isMesh) geometry = mesh.geometry; });
+      if (!geometry?.getAttribute('_lod_position') || !geometry.getAttribute('_lod_normal') || !geometry.getAttribute('uv1')) throw new Error('Missing source-trunk LOD attributes');
+      geometry.setAttribute('trunkLodPosition', geometry.getAttribute('_lod_position'));
+      geometry.setAttribute('trunkLodNormal', geometry.getAttribute('_lod_normal'));
+      geometry.computeBoundingSphere();
+      this.geometry = geometry;
+      return geometry;
+    });
+    return this.geometryLoading;
+  }
+
   async load() {
-    const loader = new THREE.TextureLoader();
-    const [gltf, color, normal] = await Promise.all([
-      new GLTFLoader().loadAsync('/models/near-forest-trunk.glb'),
-      loader.loadAsync('/textures/near-trunk-color.jpg'),
-      loader.loadAsync('/textures/near-trunk-normal.jpg'),
+    const loader = this.compressedSupported ? new KTXLoader() : new THREE.TextureLoader();
+    const extension = this.compressedSupported ? 'ktx' : 'jpg';
+    const [geometry, color, normal] = await Promise.all([
+      this.loadGeometry(),
+      loader.loadAsync(`/textures/near-trunk-color.${extension}`),
+      loader.loadAsync(`/textures/near-trunk-normal.${extension}`),
     ]);
-    let geometry;
-    gltf.scene.traverse(mesh => { if (mesh.isMesh) geometry = mesh.geometry; });
-    if (!geometry?.getAttribute('_lod_position') || !geometry.getAttribute('_lod_normal') || !geometry.getAttribute('uv1')) throw new Error('Missing source-trunk LOD attributes');
-    geometry.setAttribute('trunkLodPosition', geometry.getAttribute('_lod_position'));
-    geometry.setAttribute('trunkLodNormal', geometry.getAttribute('_lod_normal'));
-    geometry.computeBoundingSphere();
+    if (this.compressedSupported && (color.format !== THREE.RGB_ETC2_Format || normal.format !== THREE.RGBA_ETC2_EAC_Format)) throw new Error('Unexpected forest bark compression');
     for (const texture of [color, normal]) {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       texture.anisotropy = Math.min(4, this.anisotropy);

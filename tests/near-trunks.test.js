@@ -10,10 +10,10 @@ import { START } from '../src/data.js';
 
 const assets = () => ({ geometry: new THREE.BoxGeometry(), color: new THREE.Texture(), normal: new THREE.Texture() });
 
-test('GPU-native banyan detail retains both 2K maps and all mips within the entrance texture budget', () => {
+for (const prefix of ['near-banyan', 'near-trunk']) test(`${prefix} GPU detail retains both 2K maps and all mips within the entrance texture budget`, () => {
   let bytes = 0;
   for (const [kind, format, blockBytes] of [['color', THREE.RGB_ETC2_Format, 8], ['normal', THREE.RGBA_ETC2_EAC_Format, 16]]) {
-    const raw = fs.readFileSync(new URL(`../public/textures/near-banyan-${kind}.ktx`, import.meta.url));
+    const raw = fs.readFileSync(new URL(`../public/textures/${prefix}-${kind}.ktx`, import.meta.url));
     const texture = new KTXLoader().parse(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength), true);
     assert.equal(texture.format, format);
     assert.equal(texture.width, 2048);
@@ -30,26 +30,40 @@ test('GPU-native banyan detail retains both 2K maps and all mips within the entr
   assert.ok(bytes <= 314638324 * .05);
 });
 
-test('compressed normals reconstruct the photographic hemisphere only on the banyan shader', () => {
+test('compressed normals reconstruct the photographic hemisphere on the scanned wood shaders', () => {
   const maps = assets(); maps.normal.format = THREE.RGBA_ETC2_EAC_Format;
-  const { material } = nearTrunkMaterial(new THREE.MeshBasicMaterial(), maps, 1, new THREE.Vector3(.25, .25, .25));
-  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.lambert.vertexShader, fragmentShader: THREE.ShaderLib.lambert.fragmentShader };
-  material.onBeforeCompile(shader);
-  assert.ok(shader.fragmentShader.includes('texture2D( normalMap, vNormalMapUv ).ag'));
-  assert.ok(shader.fragmentShader.includes('1.0 - abs(trunkOct.x) - abs(trunkOct.y)'));
-  assert.ok(shader.fragmentShader.includes('mapN.xy *= normalScale'));
-  assert.ok(shader.fragmentShader.includes('normal = normalize(mix(trunkOriginalNormal, normal, trunkSurface))'));
-  assert.deepEqual(material.normalScale.toArray(), [.12, .12]);
-  for (const v of [[0, 0, 1], [.3, -.6, .2], [-.8, .2, .1]]) {
+  for (const [source, strength, shaderName] of [[new THREE.MeshBasicMaterial(), .12, 'lambert'], [new THREE.MeshLambertMaterial(), .4, 'lambert'], [new THREE.MeshStandardMaterial(), .4, 'standard']]) {
+    const { material } = nearTrunkMaterial(source, maps, 1, new THREE.Vector3(.25, .25, .25));
+    const shader = { uniforms: {}, vertexShader: THREE.ShaderLib[shaderName].vertexShader, fragmentShader: THREE.ShaderLib[shaderName].fragmentShader };
+    material.onBeforeCompile(shader);
+    assert.ok(shader.fragmentShader.includes('texture2D( normalMap, vNormalMapUv ).ag'));
+    assert.ok(shader.fragmentShader.includes('1.0 - abs(trunkOct.x) - abs(trunkOct.y)'));
+    assert.ok(shader.fragmentShader.includes('mapN.xy *= normalScale'));
+    assert.ok(shader.fragmentShader.includes('normal = normalize(mix(trunkOriginalNormal, normal, trunkSurface))'));
+    assert.equal(shader.fragmentShader.includes('mapN.xy -= sign(mapN.xy)'), !source.isMeshBasicMaterial);
+    assert.deepEqual(material.normalScale.toArray(), [strength, strength]);
+    assert.notEqual(material.customProgramCacheKey(), nearTrunkMaterial(source, assets(), 1).material.customProgramCacheKey());
+  }
+  for (const v of [[0, 0, 1], [.3, -.6, .2], [-.8, .2, .1], [.3, -.6, -.2], [0, -.6, -.2], [-.8, 0, -.1], [0, 0, -1]]) {
     const source = new THREE.Vector3(...v).normalize();
-    const oct = source.clone().divideScalar(Math.abs(source.x) + Math.abs(source.y) + source.z);
-    const restored = new THREE.Vector3(oct.x, oct.y, 1 - Math.abs(oct.x) - Math.abs(oct.y)).normalize();
+    const oct = source.clone().divideScalar(Math.abs(source.x) + Math.abs(source.y) + Math.abs(source.z));
+    if (source.z < 0) {
+      const { x, y } = oct;
+      oct.x = (1 - Math.abs(y)) * (x < 0 ? -1 : 1);
+      oct.y = (1 - Math.abs(x)) * (y < 0 ? -1 : 1);
+    }
+    const restored = new THREE.Vector3(oct.x, oct.y, 1 - Math.abs(oct.x) - Math.abs(oct.y));
+    const fold = Math.max(-restored.z, 0);
+    restored.x -= Math.sign(restored.x) * fold;
+    restored.y -= Math.sign(restored.y) * fold;
+    restored.normalize();
     assert.ok(restored.distanceTo(source) < 1e-12);
   }
 });
 
 test('devices without ETC2 keep the original captured banyan outside the near-slot competition', () => {
   const habitat = new Habitat({ renderer: { extensions: { has: () => false } } });
+  assert.equal(habitat.nearTrunks.compressedSupported, false, 'forest detail retains the original JPEG fallback');
   habitat.models.set('banyan', [capture(0, new NearTrunks()).group]);
   habitat.place('banyan', 0, 35, 1, 0);
   assert.equal(habitat.nearTrunks.captureDisabled, true);

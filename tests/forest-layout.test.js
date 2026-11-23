@@ -1,12 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createForestLayout, createBackdropLayout, vegetationAllowed, riverBankX } from '../src/forest-layout.js';
+import { createForestLayout, createBackdropLayout, vegetationAllowed, riverBankX, ENTRANCE_FOREST, entranceForestContains } from '../src/forest-layout.js';
 import { BOUNDS, riverX } from '../src/data.js';
 import { Habitat, modelVariantId } from '../src/habitat.js';
 import * as THREE from 'three';
 import { groundHeight, RIVER_LEVEL } from '../src/data.js';
 import { capturedRelief } from '../src/ground-relief.js';
 import { createColliderIndex } from '../src/captured-collisions.js';
+import { coversEntrancePath } from '../src/wayfinding.js';
+
+test('entrance forest fills the former main-tree site at normal subcanopy sizes without covering the trail', () => {
+  assert.equal(ENTRANCE_FOREST.trees.length, 3);
+  assert.ok(ENTRANCE_FOREST.trees.every(p => p.scale >= 1.25 && p.scale <= 2.2 && !coversEntrancePath(p.x, p.z, .18 * p.scale + .4)));
+  assert.ok(ENTRANCE_FOREST.plants.length >= 18);
+  for (const plant of ENTRANCE_FOREST.plants) {
+    assert.ok(entranceForestContains(plant.x, plant.z));
+    assert.ok(groundHeight(plant.x, plant.z) > RIVER_LEVEL + .04);
+    assert.ok(!coversEntrancePath(plant.x, plant.z, (plant.spread ?? 1.2) * Math.SQRT1_2));
+  }
+  for (let z = 20; z <= 26; z++) for (let x = 3; x <= 8; x++) {
+    assert.ok(ENTRANCE_FOREST.plants.some(p => Math.hypot(p.x - x, p.z - z) < 1.8), `unplanted former root area at ${x},${z}`);
+  }
+});
 
 test('numeric rock-set objects remain individual grounded variants, not one floating six-rock collection', () => {
   assert.notEqual(modelVariantId('rock', 'rock_moss_set_01_rock01'), modelVariantId('rock', 'rock_moss_set_01_rock02'));
@@ -98,6 +113,8 @@ test('habitat instantiates every ground layer and rejects woody overlaps without
   Habitat.prototype.composeForest.call(habitat);
   const layout = createForestLayout(true);
   assert.ok(trees.length > 250);
+  assert.ok(trees.every(([x, z]) => !entranceForestContains(x, z)), 'generated large banyans must not refill the curated entrance patch');
+  assert.ok(plants.filter(([key]) => key === 'tree').every(([, x, z]) => !entranceForestContains(x, z)));
   const groundPlants = [...layout.understory, ...layout.riparian];
   const groundPositions = new Set(groundPlants.map(p => [p.key, p.x, p.z].join(':')));
   assert.equal(plants.filter(p => groundPositions.has(p.slice(0, 3).join(':'))).length, groundPlants.length);

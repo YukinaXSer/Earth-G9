@@ -3,6 +3,40 @@ import { BOUNDS, START, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, river
 const landmarks = [...SPECIES, ...PLANT_SITES, ...VIEWPOINTS];
 const margin = 22;
 
+export const ENTRANCE_FOREST = {
+  trees: [
+    { x: 4.5, z: 25, scale: 2, angle: 1 },
+    { x: 7.7, z: 22, scale: 2.2, angle: 1.26 },
+    { x: 4.4, z: 19.8, scale: 1.8, angle: 3.1 },
+  ],
+  plants: [
+    { key: 'sapling', x: 5.6, z: 23.4, height: 1.5, angle: 2.1, variant: 3 },
+    { key: 'sapling', x: 3.3, z: 22.5, height: 1.6, angle: .8, variant: 3 },
+    { key: 'sapling', x: 7, z: 25.3, height: 1.8, angle: 4.6, variant: 3 },
+    { key: 'fern', x: 3, z: 25, spread: 1.35, angle: 1.7, variant: 0 },
+    { key: 'broadleaf', x: 3.4, z: 23.6, spread: 1, angle: 3.2, variant: 0 },
+    { key: 'fern', x: 2.8, z: 21, spread: 1.3, angle: 4.9, variant: 0 },
+    { key: 'fern', x: 4.5, z: 23, spread: 1.6, angle: .4, variant: 0 },
+    { key: 'broadleaf', x: 6.3, z: 23.4, spread: 1.1, angle: 2.6, variant: 0 },
+    { key: 'broadleaf', x: 7.4, z: 24, spread: 1, angle: 5.1, variant: 0 },
+    { key: 'fern', x: 8, z: 20.5, spread: 1.4, angle: 3.5, variant: 0 },
+    { key: 'broadleaf', x: 5.8, z: 20.3, spread: 1.1, angle: 1.2, variant: 0 },
+    { key: 'fern', x: 5.4, z: 26.5, spread: 1.4, angle: 5.7, variant: 0 },
+    { key: 'fern', x: 7.4, z: 27, spread: 1.4, angle: 2.9, variant: 0 },
+    { key: 'broadleaf', x: 3.2, z: 27.5, spread: .95, angle: 4.3, variant: 0 },
+    { key: 'fern', x: 2.8, z: 19, spread: 1.3, angle: .7, variant: 0 },
+    { key: 'broadleaf', x: 5.7, z: 18.5, spread: 1, angle: 3.8, variant: 0 },
+    { key: 'groundcover', x: 4.1, z: 21.3, height: .45, angle: 2.4, variant: 0 },
+    { key: 'groundcover', x: 6.6, z: 22, height: .5, angle: 5.4, variant: 0 },
+    { key: 'groundcover', x: 6, z: 25, height: .4, angle: 1.1, variant: 0 },
+    { key: 'groundcover', x: 8, z: 25.8, height: .45, angle: 4.1, variant: 0 },
+  ],
+};
+
+export function entranceForestContains(x, z) {
+  return Math.hypot(x - 5.2, z - 23) < 6.5;
+}
+
 export function vegetationAllowed(x, z, layer) {
   const woody = layer !== 'understory' && layer !== 'riparian';
   if (Math.abs(x - riverX(z)) < (layer === 'riparian' ? 5.5 : woody ? 7 : 6.2)) return false;
