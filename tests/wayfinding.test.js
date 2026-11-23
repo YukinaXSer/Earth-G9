@@ -48,6 +48,8 @@ test('guidance responds to looking backwards, returning from the side and contin
   const moved = entranceGuidance({ x: 1.3, z: 22, yaw: 0 });
   assert.ok(moved.target.z < ahead.target.z);
   assert.ok(moved.remaining < ahead.remaining);
+  assert.equal(entranceGuidance({ x: 0, z: 6, yaw: 0 }).remaining, 1);
+  assert.equal(entranceGuidance({ x: 0, z: 5, yaw: 0 }), null);
   assert.equal(entranceGuidance({ x: 0, z: -14, yaw: 0 }), null);
   assert.equal(entranceGuidance({ x: -100, z: 30, yaw: 0 }), null);
 });
