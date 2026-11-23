@@ -1,4 +1,4 @@
-import { Box3, DataTexture, FloatType, LinearFilter, MeshStandardMaterial, ShaderChunk, ShaderLib, Vector3, Vector4 } from 'three';
+import { Box3, DataTexture, FloatType, NearestFilter, MeshStandardMaterial, ShaderChunk, ShaderLib, Vector3, Vector4 } from 'three';
 import { CAVE_TRIPLANAR_GLSL } from './cave-material.js';
 import { nearestRoute } from './cave-space.js';
 
@@ -112,7 +112,7 @@ export async function createNativeCaveFloorPatch(cave, root, route, mouth, yield
     const packedNormal = Math.round((normal.x * .5 + .5) * 4095) * 4096 + Math.round((normal.z * .5 + .5) * 4095);
     field.set([station, near.distance - wall, near.height, packedNormal], offset); tint.set(color, offset); await pause();
   }
-  const texture = values => { const map = new DataTexture(values, width, height); map.type = FloatType; map.minFilter = map.magFilter = LinearFilter; map.needsUpdate = true; return map; };
+  const texture = values => { const map = new DataTexture(values, width, height); map.type = FloatType; map.minFilter = map.magFilter = NearestFilter; map.needsUpdate = true; return map; };
   Object.assign(shared, {
     nativeCaveField: { value: texture(field) }, nativeCaveTint: { value: texture(tint) },
     nativeCaveGrid: { value: new Vector4(bounds.min.x - spacing / 2, bounds.min.z - spacing / 2, width * spacing, height * spacing) },
@@ -141,6 +141,14 @@ uniform sampler2D nativeCaveField; uniform sampler2D nativeCaveTint;
 uniform float caveRepeat; uniform float caveNormalStrength; uniform float caveRouteLength; uniform float caveViewerBrightness;
 uniform vec4 nativeCaveGrid; uniform vec4 nativeCavePlane; uniform float nativeCaveLength; uniform vec3 nativeCaveColor; uniform float nativeCaveRoughness;
 uniform float nativeCaveEnvironment;
+vec4 nativeCaveSample(sampler2D field,vec2 uv){
+  ivec2 size=textureSize(field,0),limit=size-1;
+  vec2 pixel=clamp(uv*vec2(size)-.5,vec2(0.),vec2(limit)),fraction=fract(pixel);
+  ivec2 base=ivec2(floor(pixel));
+  vec4 a=texelFetch(field,base,0),b=texelFetch(field,min(base+ivec2(1,0),limit),0);
+  vec4 c=texelFetch(field,min(base+ivec2(0,1),limit),0),d=texelFetch(field,min(base+1,limit),0);
+  return mix(mix(a,b,fraction.x),mix(c,d,fraction.x),fraction.y);
+}
 vec3 nativeCaveDecodeNormal(float code){
   vec2 n=vec2(floor(code/4096.),mod(code,4096.))/4095.*2.-1.;
   return normalize(vec3(n.x,sqrt(max(0.,1.-dot(n,n))),n.y));
@@ -157,7 +165,7 @@ ${CAVE_TRIPLANAR_GLSL}
 ` + shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
         vec2 rockUv=(vCavePosition.xz-nativeCaveGrid.xy)/nativeCaveGrid.zw;
-        vec4 rockField=texture2D(nativeCaveField,rockUv),rockTint=texture2D(nativeCaveTint,rockUv);
+        vec4 rockField=nativeCaveSample(nativeCaveField,rockUv),rockTint=nativeCaveSample(nativeCaveTint,rockUv);
         vec3 rockN=normalize(vCaveNormal)*(gl_FrontFacing?1.:-1.),rockP=vCavePosition/caveRepeat;
         float rockNoise=dot(texture2D(caveColor3,rockP.xz*.43).rgb,vec3(.2126,.7152,.0722));
         rockNoise=clamp((rockNoise-.3)*2.+.5,0.,1.);

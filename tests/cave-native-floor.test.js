@@ -72,6 +72,25 @@ test('Low diffuse and unlit backdrop retain their outside lighting while using S
   assert.match(far.fragmentShader, /outgoingLight=mix\(diffuseColor.rgb,outgoingLight,rockWeight\)/);
 });
 
+test('float fields use core WebGL2 nearest texels and manual bilinear interpolation without float-linear support', async () => {
+  const { cave, root } = fixture(), patch = await createNativeCaveFloorPatch(cave, root, route, mouth, frame, radii), group = new T.Group();
+  for (const name of ['nativeCaveField', 'nativeCaveTint']) {
+    const texture = patch.uniforms[name].value;
+    assert.equal(texture.type, T.FloatType); assert.equal(texture.minFilter, T.NearestFilter); assert.equal(texture.magFilter, T.NearestFilter);
+    assert.equal(texture.generateMipmaps, false);
+  }
+  for (const Material of [T.MeshStandardMaterial, T.MeshLambertMaterial, T.MeshBasicMaterial]) { const mesh = new T.Mesh(new T.PlaneGeometry(), native(Material)); mesh.name = 'native-mountain'; group.add(mesh); }
+  patch.apply(group);
+  for (const mesh of group.children) {
+    const compiled = shader(); mesh.material.onBeforeCompile(compiled, { extensions: { has: () => false, get: () => null } });
+    assert.doesNotMatch(compiled.fragmentShader, /texture2D\(nativeCave(?:Field|Tint)/);
+    assert.match(compiled.fragmentShader, /rockField=nativeCaveSample\(nativeCaveField,rockUv\),rockTint=nativeCaveSample\(nativeCaveTint,rockUv\)/);
+    assert.match(compiled.fragmentShader, /clamp\(uv\*vec2\(size\)-.5,vec2\(0.\),vec2\(limit\)\)/);
+    assert.match(compiled.fragmentShader, /texelFetch\(field,min\(base\+1,limit\),0\)/);
+    assert.match(compiled.fragmentShader, /mix\(mix\(a,b,fraction.x\),mix\(c,d,fraction.x\),fraction.y\)/);
+  }
+});
+
 test('material dressing leaves every geometry attribute, triangle, group and collision byte unchanged', async () => {
   const { cave, root, geometry } = fixture(), before = geometryBytes(geometry), collision = new CaveFloorIndex(geometry, route), bytes = collisionBytes(collision);
   const patch = await createNativeCaveFloorPatch(cave, root, route, mouth, frame, radii), group = new T.Group(), mesh = new T.Mesh(geometry, native(T.MeshStandardMaterial)); mesh.name = 'native-mountain'; group.add(mesh);
