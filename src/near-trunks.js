@@ -96,21 +96,29 @@ export class NearTrunks {
     this.captureDisabled = !captureSupported;
   }
 
+  loadGeometry() {
+    this.geometryLoading ??= new GLTFLoader().loadAsync('/models/near-forest-trunk.glb').then(gltf => {
+      let geometry;
+      gltf.scene.traverse(mesh => { if (mesh.isMesh) geometry = mesh.geometry; });
+      if (!geometry?.getAttribute('_lod_position') || !geometry.getAttribute('_lod_normal') || !geometry.getAttribute('uv1')) throw new Error('Missing source-trunk LOD attributes');
+      geometry.setAttribute('trunkLodPosition', geometry.getAttribute('_lod_position'));
+      geometry.setAttribute('trunkLodNormal', geometry.getAttribute('_lod_normal'));
+      geometry.computeBoundingSphere();
+      this.geometry = geometry;
+      return geometry;
+    });
+    return this.geometryLoading;
+  }
+
   async load() {
     const loader = this.compressedSupported ? new KTXLoader() : new THREE.TextureLoader();
     const extension = this.compressedSupported ? 'ktx' : 'jpg';
-    const [gltf, color, normal] = await Promise.all([
-      new GLTFLoader().loadAsync('/models/near-forest-trunk.glb'),
+    const [geometry, color, normal] = await Promise.all([
+      this.loadGeometry(),
       loader.loadAsync(`/textures/near-trunk-color.${extension}`),
       loader.loadAsync(`/textures/near-trunk-normal.${extension}`),
     ]);
     if (this.compressedSupported && (color.format !== THREE.RGB_ETC2_Format || normal.format !== THREE.RGBA_ETC2_EAC_Format)) throw new Error('Unexpected forest bark compression');
-    let geometry;
-    gltf.scene.traverse(mesh => { if (mesh.isMesh) geometry = mesh.geometry; });
-    if (!geometry?.getAttribute('_lod_position') || !geometry.getAttribute('_lod_normal') || !geometry.getAttribute('uv1')) throw new Error('Missing source-trunk LOD attributes');
-    geometry.setAttribute('trunkLodPosition', geometry.getAttribute('_lod_position'));
-    geometry.setAttribute('trunkLodNormal', geometry.getAttribute('_lod_normal'));
-    geometry.computeBoundingSphere();
     for (const texture of [color, normal]) {
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
       texture.anisotropy = Math.min(4, this.anisotropy);

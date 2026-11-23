@@ -250,6 +250,10 @@ scripts/compress-banyan-grain.py near-trunk to reproduce the forest pair;
 normal strength (.4), photographic coordinates, color, lighting and LOD are
 unchanged. Forest wood decodes the same octahedral normal channels as the
 banyan shader; devices without ETC2 retain the original JPEG forest detail.
+The entrance also uses the existing near-wood triangles for body-height
+surface collision, including off-axis stems. That geometry loads once before
+play and is shared with near rendering. These precise collision bounds are
+installed after planting and do not add shadow stamps or travel landmarks.
 The visible path, its
 directional guide and the starting heading are retained; guide text now
 refers to the forest edge rather than the removed main banyan.

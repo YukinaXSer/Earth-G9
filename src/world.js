@@ -206,6 +206,7 @@ export class Rainforest {
       ctx.fillStyle = gradient; ctx.fillRect(px - r, py - r, r * 2, r * 2);
     };
     for (const tree of [...this.colliders, ...this.habitat.groundOccluders]) {
+      if (tree.collisionOnly) continue;
       shade(tree.x, tree.z, (tree.shadeRadius ?? tree.radius) * 3 + 0.7, 0.85);
       for (let i = 0; i < 8; i++) shade(tree.x + 4 + (random() - 0.5) * 12, tree.z - 6 + (random() - 0.5) * 14, 2 + random() * 4, 0.24);
     }
@@ -330,7 +331,7 @@ export class Rainforest {
   }
 
   travelTo(point) {
-    const landmark = this.colliders.find(c => !c.parts && Math.hypot(point.x - c.x, point.z - c.z) < c.radius && c.radius > 1.5);
+    const landmark = this.colliders.find(c => !c.parts && !c.collisionOnly && Math.hypot(point.x - c.x, point.z - c.z) < c.radius && c.radius > 1.5);
     const distance = Math.min(5, Math.max(4, (landmark?.radius ?? 0) * 2.7));
     this.position.set(point.x, 0, Math.min(BOUNDS.maxZ, point.z + distance)); this.yaw = 0; this.pitch = landmark ? 0.16 : -0.02;
     this.recoverPosition();

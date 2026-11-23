@@ -36,7 +36,7 @@ export class Habitat {
   async load() {
     const loader = new GLTFLoader(this.world.loadingManager);
     const captureLod = loader.loadAsync('/models/captured-banyan-far.glb');
-    await Promise.all([captureLod, ...Object.entries(FILES).map(async ([key, file]) => {
+    await Promise.all([captureLod, this.nearTrunks.loadGeometry(), ...Object.entries(FILES).map(async ([key, file]) => {
       const source = key === 'banyan' ? 'captured-banyan-low' : file;
       const { scene } = await loader.loadAsync(`/models/${source}.glb`);
       scene.updateMatrixWorld(true);
@@ -221,6 +221,7 @@ export class Habitat {
     }
     const parts = this.place(horizon ? 'horizon' : 'distant', x, z, scale, angle);
     this.lodTrees.push({ x, z, parts, near: false, group: null });
+    return parts;
   }
 
   composeBackground() {
@@ -284,20 +285,27 @@ export class Habitat {
   }
 
   composeEntranceForest() {
+    const colliders = [];
+    const wood = { children: [{ geometry: this.nearTrunks.geometry }] };
+    const localBounds = new THREE.Box3().setFromBufferAttribute(this.nearTrunks.geometry.attributes.position);
     for (const tree of ENTRANCE_FOREST.trees) {
-      this.backgroundTree(tree.x, tree.z, tree.scale, tree.angle);
+      const parts = this.backgroundTree(tree.x, tree.z, tree.scale, tree.angle);
       this.world.colliders.push({ x: tree.x, z: tree.z, radius: .18 * tree.scale });
+      const matrix = parts[0].matrix, bounds = localBounds.clone().applyMatrix4(matrix);
+      const radius = Math.hypot(Math.max(Math.abs(bounds.min.x - tree.x), Math.abs(bounds.max.x - tree.x)), Math.max(Math.abs(bounds.min.z - tree.z), Math.abs(bounds.max.z - tree.z)));
+      colliders.push(refineCollider({ x: tree.x, z: tree.z, radius, collisionOnly: true }, wood, matrix));
     }
     for (const plant of ENTRANCE_FOREST.plants) {
       const variants = this.models.get(plant.key), variant = variants[plant.variant % variants.length];
       const scale = plant.spread ? plant.spread / variant.userData.spread : plant.height / variant.userData.height;
       this.place(plant.key, plant.x, plant.z, scale, plant.angle, plant.variant);
     }
+    return colliders;
   }
 
   compose() {
     const w = this.world;
-    this.composeEntranceForest();
+    const entranceColliders = this.composeEntranceForest();
     const trees = [[-8, 27, .9], [9, 17, .85], [-9, -12, 1.05], [12, -43, 1], [-11, -62, 1.1], [10, -86, 1]];
     for (const [x, z, scale] of trees) {
       const angle = w.rand(0, 6);
@@ -418,6 +426,7 @@ export class Habitat {
       centers.add(`${tree.x}:${tree.z}`);
     }
     w.colliders = w.colliders.filter(c => c.parts || !centers.has(`${c.x}:${c.z}`));
+    w.colliders.push(...entranceColliders);
   }
 
   seedling() {
