@@ -1,5 +1,26 @@
-import { Vector3 } from 'three';
-import { nearestRoute } from './cave-space.js';
+import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
+import { CaveFloorIndex, nearestRoute } from './cave-space.js';
+
+export function createMountainHandoffFloor(root, route, plan) {
+  if (!root?.isObject3D || !Array.isArray(route) || route.length < 2 || !Number.isFinite(plan?.rampStart)) throw new TypeError('Rendered mountain support requires a root, route and handoff');
+  const positions = [], end = new Vector3(...route.at(-1)), a = new Vector3(), b = new Vector3(), c = new Vector3(), center = new Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse(mesh => {
+    if (!mesh.isMesh || !['native-mountain', 'capture-grounded-rock', 'coastal-cliff-04-native-capture'].includes(mesh.name)) return;
+    const p = mesh.geometry.attributes.position, index = mesh.geometry.index;
+    for (let i = 0; i < (index?.count ?? p.count); i += 3) {
+      [a, b, c].forEach((v, j) => v.fromBufferAttribute(p, index ? index.getX(i + j) : i + j).applyMatrix4(mesh.matrixWorld));
+      center.copy(a).add(b).add(c).multiplyScalar(1 / 3);
+      if (Math.hypot(center.x - end.x, center.z - end.z) > 6 || Math.abs(center.y - end.y) > .4) continue;
+      const near = nearestRoute(center.x, center.z, route);
+      if (near.distance > 2 || near.along < plan.rampStart - 1) continue;
+      for (const v of [a, b, c]) positions.push(v.x, v.y, v.z);
+    }
+  });
+  const floor = new CaveFloorIndex(new BufferGeometry().setAttribute('position', new Float32BufferAttribute(positions, 3)), route);
+  for (const cell of floor.cells.values()) for (const triangle of cell) triangle.floor = true;
+  return floor;
+}
 
 export function routePointAt(route, along) {
   let total = 0;

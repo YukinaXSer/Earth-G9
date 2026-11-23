@@ -299,6 +299,17 @@ test('the inward mountain floor handoff is native-supported with a half-metre ra
   }
 });
 
+test('retained native triangles render the entire support corridor across the inward handoff', () => {
+  for (let offset = 0; offset <= .101; offset += .025) {
+    const p = routePointAt(link.route, link.floorHandoff.along + offset), near = nearestRoute(p.x, p.z, link.route), side = new T.Vector3(near.tangent[2], 0, -near.tangent[0]);
+    for (const lateral of [-.6, -.4, -.2, 0, .2, .4, .6]) {
+      const q = p.clone().addScaledVector(side, lateral), rendered = link.nativeFloor.heightAt(q.x, q.z), native = link.mountain.groundHeight(q.x, q.z);
+      assert.notEqual(rendered, null, `Missing rendered native floor at ${offset}, ${lateral}`);
+      assert.ok(Math.abs(rendered - native) < .003, `Native floor mismatch ${rendered - native}`);
+    }
+  }
+});
+
 test('host movement walks terrain, both seams, real cave floor and graded mountain approach, then back', () => {
   const first = new T.Vector3(...link.mouths[0].floorCenter).addScaledVector(new T.Vector3(...link.mouths[0].outward), 2);
   const end = new T.Vector3(MOUNTAIN_ENTRANCE.approach.endX, MOUNTAIN_ENTRANCE.approach.endY, MOUNTAIN_ENTRANCE.approach.endZ).applyMatrix4(link.mountain.group.matrixWorld);

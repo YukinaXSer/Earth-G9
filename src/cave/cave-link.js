@@ -13,7 +13,7 @@ import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLow
 import { enableCaveShadows } from './cave-shadows.js';
 import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
 import { createMountainFloorSeal, createMountainRockCover } from './cave-rock-cover.js';
-import { floorHandoffHeight, useMountainFloorMaterial } from './cave-floor-handoff.js';
+import { createMountainHandoffFloor, floorHandoffHeight, useMountainFloorMaterial } from './cave-floor-handoff.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -89,6 +89,7 @@ export class CaveLink {
       limitMountainToExit(this.mountain.group, this.mouths[1], { nativeCliff });
       this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths,
         { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff });
+      this.nativeFloor = createMountainHandoffFloor(this.mountain.group, this.route, this.floorHandoff);
       const nativeFloor = this.mountain.group.getObjectByName('native-mountain');
       useMountainFloorMaterial(mesh, this.floorHandoff, Array.isArray(nativeFloor.material) ? nativeFloor.material[0] : nativeFloor.material);
       await warmCaveAssets({ root: mesh.clone(false), textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
@@ -226,7 +227,8 @@ export class CaveLink {
     if (region === 'cave') {
       const height = this.floor?.heightAt(x, z);
       if (this.ready && this.floorHandoff && mouthDistance({ x, z }, this.mouths[1]) > -this.floorHandoff.band - 1) {
-        const support = floorHandoffHeight(this.floorHandoff, this.route, x, z, height, this.mountain.groundHeight(x, z));
+        const renderedNative = this.nativeFloor?.heightAt(x, z), rendered = renderedNative == null ? height : height == null ? renderedNative : Math.max(height, renderedNative);
+        const support = floorHandoffHeight(this.floorHandoff, this.route, x, z, rendered, this.mountain.groundHeight(x, z));
         if (support != null) return support;
       }
       if (height != null) return height;

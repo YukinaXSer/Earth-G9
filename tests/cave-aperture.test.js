@@ -17,6 +17,16 @@ test('host clips repeated mountain tiles and their shadows behind the exit witho
 const volume = { route: [[0, 0, 0], [0, 0, 2]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(8).fill(2), Array(8).fill(2)], axisHeight: 1.1, clearance: .15 };
 const mouths = [{ floorCenter: [0, 0, 0], outward: [0, 0, -1] }, { floorCenter: [0, 0, 2], outward: [0, 0, 1] }];
 
+test('native floor retention uses normal angle at every triangle size and preserves whole handoff-crossing faces', () => {
+  for (const size of [.0001, .01, .3]) {
+    const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([-size, 0, .8 - size, size, 0, .8 - size, 0, 0, .8 + size], 3)).setIndex([0, 1, 2]);
+    const mesh = new T.Mesh(geometry); mesh.name = 'native-mountain';
+    const root = new T.Group(); root.add(mesh);
+    assert.equal(clipMountainAperture(root, new T.Matrix4(), volume, mouths, { nativeCliff: true, floorHandoff: { along: .8 } }), 0);
+    assert.equal(mesh.geometry.index.count, 3);
+  }
+});
+
 for (const name of ['capture-grounded-rock', 'native-mountain']) test(`${name} clipping deletes interior triangles but preserves the graded approach and source geometry`, () => {
   const root = new T.Group(), geometry = new T.BufferGeometry();
   geometry.setAttribute('position', new T.Float32BufferAttribute([-.2, .2, 1, .2, .2, 1, 0, 1, 1, -.2, .025, 2.5, .2, .025, 2.5, 0, .05, 3, 20, 0, 1, 21, 0, 1, 20, 1, 1], 3));

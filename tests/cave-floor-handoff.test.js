@@ -1,10 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as T from 'three';
-import { findFloorHandoff, floorHandoffHeight, useMountainFloorMaterial } from '../src/cave/cave-floor-handoff.js';
+import { createMountainHandoffFloor, findFloorHandoff, floorHandoffHeight, useMountainFloorMaterial } from '../src/cave/cave-floor-handoff.js';
 import { CaveLink } from '../src/cave/cave-link.js';
 
 const route = [[0, 0, 0], [0, 0, 4]];
+test('rendered native support indexes retained floor faces, handles an empty root and rejects invalid inputs', () => {
+  const root = new T.Group(), plan = { rampStart: 2 };
+  assert.equal(createMountainHandoffFloor(root, route, plan).heightAt(0, 3), null);
+  const mesh = new T.Mesh(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([-.5, .05, 3, 0, .05, 3.8, .5, .05, 3], 3)).setIndex([0, 1, 2])); mesh.name = 'native-mountain'; root.add(mesh);
+  assert.ok(Math.abs(createMountainHandoffFloor(root, route, plan).heightAt(0, 3.2) - .05) < 1e-6);
+  assert.throws(() => createMountainHandoffFloor(null, route, plan), TypeError);
+});
 test('handoff selects the first continuously safe suffix rather than an isolated early match', () => {
   const plan = findFloorHandoff(route, () => 0, (x, z) => z >= 1.5 && z < 2 ? .15 : .05);
   assert.equal(plan.along, 2); assert.equal(plan.rampStart, 1.5);

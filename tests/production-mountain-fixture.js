@@ -4,6 +4,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { limitMountainToExit, clipMountainAperture } from '../src/cave/cave-aperture.js';
 import { CaveRayIndex } from '../src/cave/cave-rays.js';
+import { createMountainHandoffFloor } from '../src/cave/cave-floor-handoff.js';
 
 export async function loadProductionMountain(link, fit, mouths, { clipAperture = true } = {}) {
   const fetchMock = mock.method(globalThis, 'fetch', async url => new Response(readFileSync(new URL(`../public${url}`, import.meta.url))));
@@ -29,6 +30,7 @@ export async function loadProductionMountain(link, fit, mouths, { clipAperture =
   limitMountainToExit(link.mountain.group, link.mouths[1], options);
   if (clipAperture) clipMountainAperture(link.mountain.group, link.transform.clone().invert(), fit.volume, mouths, options);
   link.mountain.group.updateMatrixWorld(true);
+  link.nativeFloor = createMountainHandoffFloor(link.mountain.group, link.route, fit.mouths[1].floorHandoff);
   const parts = [], cache = new Map(), instance = new T.Matrix4(), matrix = new T.Matrix4();
   const bounds = new T.Box3().setFromPoints(link.mouths.map(m => new T.Vector3(...m.floorCenter))).expandByScalar(link.length + 40);
   function append(mesh, transform, start = 0, count = mesh.geometry.index?.count ?? mesh.geometry.attributes.position.count) {
