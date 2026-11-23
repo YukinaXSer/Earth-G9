@@ -54,8 +54,7 @@ export function floorHandoffHeight(plan, route, x, z, body, native) {
   const near = nearestRoute(x, z, route);
   if (near.along < plan.rampStart || near.distance > 1.2) return body;
   if (near.along >= plan.along || body == null) return native;
-  const t = Math.max(0, Math.min(1, (near.along - plan.rampStart) / (plan.along - plan.rampStart))), blend = t * t * (3 - 2 * t);
-  return body + (native - body) * blend;
+  return body;
 }
 
 export function useMountainFloorMaterial(mesh, plan, nativeMaterial) {

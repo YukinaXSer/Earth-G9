@@ -16,7 +16,8 @@ test('handoff selects the first continuously safe suffix rather than an isolated
   const plan = findFloorHandoff(route, () => 0, (x, z) => z >= 1.5 && z < 2 ? .15 : .05);
   assert.equal(plan.along, 2); assert.equal(plan.rampStart, 1.5);
   assert.equal(floorHandoffHeight(plan, route, 0, 1.5, 0, .05), 0);
-  assert.ok(Math.abs(floorHandoffHeight(plan, route, 0, 1.75, 0, .05) - .025) < 1e-12);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.75, 0, .05), 0);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.75, null, .05), .05);
   assert.equal(floorHandoffHeight(plan, route, 0, 2, null, .05), .05);
   assert.equal(floorHandoffHeight(plan, route, 2, 2, 0, .05), 0);
   assert.equal(floorHandoffHeight(plan, route, 0, 2, 0, null), 0);

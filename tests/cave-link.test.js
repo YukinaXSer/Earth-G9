@@ -310,6 +310,18 @@ test('retained native triangles render the entire support corridor across the in
   }
 });
 
+test('movement follows the authored ramp or overlapping rendered native floor without a second blend', () => {
+  const plan = link.floorHandoff;
+  for (let along = plan.rampStart; along < plan.along; along += .025) {
+    const p = routePointAt(link.route, along), near = nearestRoute(p.x, p.z, link.route), side = new T.Vector3(near.tangent[2], 0, -near.tangent[0]);
+    for (const lateral of [-.3, 0, .3]) {
+      const q = p.clone().addScaledVector(side, lateral), body = link.floor.heightAt(q.x, q.z), native = link.nativeFloor.heightAt(q.x, q.z), rendered = Math.max(body ?? -Infinity, native ?? -Infinity);
+      assert.ok(Number.isFinite(rendered));
+      assert.ok(Math.abs(link.groundHeight(q.x, q.z) - rendered) < .003, `Movement above rendered ramp at ${along}, ${lateral}`);
+    }
+  }
+});
+
 test('host movement walks terrain, both seams, real cave floor and graded mountain approach, then back', () => {
   const first = new T.Vector3(...link.mouths[0].floorCenter).addScaledVector(new T.Vector3(...link.mouths[0].outward), 2);
   const end = new T.Vector3(MOUNTAIN_ENTRANCE.approach.endX, MOUNTAIN_ENTRANCE.approach.endY, MOUNTAIN_ENTRANCE.approach.endZ).applyMatrix4(link.mountain.group.matrixWorld);
