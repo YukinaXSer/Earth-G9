@@ -54,7 +54,7 @@ generated blue sphere wings have been removed. Flight paths and flapping
 are application-animated; this butterfly is NOT covered by the CC0 assets
 listed below.
 
-Captured entrance tree: "CC0 ガジュマル Malayan Banyan, Ficus microcarpa"
+Captured large forest tree: "CC0 ガジュマル Malayan Banyan, Ficus microcarpa"
 by ffish.asia / floraZia.com. CC0 1.0 Universal, public domain dedication.
 Source: https://sketchfab.com/3d-models/038bae6f4bfe4a4f804b63efa2155481
 License: https://creativecommons.org/publicdomain/zero/1.0/
@@ -73,10 +73,10 @@ the native wood base is embedded 1.3m below the local terrain. The already
 loaded capture and texture are shared, with no additional download.
 Root Cluster 01 bank/soil slabs are no longer placed as tree feet.
 
-Entrance Ficus close-up grain coordinates (near-banyan-grain.glb): extra
+Banyan close-up grain coordinates (near-banyan-grain.glb): extra
 metre-scale UVs and a wood mask only. The existing captured-banyan-low scan's
 triangle positions, normals, original atlas coordinates and colliders are
-retained; the near view expands indexed faces to carry per-corner UVs. No generated
+retained for the remaining forest instances; the near view expands indexed faces to carry per-corner UVs. No generated
 trunks, filled scan gaps or enlarged/rebaked capture atlas supply near detail.
 Original captured color remains outside the close range and on masked soil
 and leaves, and on upper branches beyond the near-player wood band. Close
@@ -229,3 +229,27 @@ Environment-art workflow references (not redistributed assets):
   https://80.lv/articles/setting-up-a-photorealistic-forest-scene-with-megascans
 - Theophile Lebeau: Creating a Forest Biome with Photogrammetry
   https://80.lv/articles/creating-a-forest-biome-with-photogrammetry
+
+Entrance forest rebuild
+-----------------------
+The solitary Malayan Banyan instance at the entrance and both of its root
+colliders are removed, not repaired or hidden with a material mask. Its scan
+and close-detail assets remain unchanged for the other forest instances.
+The entrance now reuses three existing Island Tree 02 forest instances at
+the normal subcanopy scene scales (1.8-2.2), with their existing scanned wood,
+photographic bark, photographed leaves and normal near/far LOD lifecycle.
+Leaf placement is not claimed to be a whole-crown photogrammetry capture.
+Existing CC0 Fern 02, Calathea Orbifolia 01, Pachira Aquatica 01 and Shrub 03
+assets, credited above, fill the vacated ground and lower layer at normal
+forest plant dimensions. No enlarged rocks, replacement geometry, new
+photographic sources or full-screen/scene-wide shader passes are introduced.
+The existing near-trunk-color/normal photographs retain 2048px and all mips,
+using the same offline ETC2 RGB and ETC2 RGBA8/EAC octahedral-normal delivery
+described above (8,388,648 total block bytes). Run
+scripts/compress-banyan-grain.py near-trunk to reproduce the forest pair;
+normal strength (.4), photographic coordinates, color, lighting and LOD are
+unchanged. Forest wood decodes the same octahedral normal channels as the
+banyan shader; devices without ETC2 retain the original JPEG forest detail.
+The visible path, its
+directional guide and the starting heading are retained; guide text now
+refers to the forest edge rather than the removed main banyan.

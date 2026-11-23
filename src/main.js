@@ -63,7 +63,7 @@ app.innerHTML = `
     <div class="crosshair hidden" id="crosshair" aria-hidden="true"></div>
     <section class="trail-guide hidden" id="trail-guide" aria-label="入口步行路线指引">
       <span class="trail-bearing" aria-hidden="true">${icon('arrow')}</span>
-      <div><strong>走出溪谷入口</strong><p id="trail-direction"></p><small id="trail-description">沿土色小径，绕过右侧主榕</small></div>
+      <div><strong>走出溪谷入口</strong><p id="trail-direction"></p><small id="trail-description">沿土色小径，经过右侧树林</small></div>
       <button class="icon-button" data-open="map" aria-label="查看步道地图">${icon('map')}</button>
     </section>
     <div class="zoom-controls hidden" id="zoom-controls" role="group" aria-label="场景视野缩放">
@@ -153,7 +153,7 @@ function updateTrailGuide() {
   if (!guidance) return;
   $('.trail-bearing').style.transform = `rotate(${guidance.angle - Math.PI / 2}rad)`;
   $('#trail-direction').textContent = guidance.onPath ? `${guidance.direction} · 距蕨影小径约${guidance.remaining}米` : `${guidance.direction} · 先回到土色小径`;
-  $('#trail-description').textContent = lastPosition.z > 20 ? '沿土色小径，绕过右侧主榕' : '继续沿土色小径，按 M 查看全图';
+  $('#trail-description').textContent = lastPosition.z > 20 ? '沿土色小径，经过右侧树林' : '继续沿土色小径，按 M 查看全图';
 }
 
 function updatePosition(position) {

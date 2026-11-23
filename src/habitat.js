@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, mainTrailX, BOUNDS, START } from './data.js';
-import { createForestLayout, createBackdropLayout } from './forest-layout.js';
+import { createForestLayout, createBackdropLayout, ENTRANCE_FOREST, entranceForestContains } from './forest-layout.js';
 import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
 import { NearTrunks, treeDetailDistance } from './near-trunks.js';
 import { coversEntrancePath } from './wayfinding.js';
@@ -247,6 +247,7 @@ export class Habitat {
 
   composeForest() {
     const w = this.world, layout = createForestLayout(w.lowDetail);
+    for (const layer of ['emergent', 'canopy', 'subcanopy']) layout[layer] = layout[layer].filter(p => !entranceForestContains(p.x, p.z));
     for (const tree of layout.emergent) {
       if (w.colliders.some(c => colliderBoundsContain(c, tree.x, tree.z, tree.scale * 1.5, groundHeight(tree.x, tree.z)))) continue;
       this.place('tree', tree.x, tree.z, tree.scale, tree.angle, 0, groundHeight(tree.x, tree.z) - .12);
@@ -282,11 +283,21 @@ export class Habitat {
     }
   }
 
+  composeEntranceForest() {
+    for (const tree of ENTRANCE_FOREST.trees) {
+      this.backgroundTree(tree.x, tree.z, tree.scale, tree.angle);
+      this.world.colliders.push({ x: tree.x, z: tree.z, radius: .18 * tree.scale });
+    }
+    for (const plant of ENTRANCE_FOREST.plants) {
+      const variants = this.models.get(plant.key), variant = variants[plant.variant % variants.length];
+      const scale = plant.spread ? plant.spread / variant.userData.spread : plant.height / variant.userData.height;
+      this.place(plant.key, plant.x, plant.z, scale, plant.angle, plant.variant);
+    }
+  }
+
   compose() {
     const w = this.world;
-    const entranceTree = this.place('banyan', 5.2, 23, 1, 2.8, 0, groundHeight(5.2, 23) - .85);
-    w.colliders.push(capturedCollider(this.models.get('banyan')[0], entranceTree[0].matrix));
-    w.colliders.push({ x: 5.2, z: 23, radius: 2.3 });
+    this.composeEntranceForest();
     const trees = [[-8, 27, .9], [9, 17, .85], [-9, -12, 1.05], [12, -43, 1], [-11, -62, 1.1], [10, -86, 1]];
     for (const [x, z, scale] of trees) {
       const angle = w.rand(0, 6);
