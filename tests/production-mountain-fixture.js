@@ -8,8 +8,8 @@ import { createMountainHandoffFloor } from '../src/cave/cave-floor-handoff.js';
 
 export async function loadProductionMountain(link, fit, mouths, { clipAperture = true } = {}) {
   const fetchMock = mock.method(globalThis, 'fetch', async url => new Response(readFileSync(new URL(`../public${url}`, import.meta.url))));
-  const loaderMock = mock.method(GLTFLoader.prototype, 'loadAsync', async url => {
-    const bytes = readFileSync(new URL(`../public${url}`, import.meta.url));
+  const parse = GLTFLoader.prototype.parseAsync;
+  const geometryOnly = async (bytes, path = '') => {
     const length = bytes.readUInt32LE(12), document = JSON.parse(bytes.subarray(20, 20 + length));
     document.materials = document.materials?.map(({ name, alphaMode, alphaCutoff, doubleSided }) => ({ name, alphaMode, alphaCutoff, doubleSided }));
     delete document.images; delete document.textures;
@@ -19,8 +19,10 @@ export async function loadProductionMountain(link, fit, mouths, { clipAperture =
     header.writeUInt32LE(20 + json.length + padding + binary.length, 8);
     header.writeUInt32LE(json.length + padding, 12); header.writeUInt32LE(0x4e4f534a, 16);
     const glb = Buffer.concat([header, json, Buffer.alloc(padding, 32), binary]);
-    return new GLTFLoader().parseAsync(glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength), '');
-  });
+    return parse.call(new GLTFLoader(), glb.buffer.slice(glb.byteOffset, glb.byteOffset + glb.byteLength), path);
+  };
+  const parserMock = mock.method(GLTFLoader.prototype, 'parseAsync', async (data, path) => geometryOnly(Buffer.from(data), path));
+  const loaderMock = mock.method(GLTFLoader.prototype, 'loadAsync', async url => geometryOnly(readFileSync(new URL(`../public${url}`, import.meta.url))));
   link.mountain.world.renderer = {
     capabilities: { maxTextureSize: 4096, getMaxAnisotropy: () => 8 },
     extensions: { has: name => name === 'WEBGL_compressed_texture_etc' },
@@ -77,6 +79,6 @@ export async function loadProductionMountain(link, fit, mouths, { clipAperture =
       }
       return nearest;
     },
-    dispose: () => { loaderMock.mock.restore(); fetchMock.mock.restore(); },
+    dispose: () => { loaderMock.mock.restore(); parserMock.mock.restore(); fetchMock.mock.restore(); },
   };
 }
