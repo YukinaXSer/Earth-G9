@@ -39,7 +39,7 @@ export function mainTrailX(z) {
 }
 
 export const WALKING_ROUTES = [
-  { id: 'main', points: Array.from({ length: 59 }, (_, i) => { const z = -257 + i * 8; return [mainTrailX(z), z]; }) },
+  { id: 'main', points: Array.from({ length: 233 }, (_, i) => { const z = -257 + i * 2; return [mainTrailX(z), z]; }) },
   { id: 'west', points: [[0, 35], [-40, 65], [-122, 110], [-128, 15], [-122, -85], [-105, -170], [-50, -236], [0, -235]] },
   { id: 'east', points: [[0, 120], [48, 120], [100, 150], [130, 70], [125, -90], [105, -218], [45, -240], [36, -180], [0, -180]] },
   { id: 'south', points: [[0, 160], [12, 176], [0, 195]] },
