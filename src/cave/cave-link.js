@@ -10,6 +10,7 @@ import { terrainCutWriter } from './cave-terrain.js';
 import { clipMountainAperture, clipMountainApertureAsync, limitMountainToExit } from './cave-aperture.js';
 import { holdMountainBackdrop } from './cave-mountain-backdrop.js';
 import { CaveRayIndex } from './cave-rays.js';
+import { createNativeCaveFloorPatch } from './cave-native-floor.js';
 import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
 import { enableCaveShadows } from './cave-shadows.js';
@@ -71,12 +72,13 @@ export class CaveLink {
       await warmCaveAssets(this.assets, host.renderer, host.camera, host.scene);
       this.phase = 'dress-mouths';
       await this.dress();
+      this.nativeFloorPatch = await createNativeCaveFloorPatch(this.assets.material, this.assets.root, this.route, this.mouths[1], frame, this.fit.volume.radius);
       await this.clearEntrance();
       this.attachCave();
       await frame(); await this.mountain.load();
       await this.mountain.prepare(host.camera);
       this.mountain.group.updateMatrixWorld(true);
-      if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
+      this.prepareMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
       await this.prepareMountainMeshesAsync(this.mountain.group);
       await this.mountainPreparation;
@@ -116,6 +118,7 @@ export class CaveLink {
     this.caveAttached = true; this.addMouthLights(); this.state = 'loading-mountain';
   }
   prepareMountainMeshes(root) {
+    this.nativeFloorPatch?.restore(root);
     if (root === this.mountain.group && !this.mountainWatching) {
       this.mountainWatching = true;
       root.addEventListener('childadded', ({ child }) => this.prepareMountainMeshes(child));
@@ -124,7 +127,12 @@ export class CaveLink {
     const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
     limitMountainToExit(root, this.mouths[1], { nativeCliff });
     this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths, this.mountainApertureOptions());
-    if (this.host.lowDetail) useLowMountainMaterials(root);
+    this.prepareMountainMaterials(root);
+  }
+  prepareMountainMaterials(root, textures = []) {
+    this.nativeFloorPatch?.restore(root);
+    if (this.host.lowDetail) useLowMountainMaterials(root, textures);
+    this.nativeFloorPatch?.apply(root);
   }
   mountainApertureOptions() {
     const point = new T.Vector3(), origin = new T.Vector3(), direction = new T.Vector3(), cache = new Map(), floorHeight = (x, z) => {
@@ -164,6 +172,7 @@ export class CaveLink {
     return { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight, insideBody };
   }
   async prepareMountainMeshesAsync(root, yieldFrame = frame) {
+    this.nativeFloorPatch?.restore(root);
     if (root === this.mountain.group && !this.mountainWatching) {
       this.mountainWatching = true; this.mountainPreparation = Promise.resolve();
       root.addEventListener('childadded', ({ child }) => {
@@ -191,7 +200,7 @@ export class CaveLink {
       this.bodyRays = await this.bodyRaysLoading;
     }
     this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + await clipMountainApertureAsync(root, this.transform.clone().invert(), this.fit.volume, data.mouths, this.mountainApertureOptions(), yieldFrame);
-    if (this.host.lowDetail) useLowMountainMaterials(root);
+    this.prepareMountainMaterials(root);
   }
   async dress() {
     const response = await fetch('/cave/mouth-fit.json');
@@ -328,7 +337,7 @@ export class CaveLink {
     return this.floor.canMove(ax, az, x, z, .4, (x, z) => this.groundHeight(x, z));
   }
   update(dt) {
-    if (this.host.lowDetail && this.ready) useLowMountainMaterials(this.mountain.group);
+    if (this.host.lowDetail && this.ready) this.prepareMountainMaterials(this.mountain.group);
     const near = this.locate(this.host.position.x, this.host.position.z), t = near.region === 'mountain' ? 1 : near.region === 'forest' ? 0 : near.along / this.length;
     this.region = near.region === 'mountain' ? '青岚境' : near.region === 'cave' ? '山腹石径' : null;
     const depth = Math.sin(Math.PI * T.MathUtils.smoothstep(t, 0, 1));

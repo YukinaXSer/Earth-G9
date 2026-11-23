@@ -3,7 +3,7 @@ import { MeshStandardMaterial, DoubleSide, Matrix4 } from 'three';
 export const CAVE_TEXTURE_SETS = ['rock_face_03', 'rock_surface', 'rock_face_04', 'rock_ground_02'];
 export const CAVE_REPEAT_METRES = 1.8;
 
-const declarations = /* glsl */`
+const uniforms = /* glsl */`
 varying vec3 vCavePosition;
 varying vec3 vCaveNormal;
 varying float vCaveRoute;
@@ -30,7 +30,9 @@ uniform sampler2D caveRough0;
 uniform sampler2D caveRough1;
 uniform sampler2D caveRough2;
 uniform sampler2D caveRough3;
+`;
 
+export const CAVE_TRIPLANAR_GLSL = /* glsl */`
 vec3 caveSigns(vec3 n) { return step(vec3(0.0), n) * 2.0 - 1.0; }
 vec3 caveGranitePosition(vec3 p) { return p * 0.231 + vec3(7.13, -3.71, 11.29); }
 vec3 caveWeights(vec3 n) {
@@ -112,7 +114,7 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
       .replace('#include <project_vertex>', '#include <project_vertex>\nvCavePosition = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvCaveRoute = caveRoute;\nvCaveWallOnly = caveWallOnly;\nvCaveGranite = caveGranite;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vCaveShade;')
-      .replace('#include <common>', '#include <common>\n' + declarations)
+      .replace('#include <common>', '#include <common>\n' + uniforms + CAVE_TRIPLANAR_GLSL)
       .replace('#include <map_fragment>', /* glsl */`
         vec3 caveN = normalize(vCaveNormal) * (gl_FrontFacing ? 1.0 : -1.0);
         vec3 caveP = vCavePosition / caveRepeat;
