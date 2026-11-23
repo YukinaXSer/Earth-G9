@@ -95,12 +95,14 @@ export async function warmCaveAssets(assets, renderer, camera, lightingScene, { 
   try {
     await nextFrame();
     await waitForIdle();
+    hidden.forEach(([object]) => { object.visible = true; });
     renderer.setRenderTarget(target); renderer.render(staging, camera);
     const uploaded = renderer.readRenderTargetPixelsAsync(target, 0, 0, 1, 1, new Uint8Array(4));
     renderer.setRenderTarget(previous);
     await uploaded;
     await waitForIdle();
     staging.remove(assets.root);
+    hidden.forEach(([object]) => { object.visible = true; });
     await renderer.compileAsync(assets.root, camera, lightingScene);
   } finally {
     staging.remove(assets.root);

@@ -8,6 +8,7 @@ import { Rainforest } from '../src/world.js';
 import { Habitat } from '../src/habitat.js';
 import { Wildlife } from '../src/wildlife.js';
 import { warmCaveAssets } from '../src/cave/cave-assets.js';
+import { CaveLink } from '../src/cave/cave-link.js';
 
 const baseline = JSON.parse(readFileSync(new URL('../src/cave/cave-boot.json', import.meta.url)));
 const replaceGlobal = (t, key, value) => {
@@ -83,13 +84,13 @@ test('deferred initialization catches synchronous and asynchronous failures with
   assert.deepEqual(errors.map(args => args[1].message), ['sync', 'async']);
 });
 
-function warmFixture(t, textures = 3, failure) {
+function warmFixture(t, textures = 3, failure, beforeFrame) {
   let frame = 0, target;
   const previous = new T.WebGLRenderTarget(4, 4), root = new T.Group(), scene = new T.Scene(), events = [];
   target = previous;
   const mesh = new T.Mesh(new T.BufferGeometry(), new T.MeshStandardMaterial()); root.add(mesh);
   const sun = new T.DirectionalLight(); sun.castShadow = true; scene.add(sun, new T.HemisphereLight());
-  replaceGlobal(t, 'requestAnimationFrame', callback => { const id = ++frame; queueMicrotask(() => callback(id * 16)); return id; });
+  replaceGlobal(t, 'requestAnimationFrame', callback => { const id = ++frame; queueMicrotask(() => { beforeFrame?.(); callback(id * 16); }); return id; });
   const assets = { root, textures: Array.from({ length: textures }, () => new T.Texture()) };
   const renderer = {
     initTexture: texture => events.push(['upload', frame, texture]),
@@ -140,6 +141,24 @@ test('off-scene warm-up includes hidden groups and restores their visibility', a
   f.assets.root.visible = false; f.mesh.visible = false;
   await warmCaveAssets(f.assets, f.renderer, new T.PerspectiveCamera(), f.scene);
   assert.equal(f.assets.root.visible, false); assert.equal(f.mesh.visible, false);
+});
+
+test('preloading updates cannot hide the mountain from its offscreen geometry upload', async t => {
+  let link, updates = 0;
+  const f = warmFixture(t, 0, undefined, () => {
+    link.update(1 / 60); updates++;
+    assert.equal(f.assets.root.visible, false, 'The real preloading update hides the mountain');
+  });
+  const host = { scene: f.scene, camera: new T.PerspectiveCamera(), position: new T.Vector3(), lowDetail: false };
+  link = new CaveLink(host); host.position.fromArray(link.route[80]); link.mountain.group = f.assets.root;
+  f.assets.root.visible = false; f.mesh.visible = false;
+  await warmCaveAssets(f.assets, f.renderer, host.camera, f.scene);
+  assert.ok(updates > 0); assert.equal(link.ready, false);
+  assert.equal(f.events.filter(event => event[0] === 'render').length, 1);
+  assert.equal(f.events.filter(event => event[0] === 'uploaded').length, 1);
+  assert.equal(f.assets.root.parent, null);
+  assert.equal(f.assets.root.visible, false); assert.equal(f.mesh.visible, false);
+  assert.equal(f.mesh.frustumCulled, true);
 });
 
 for (const failure of ['upload', 'compile']) test(`failed off-scene ${failure} restores attachment, culling and render target state`, async t => {
