@@ -31,7 +31,7 @@ test('map travel and return to entrance restore forest visibility without walkin
     host.position.fromArray(mouth.floorCenter).addScaledVector(new T.Vector3(...mouth.outward), 2);
     link.update(0);
     assert.equal(link.region, '青岚境');
-    assert.equal(visible.visible, false);
+    assert.equal(visible.visible, true);
     if (teleport === 'map') Rainforest.prototype.travelTo.call(host, START);
     else Rainforest.prototype.resetPosition.call(host);
     link.update(0);
@@ -67,7 +67,7 @@ test('saved linked positions retain coordinates and restore exactly only when su
     link.ready = true;
     restoreCaveView(host, view);
     assert.deepEqual([host.position.x, host.position.z], [original.x, original.z]);
-    if (region === 'mountain') { assert.equal(link.mountain.group.visible, true); assert.equal(host.ground.visible, false); }
+    if (region === 'mountain') { assert.equal(link.mountain.group.visible, true); assert.equal(host.ground.visible, true); }
     link.canMove = () => false;
     restoreCaveView(host, view);
     assert.deepEqual([host.position.x, host.position.z], [CAVE_FOREST_MOUTH.x, CAVE_FOREST_MOUTH.z]);

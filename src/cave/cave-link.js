@@ -30,8 +30,7 @@ export class CaveLink {
     placeMountain(this.mountain.group, MOUNTAIN_ENTRANCE.position, new T.Vector3(...this.mouths[1].floorCenter), new T.Vector3(...this.mouths[1].outward));
     this.mountain.group.visible = false;
     this.lighting = { blend: 0, brightness: 1, mountain: MOUNTAIN_LIGHTING };
-    this.frustum = new T.Frustum(); this.matrix = new T.Matrix4();
-    this.forestGroups = host.scene.children.filter(o => !o.isLight && o !== host.ground && o !== host.water);
+    this.mountainGeometry = new WeakMap();
     if (new URLSearchParams(globalThis.location?.search ?? '').has('cave-check')) globalThis.__caveHost = host;
   }
   async start() {
@@ -42,8 +41,7 @@ export class CaveLink {
         try {
           const { scene: root } = await new GLTFLoader().loadAsync('/cave/forest-low.glb');
           const apply = prepareForestLOD(host.habitat, root);
-          await warmCaveAssets({ root, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
-          await this.waitHidden();
+          await warmCaveAssets({ root, textures: [] }, host.renderer, host.camera, host.scene);
           apply();
         } catch (error) { console.warn('Low-tier forest geometry unavailable:', error); }
       }
@@ -68,59 +66,59 @@ export class CaveLink {
       enableCaveShadows(host);
       this.floor = Object.assign(Object.create(CaveFloorIndex.prototype), physical.floor);
       this.phase = 'upload-cave';
-      await warmCaveAssets(this.assets, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      await warmCaveAssets(this.assets, host.renderer, host.camera, host.scene);
       this.phase = 'dress-mouths';
       await this.dress();
-      await this.waitHidden();
       await this.clearEntrance();
-      await this.waitHidden();
-      host.ground.geometry = this.preparedTerrain;
-      clipForestSurface(host.water.geometry, this.route, this.mouths);
-      host.colliders.push(...this.forestDressing.userData.colliders);
-      host.colliderIndex = createColliderIndex(host.colliders);
-      host.scene.add(this.assets.root, this.dressing); this.caveAttached = true; this.addMouthLights(); this.state = 'loading-mountain';
+      this.attachCave();
       await frame(); await this.mountain.load();
       await this.mountain.prepare(host.camera);
       this.mountain.group.updateMatrixWorld(true);
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
-      const fit = this.fit;
-      const nativeCliff = fit.mouths[1].strategy === 'native-cliff';
-      limitMountainToExit(this.mountain.group, this.mouths[1], { nativeCliff });
-      this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths,
-        { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff });
+      this.prepareMountainMeshes(this.mountain.group);
       this.nativeFloor = createMountainHandoffFloor(this.mountain.group, this.route, this.floorHandoff);
       const nativeFloor = this.mountain.group.getObjectByName('native-mountain');
       useMountainFloorMaterial(mesh, this.floorHandoff, Array.isArray(nativeFloor.material) ? nativeFloor.material[0] : nativeFloor.material);
-      await warmCaveAssets({ root: mesh.clone(false), textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      await warmCaveAssets({ root: mesh.clone(false), textures: [] }, host.renderer, host.camera, host.scene);
       const cover = createMountainRockCover(host.habitat.models, this.mouths[1], this.route, (x, z) => this.mountain.groundHeight(x, z), this.assets.material);
-      await warmCaveAssets({ root: cover, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      await warmCaveAssets({ root: cover, textures: [] }, host.renderer, host.camera, host.scene);
       cover.visible = false; this.dressing.add(cover);
       const floorRock = createMountainFloorSeal(host.habitat.models, this.mouths[1], this.route, (x, z) => this.floor.heightAt(x, z) ?? this.mountain.groundHeight(x, z), this.assets.material);
-      await warmCaveAssets({ root: floorRock, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      await warmCaveAssets({ root: floorRock, textures: [] }, host.renderer, host.camera, host.scene);
       floorRock.visible = false; this.dressing.add(floorRock);
       this.phase = 'upload-mountain';
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
       this.mountain.group.traverse(m => { if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value); });
-      await warmCaveAssets({ root: this.mountain.group, textures: [...textures] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
-      await this.waitHidden();
-      this.mountain.group.visible = false; host.scene.add(this.mountain.group);
-      this.ready = true; this.state = 'ready';
-      this.horizonLoading = warmMountainHorizon(this.mountain, horizon => warmCaveAssets({ root: horizon, textures: [horizon.material.map] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() }))
-        .catch(error => { this.horizonError = error; console.warn('Mountain horizon unavailable:', error); return null; });
+      await warmCaveAssets({ root: this.mountain.group, textures: [...textures] }, host.renderer, host.camera, host.scene);
+      this.horizonLoading = warmMountainHorizon(this.mountain, horizon => warmCaveAssets({ root: horizon, textures: [horizon.material.map] }, host.renderer, host.camera, host.scene));
+      await this.horizonLoading;
+      host.scene.add(this.mountain.group);
+      this.mountain.group.visible = true; this.ready = true; this.state = 'ready';
     } catch (error) { this.state = 'failed'; this.error = error; console.error('Cave streaming failed:', error); }
   }
-  async waitIdle() {
-    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'];
-    while (this.host.active && (keys.some(key => this.host.keys.has(key)) || Math.hypot(this.host.touchMove?.x ?? 0, this.host.touchMove?.y ?? 0) > .01)) await frame();
+  attachCave() {
+    if (this.caveAttached) return;
+    if (!this.assets?.root || !this.dressing || !this.preparedTerrain || !this.forestDressing) throw new Error('Cave attachment requires prepared geometry');
+    const host = this.host;
+    host.ground.geometry = this.preparedTerrain;
+    clipForestSurface(host.water.geometry, this.route, this.mouths);
+    host.colliders.push(...this.forestDressing.userData.colliders);
+    host.colliderIndex = createColliderIndex(host.colliders);
+    host.scene.add(this.assets.root, this.dressing);
+    this.caveAttached = true; this.addMouthLights(); this.state = 'loading-mountain';
   }
-  async waitHidden() {
-    const mouth = new T.Vector3(...this.mouths[0].center);
-    while (true) {
-      this.host.camera.updateMatrixWorld(); this.matrix.multiplyMatrices(this.host.camera.projectionMatrix, this.host.camera.matrixWorldInverse); this.frustum.setFromProjectionMatrix(this.matrix);
-      if (mouth.distanceTo(this.host.camera.position) > 60 || !this.frustum.intersectsSphere(new T.Sphere(mouth, 12))) return;
-      await frame();
+  prepareMountainMeshes(root) {
+    if (root === this.mountain.group && !this.mountainWatching) {
+      this.mountainWatching = true;
+      root.addEventListener('childadded', ({ child }) => this.prepareMountainMeshes(child));
     }
+    root.updateWorldMatrix(true, true);
+    const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
+    limitMountainToExit(root, this.mouths[1], { nativeCliff });
+    this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths,
+      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry });
+    if (this.host.lowDetail) useLowMountainMaterials(root);
   }
   async dress() {
     const response = await fetch('/cave/mouth-fit.json');
@@ -141,7 +139,6 @@ export class CaveLink {
     attachCaveRoute(mountain, data.route); mountain.applyMatrix4(this.transform); mountain.userData.caveEnd = 1;
     mountain.traverse(mesh => { if (mesh.isMesh) { mesh.material.dispose(); mesh.material = this.assets.material; mesh.receiveShadow = true; mesh.castShadow = true; mesh.geometry.setAttribute('caveWallOnly', new T.BufferAttribute(new Float32Array(mesh.geometry.attributes.position.count).fill(1), 1)); mesh.geometry.setAttribute('caveGranite', new T.BufferAttribute(new Float32Array(mesh.geometry.attributes.position.count).fill(1), 1)); } });
     this.dressing.add(mountain);
-    await this.waitIdle();
     const obstacles = [], v = new T.Vector3(); this.dressing.updateMatrixWorld(true);
     this.dressing.traverse(mesh => {
       if (!mesh.isMesh) return;
@@ -163,7 +160,7 @@ export class CaveLink {
     this.openTerrain(this.preparedTerrain);
     this.forestDressing = await createMouthForest(this.host.habitat.models, forest, this.mouths[0], this.route, frame);
     this.dressing.add(this.forestDressing);
-    await warmCaveAssets({ root: this.dressing, textures: [] }, this.host.renderer, this.host.camera, this.host.scene, { waitForIdle: () => this.waitIdle() });
+    await warmCaveAssets({ root: this.dressing, textures: [] }, this.host.renderer, this.host.camera, this.host.scene);
   }
   addMouthLights() {
     this.spills = this.mouths.map((m, i) => {
@@ -208,7 +205,7 @@ export class CaveLink {
       for (let i = 0; i < cell.count; i++) { cell.getMatrixAt(i, matrix); point.setFromMatrixPosition(matrix); if (point.distanceTo(mouth) < 10) cell.setMatrixAt(i, hidden); }
       cell.instanceMatrix.needsUpdate = true;
     }
-    await cullForestInCave(h.habitat, this.forestDressing, this.transform.clone().invert(), this.fit.volume, data.mouths, async () => { await frame(); await this.waitIdle(); await this.waitHidden(); });
+    await cullForestInCave(h.habitat, this.forestDressing, this.transform.clone().invert(), this.fit.volume, data.mouths, frame);
   }
   regionAt(x, z) {
     const inCorridor = x >= this.bounds.min.x && x <= this.bounds.max.x && z >= this.bounds.min.z && z <= this.bounds.max.z;
@@ -240,6 +237,8 @@ export class CaveLink {
     return groundHeight(x, z);
   }
   canMove(ax, az, x, z) {
+    const entrance = this.mouths[0].floorCenter;
+    if (!this.caveAttached && Math.hypot(x - entrance[0], z - entrance[2]) < 120 && Math.hypot(x - entrance[0], z - entrance[2]) < Math.hypot(ax - entrance[0], az - entrance[2])) return false;
     const next = this.regionAt(x, z), previous = this.regionAt(ax, az);
     const nearDressing = this.dressingIndex && [[0, 0], [.4, 0], [-.4, 0], [0, .4], [0, -.4]].some(([dx, dz]) => this.dressingIndex.triangles(x + dx, z + dz).length);
     if (this.caveAttached && nearDressing && !this.dressingIndex.canMove(ax, az, x, z, .4, (x, z) => this.groundHeight(x, z))) return false;
@@ -255,34 +254,23 @@ export class CaveLink {
     if (next === 'mountain') return this.ready && [[0, 0], [.05, 0], [-.05, 0], [0, .05], [0, -.05]].every(([dx, dz]) => this.mountain.canMove(ax + dx, az + dz, x + dx, z + dz));
     return this.floor.canMove(ax, az, x, z, .4, (x, z) => this.groundHeight(x, z));
   }
-  update(dt, { teleported = false } = {}) {
+  update(dt) {
     if (this.host.lowDetail && this.ready) useLowMountainMaterials(this.mountain.group);
     const near = this.locate(this.host.position.x, this.host.position.z), t = near.region === 'mountain' ? 1 : near.region === 'forest' ? 0 : near.along / this.length;
     this.region = near.region === 'mountain' ? '青岚境' : near.region === 'cave' ? '山腹石径' : null;
     const depth = Math.sin(Math.PI * T.MathUtils.smoothstep(t, 0, 1));
     this.lighting.blend = t; this.lighting.brightness = 1 - .67 * depth;
-    if (this.ready && (teleported || near.region === 'cave' && near.along > this.bends[0] + 1 && near.along < this.bends[1] - 1)) {
-      this.mountain.group.visible = near.region === 'mountain' || near.region === 'cave' && (this.host.lowDetail ? near.along > this.bends[1] - 8 : t > .23);
-      this.forestHidden = near.region === 'mountain' || near.region === 'cave' && (this.host.lowDetail ? near.along > this.bends[0] + 2 : t > .75);
-    }
-    if (near.region !== 'cave') this.forestHidden = near.region === 'mountain';
-    for (const group of this.dressing?.children ?? []) if (group.userData.caveEnd === 1) group.visible = this.ready && this.mountain.group.visible;
-    if (this.forestHidden) {
-      if (!this.wasForestHidden) this.forestVisibility = new Map(this.forestGroups.map(group => [group, group.visible]));
-      for (const group of this.forestGroups) group.visible = false;
-    } else if (this.wasForestHidden) {
-      for (const [group, visible] of this.forestVisibility) group.visible = visible;
-      this.host.habitat?.updateVisibility?.(this.host.camera.position);
-      this.host.rain.visible = this.host.rainy;
-    }
-    this.wasForestHidden = this.forestHidden;
+    this.mountain.group.visible = this.ready;
+    this.forestHidden = false;
+    for (const group of this.dressing?.children ?? []) if (group.userData.caveEnd === 1) group.visible = this.ready;
     if (this.assets?.material) this.assets.material.userData.viewerBrightness.value = this.lighting.brightness;
-    if (this.host.ground) this.host.ground.visible = !this.forestHidden;
-    if (this.host.water) this.host.water.visible = !this.forestHidden;
-    if (this.forestDressing) this.forestDressing.visible = !this.forestHidden;
+    if (this.host.ground) this.host.ground.visible = true;
+    if (this.host.water) this.host.water.visible = true;
+    if (this.forestDressing) this.forestDressing.visible = true;
+    if (this.host.rain) this.host.rain.visible = this.host.rainy;
     this.host.camera.far = 220; this.host.camera.updateProjectionMatrix();
     for (const light of this.spills ?? []) light.intensity = this.host.rainy ? 22 : 35;
   }
 }
 
-export function streamCave(host) { const link = new CaveLink(host); host.worldLink = link; link.start(); return link; }
+export function streamCave(host) { const link = new CaveLink(host); host.worldLink = link; link.loading = link.start(); return link; }

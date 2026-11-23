@@ -26,7 +26,7 @@ export function limitMountainToExit(root, mouth, { nativeCliff = false } = {}) {
   return plane;
 }
 
-export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null } = {}) {
+export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null, geometryCache = null } = {}) {
   if (!volume?.route?.length || mouths?.length !== 2) throw new TypeError('Mountain aperture requires scanned cave profiles');
   if (!Number.isFinite(outwardDepth) || outwardDepth < 0) throw new RangeError('Invalid mountain opening depth');
   root.updateMatrixWorld(true);
@@ -36,6 +36,9 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
     if (!mesh.isMesh || !(nativeCliff ? scannedMountain(mesh.name) : ['capture-grounded-rock', 'native-mountain'].includes(mesh.name))) return;
     const geometry = mesh.geometry, p = geometry.attributes.position, index = geometry.index, keep = [];
     matrix.multiplyMatrices(worldToCave, mesh.matrixWorld);
+    const key = matrix.elements.join(','), cached = geometryCache?.get(geometry)?.get(key);
+    if (cached) { mesh.geometry = cached.geometry; removed += cached.removed; return; }
+    const before = removed;
     normalMatrix.getNormalMatrix(matrix);
     for (let i = 0; i < (index?.count ?? p.count); i += 3) {
       const ids = [0, 1, 2].map(j => index ? index.getX(i + j) : i + j);
@@ -54,6 +57,10 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
     }
     if (keep.length !== (index?.count ?? p.count)) {
       mesh.geometry = geometry.clone(); mesh.geometry.setIndex(keep);
+    }
+    if (geometryCache) {
+      if (!geometryCache.has(geometry)) geometryCache.set(geometry, new Map());
+      geometryCache.get(geometry).set(key, { geometry: mesh.geometry, removed: removed - before });
     }
   });
   return removed;

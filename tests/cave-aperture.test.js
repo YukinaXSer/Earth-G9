@@ -17,6 +17,22 @@ test('host clips repeated mountain tiles and their shadows behind the exit witho
 const volume = { route: [[0, 0, 0], [0, 0, 2]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(8).fill(2), Array(8).fill(2)], axisHeight: 1.1, clearance: .15 };
 const mouths = [{ floorCenter: [0, 0, 0], outward: [0, 0, -1] }, { floorCenter: [0, 0, 2], outward: [0, 0, 1] }];
 
+test('recreated near tiles reuse the aperture cut at the same placement, without cutting the source or other placements', () => {
+  const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([-.2, .2, 1, .2, .2, 1, 0, 1, 1], 3)).setIndex([0, 1, 2]);
+  const geometryCache = new WeakMap(), options = { nativeCliff: true, geometryCache };
+  let prepared;
+  for (const x of [0, 0, 20]) {
+    const root = new T.Group(), mesh = new T.Mesh(geometry); mesh.name = 'native-mountain'; root.position.x = x; root.add(mesh);
+    const removed = clipMountainAperture(root, new T.Matrix4(), volume, mouths, options);
+    assert.equal(removed, x ? 0 : 1); assert.equal(mesh.geometry.index.count, x ? 3 : 0);
+    if (!prepared) prepared = mesh.geometry;
+    else if (!x) assert.equal(mesh.geometry, prepared);
+  }
+  assert.equal(geometry.index.count, 3);
+  assert.doesNotThrow(() => clipMountainAperture(new T.Group(), new T.Matrix4(), volume, mouths, options));
+  assert.throws(() => clipMountainAperture(new T.Group(), new T.Matrix4(), {}, mouths, options), TypeError);
+});
+
 test('native floor outside a curved corridor survives even within the straight exit strip', () => {
   const root = new T.Group(), geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([.05,0,.45, .15,0,.45, .1,0,.55, -.7,0,.45, -.6,0,.45, -.65,0,.55],3)).setIndex([0,1,2,3,4,5]);
   const mesh = new T.Mesh(geometry); mesh.name = 'native-mountain'; root.add(mesh);

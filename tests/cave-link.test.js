@@ -15,7 +15,7 @@ import { insideScannedCave } from '../src/cave/cave-volume.js';
 import caveData from '../src/cave/cave-data.json' with { type: 'json' };
 import { CaveRayIndex } from '../src/cave/cave-rays.js';
 import { CAVE_TEXTURE_SETS } from '../src/cave/cave-material.js';
-import { loadProductionMountain } from './production-mountain-fixture.js';
+import { loadProductionMountain, createProductionMountainRayIndex } from './production-mountain-fixture.js';
 import mountainEyes from './cave-mountain-eyes.json' with { type: 'json' };
 import { createMountainFloorSeal } from '../src/cave/cave-rock-cover.js';
 import { routePointAt } from '../src/cave/cave-floor-handoff.js';
@@ -371,16 +371,36 @@ test('unfinished streaming gates the first bend; region bounds do not open the w
   assert.equal(link.floor.canMove(1e6, 1e6, 1e6 + .1, 1e6), false);
 });
 
-test('visibility can only change between bends; host remains the only scene', () => {
-  const forest = new T.Group(); host.scene.add(forest); link.forestGroups = [forest]; host.camera = new T.PerspectiveCamera();
-  host.scene.add(link.mountain.group); link.mountain.group.visible = false;
-  for (const index of [0, 60, 180, 211, 180, 60, 0]) {
-    host.position.fromArray(link.route[index]); const before = link.mountain.group.visible, forestBefore = forest.visible;
-    link.update(1 / 60);
-    const along = nearestRoute(host.position.x, host.position.z, link.route).along;
-    if (before !== link.mountain.group.visible || forestBefore !== forest.visible) assert.ok(along > link.bends[0] && along < link.bends[1]);
+test('both world roots remain attached and visible in the frustum at every route pose in both directions', async () => {
+  const bytes = readFileSync(new URL('../public/cave/forest-low.glb', import.meta.url));
+  const camera = new T.PerspectiveCamera(60, 1.6, .1, 220), body = gltf.scene.clone(true), dressing = new T.Group(), { scene: backdrop } = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+  backdrop.position.set(link.mouths[0].floorCenter[0], 0, link.mouths[0].floorCenter[2] + 10);
+  body.applyMatrix4(link.transform); dressing.add(forest.clone(true), mountain.clone(true));
+  const ground = new T.PlaneGeometry(TERRAIN.width, TERRAIN.depth, TERRAIN.width / TERRAIN.step, TERRAIN.depth / TERRAIN.step).rotateX(-Math.PI / 2), positions = ground.attributes.position;
+  for (let i = 0; i < positions.count; i++) { const x = positions.getX(i), z = positions.getZ(i) + TERRAIN.centerZ; positions.setXYZ(i, x, groundHeight(x, z), z); }
+  link.openTerrain(ground);
+  host.camera = camera; host.ground = new T.Mesh(ground, new T.MeshBasicMaterial());
+  host.water = new T.Mesh(new T.PlaneGeometry(20, 500), new T.MeshBasicMaterial()); host.water.rotation.x = -Math.PI / 2;
+  host.scene.add(body, dressing, backdrop, host.ground, host.water, link.mountain.group);
+  link.dressing = dressing;
+  const groups = [body, dressing, backdrop, host.ground, host.water, link.mountain.group], boxes = new Map();
+  host.scene.updateMatrixWorld(true);
+  for (const group of groups) boxes.set(group, new T.Box3().setFromObject(group));
+  const poses = [...link.route.map(p => new T.Vector3(...p)), new T.Vector3(77, 0, -336.2), new T.Vector3(74.6, 0, -256.9), new T.Vector3(76.4, 0, -338.5), new T.Vector3(66.8, 0, -239.6)];
+  for (const lowDetail of [false, true]) for (const direction of [-1, 1]) for (const p of direction > 0 ? poses : poses.toReversed()) {
+    host.lowDetail = lowDetail; host.position.copy(p);
+    const near = nearestRoute(p.x, p.z, link.route), eye = p.clone().setY((link.groundHeight(p.x, p.z) ?? near.height) + 1.85);
+    camera.position.copy(eye); camera.lookAt(eye.clone().add(new T.Vector3(...near.tangent).multiplyScalar(direction)));
+    camera.updateMatrixWorld(); link.update(1 / 60);
+    const frustum = new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    for (const group of groups) {
+      assert.equal(group.parent, host.scene);
+      if (!boxes.get(group).isEmpty() && frustum.intersectsBox(boxes.get(group))) {
+        for (let node = group; node; node = node.parent) assert.equal(node.visible, true, `Hidden world at ${p.toArray()} in direction ${direction}`);
+      }
+    }
   }
-  assert.equal(link.mountain.group.parent, host.scene);
+  host.lowDetail = false;
   const source = readFileSync(new URL('../src/cave/cave-link.js', import.meta.url), 'utf8') + readFileSync(new URL('../src/cave/cave-assets.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /new (?:T\.|THREE\.)?Scene\(/);
 });
@@ -392,12 +412,12 @@ test('navigation rejects empty space and preserves host walking and sprint speed
   world.position.set(0, 0, 0); world.keys.add('ShiftLeft'); Rainforest.prototype.movePlayer.call(world, 1, 1, 0); assert.ok(Math.abs(world.position.z + 8) < 1e-10);
 });
 
-test('forest ground, water and mouth vegetation hide behind the bends and the camera retains its 220 m far plane', () => {
+test('forest ground, water and mouth vegetation remain visible behind the bends with a 220 m far plane', () => {
   const scene = new T.Scene(), ground = new T.Group(), water = new T.Group(); scene.add(ground, water);
   const h = { scene, ground, water, lowDetail: false, rainy: false, rain: new T.Group(), camera: new T.PerspectiveCamera(), position: new T.Vector3(), habitat: { updateVisibility() {} } };
   const l = new CaveLink(h); l.ready = true; l.forestDressing = new T.Group();
   h.position.fromArray(l.route[180]); l.update(1 / 60);
-  assert.equal(ground.visible, false); assert.equal(water.visible, false); assert.equal(l.forestDressing.visible, false); assert.equal(h.camera.far, 220);
+  assert.equal(ground.visible, true); assert.equal(water.visible, true); assert.equal(l.forestDressing.visible, true); assert.equal(h.camera.far, 220);
   h.position.fromArray(l.route[60]); l.update(1 / 60);
   assert.equal(ground.visible, true); assert.equal(water.visible, true); assert.equal(l.forestDressing.visible, true); assert.equal(h.camera.far, 220);
 });
@@ -407,7 +427,7 @@ test('returning from the mountain restores prior forest visibility instead of ex
   const h = { scene, lowDetail: false, rainy: false, rain: new T.Group(), camera: new T.PerspectiveCamera(), position: new T.Vector3(), habitat: { updateVisibility() {} } };
   const l = new CaveLink(h); l.ready = true;
   h.position.fromArray(l.route[180]); l.update(1 / 60);
-  assert.equal(visible.visible, false); assert.equal(hidden.visible, false);
+  assert.equal(visible.visible, true); assert.equal(hidden.visible, false);
   h.position.fromArray(l.route[60]); l.update(1 / 60);
   assert.equal(visible.visible, true); assert.equal(hidden.visible, false); assert.equal(h.rain.visible, false);
 });
@@ -469,17 +489,58 @@ test('initial rainforest asset requests stay identical to the recorded productio
   assert.doesNotMatch(world, /import .*from ['"].*cave/);
 });
 
-test('attachment waits when the mouth is visible nearby, but releases off-frustum or beyond 60 m', async t => {
-  const original = host.camera, raf = globalThis.requestAnimationFrame, callbacks = [];
-  t.after(() => { host.camera = original; if (raf) globalThis.requestAnimationFrame = raf; else delete globalThis.requestAnimationFrame; });
-  globalThis.requestAnimationFrame = callback => callbacks.push(callback);
-  const mouth = new T.Vector3(...link.mouths[0].center), outward = new T.Vector3(...link.mouths[0].outward);
-  host.camera = new T.PerspectiveCamera(60, 1, .1, 220);
-  host.camera.position.copy(mouth).addScaledVector(outward, 15); host.camera.lookAt(mouth);
-  let attached = false; const waiting = link.waitHidden().then(() => { attached = true; });
-  await Promise.resolve(); assert.equal(attached, false); assert.equal(callbacks.length, 1);
-  host.camera.lookAt(host.camera.position.clone().add(outward)); callbacks.shift()();
-  await waiting; assert.equal(attached, true);
-  host.camera.position.copy(mouth).addScaledVector(outward, 61); host.camera.lookAt(mouth);
-  await link.waitHidden(); assert.equal(callbacks.length, 0);
+test('prepared cave attaches immediately while looking at the mouth and holding forward; incomplete preparation fails atomically', () => {
+  const h = { scene: new T.Scene(), ground: new T.Mesh(), water: new T.Mesh(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([], 3)).setIndex([])), colliders: [], keys: new Set(['KeyW']), active: true, camera: new T.PerspectiveCamera() };
+  const l = new CaveLink(h), mouth = new T.Vector3(...l.mouths[0].center);
+  h.camera.position.copy(mouth).addScaledVector(new T.Vector3(...l.mouths[0].outward), 11); h.camera.lookAt(mouth);
+  assert.throws(() => l.attachCave(), /prepared geometry/); assert.equal(l.caveAttached, undefined);
+  l.assets = { root: new T.Group() }; l.dressing = new T.Group(); l.preparedTerrain = new T.BufferGeometry(); l.forestDressing = new T.Group();
+  l.forestDressing.userData.colliders = [{ x: 0, z: 0, radius: 1 }]; l.addMouthLights = () => {};
+  l.attachCave();
+  assert.equal(l.caveAttached, true); assert.equal(l.assets.root.parent, h.scene); assert.equal(l.dressing.parent, h.scene);
+  assert.equal(h.ground.geometry, l.preparedTerrain); assert.equal(h.colliders.length, 1);
+  l.attachCave(); assert.equal(h.colliders.length, 1);
+  const source = readFileSync(new URL('../src/cave/cave-link.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /waitHidden|waitIdle|setTimeout|setInterval/);
+});
+
+test('unfinished mouth prefetch prevents entering the 120m sight range without trapping retreat', () => {
+  const l = new CaveLink({ scene: new T.Scene() }), [x, , z] = l.mouths[0].floorCenter;
+  let calls = 0; l.regionAt = () => { calls++; return 'forest'; };
+  for (const state of ['loading-cave', 'failed']) {
+    l.state = state;
+    assert.equal(l.canMove(x, z + 121, x, z + 119), false); assert.equal(calls, 0);
+  }
+  l.canMove(x, z + 119, x, z + 121); assert.ok(calls > 0);
+  calls = 0; l.caveAttached = true;
+  l.canMove(x, z + 121, x, z + 119); assert.ok(calls > 0);
+});
+test('low-tier native terrain is clipped again after the actual 32m outward trip and return', async () => {
+  const h = { scene: new T.Scene(), lowDetail: true }, l = new CaveLink(h), index = await loadProductionMountain(l, fitData, caveData.mouths);
+  try {
+    const before = new Set(l.mountain.group.children);
+    await l.mountain.world.updateMountain(140.5, -115.1);
+    await l.mountain.world.updateMountain(100.5, -115.1);
+    assert.ok(l.mountain.group.children.some(child => !before.has(child)), 'The real native loader must recreate near groups');
+    l.mountain.group.updateMatrixWorld(true);
+    const eye = new T.Vector3(76.4, 1.7953288714912057, -338.5), direction = new T.Vector3(78.5, 2.05, -332).sub(eye).normalize(), meshes = [];
+    l.mountain.group.traverse(m => { if (m.isMesh && !m.isBatchedMesh && !m.isInstancedMesh && m.name === 'native-mountain') meshes.push(m); });
+    const hits = new T.Raycaster(eye, direction, 0, 6.5).intersectObjects(meshes).filter(hit => !(Array.isArray(hit.object.material) ? hit.object.material[0] : hit.object.material).clippingPlanes?.some(plane => plane.distanceToPoint(hit.point) < 0));
+    assert.equal(hits.length, 0, 'The native terrain face formerly hit at 6.053m must not cross the tunnel');
+    const rays = createProductionMountainRayIndex(l), fit = fitData.mouths[1], center = new T.Vector3(...l.mouths[1].floorCenter), forward = new T.Vector3(...l.mouths[1].outward), side = new T.Vector3(forward.z, 0, -forward.x), body = new CaveRayIndex([link.floor, floorRockRays]);
+    const shellPositions = [];
+    mountain.updateMatrixWorld(true);
+    mountain.traverse(m => { if (m.isMesh) for (const id of m.geometry.index.array) shellPositions.push(...new T.Vector3().fromBufferAttribute(m.geometry.attributes.position, id).applyMatrix4(m.matrixWorld)); });
+    const shell = new CaveRayIndex([new CaveFloorIndex(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(shellPositions, 3)), [])]);
+    let escapes = 0;
+    for (const raw of mountainEyes) {
+      const eye = new T.Vector3(...raw);
+      for (const [x, y] of fit.apertureGuards) {
+        const target = center.clone().addScaledVector(side, x).addScaledVector(forward, -.1); target.y += y;
+        const direction = target.sub(eye).normalize();
+        if (![body.cast(eye, direction, l.length + 24), shell.cast(eye, direction, l.length + 24), rays.cast(eye, direction, l.length + 24)].some(Number.isFinite)) escapes++;
+      }
+    }
+    assert.equal(escapes, 0); console.log(`Post-return mountain sky escapes: ${escapes}`);
+  } finally { index.dispose(); }
 });
