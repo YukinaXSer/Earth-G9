@@ -27,10 +27,10 @@ function supports(data, character) {
   return false;
 }
 
-test('both bundled fonts cover every Chinese character in application text', () => {
+test('both bundled fonts cover Chinese characters and punctuation in application text', () => {
   const source = new URL('../src/', import.meta.url);
   const text = readdirSync(source).filter(name => /\.(js|css)$/.test(name)).map(name => readFileSync(new URL(name, source), 'utf8')).join('');
-  const characters = new Set(text.match(/[\u4e00-\u9fff]/g));
+  const characters = new Set(text.match(/[\u3000-\u303f\u4e00-\u9fff\uff01-\uff60]/g));
   for (const name of ['noto-sans-sc', 'noto-serif-sc']) {
     const data = readFileSync(new URL(`../public/${name}.ttf`, import.meta.url));
     const missing = [...characters].filter(character => !supports(data, character.charCodeAt(0))).join('');
