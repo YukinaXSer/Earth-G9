@@ -46,6 +46,19 @@ test('rock support is queried from the actual surface and sunk without changing 
   assert.equal(groundProp(new THREE.BoxGeometry(1,1,1),index,100,100,0),null);
 });
 
+test('photographic projection follows the actual face slope without replacing authored lighting normals',()=>{
+  const material=addPhotographicCapture(new THREE.MeshStandardMaterial(),{});
+  const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
+  material.onBeforeCompile(shader);
+  assert.match(shader.fragmentShader,/vec3 area=cross\(dx,dy\)/);
+  assert.match(shader.fragmentShader,/dot\(area,area\)>1e-20\?normalize\(area\):shadingNormal/);
+  assert.match(shader.fragmentShader,/vec3 photoW=photoProjectionWeights\(photoG,photoDx,photoDy\)/);
+  assert.match(shader.fragmentShader,/wallMean,photoG,photoW,posM,photoDx,photoDy,false/);
+  assert.match(shader.fragmentShader,/captureNormalToWorld\*photoSurface.n/);
+  assert.doesNotMatch(shader.fragmentShader,/photoG=normalize\(cross/);
+  assert.equal(material.customProgramCacheKey(),'xianxia-native-photo-shared-pbr-v9');
+});
+
 test('near runtime inherits the live forest lighting and stops the unused base animation before starting its own',()=>{
   assert.equal(XianxiaDemoRuntime.prototype.makeLighting,Rainforest.prototype.makeLighting);
   const runtime={animate(){throw new Error('unused rainforest loop');}};

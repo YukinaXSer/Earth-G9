@@ -10,6 +10,12 @@ uniform float groundMixWidth;
 uniform float forceMaterial;
 uniform bool stochastic;
 struct Surface {vec3 c;vec3 n;float r;};
+vec3 photoProjectionWeights(vec3 shadingNormal,vec3 dx,vec3 dy){
+  vec3 area=cross(dx,dy);
+  vec3 slope=dot(area,area)>1e-20?normalize(area):shadingNormal;
+  vec3 w=pow(abs(slope),vec3(6.));
+  return w/max(dot(w,vec3(1.)),.000001);
+}
 vec3 faceRotate(vec3 v,vec3 from,vec3 to){
   vec3 k=cross(from,to);
   return v+cross(k,v)+cross(k,cross(k,v))/(1.+dot(from,to));
