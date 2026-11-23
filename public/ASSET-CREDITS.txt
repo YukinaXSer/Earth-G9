@@ -44,8 +44,11 @@ The existing Coastal Cliff shell's low flanks are buried further without
 moving its roof (scripts/bury-mountain-shell.py). One additional fifth
 Rock Moss Set 01 boulder is uniformly scaled and fully buried below the
 walking floor to seal downward sightlines. It adds no collision or floor
-index entries. The last metre of passage floor reuses the mountain's
-already loaded photographed ground macro colour; no new texture download.
+index entries. The remaining floor's last two metres use the mountain's
+complete photographed ground material, including its normal and roughness.
+scripts/prepare-mountain-floor-handoff.mjs measures native ground-height
+overlap, trims supported floor triangles and authors the half-metre ramp
+and 2.5 cm buried lateral edges. No new texture or model download.
 Our aperture cut retains existing low native floor triangles under the
 trimmed flanks; native mountain files and ground-height data are unchanged.
 Mountain-side dressing also meets the existing Coastal Cliff 04 scan

@@ -18,6 +18,7 @@ import { CAVE_TEXTURE_SETS } from '../src/cave/cave-material.js';
 import { loadProductionMountain } from './production-mountain-fixture.js';
 import mountainEyes from './cave-mountain-eyes.json' with { type: 'json' };
 import { createMountainFloorSeal } from '../src/cave/cave-rock-cover.js';
+import { routePointAt } from '../src/cave/cave-floor-handoff.js';
 
 const host = { scene: new T.Scene(), rain: new T.Group(), rainy: false, lowDetail: false, position: new T.Vector3(START.x, 0, START.z), keys: new Set(), colliderIndex: { query: () => [] } };
 host.canMove = Rainforest.prototype.canMove; host.groundHeight = Rainforest.prototype.groundHeight;
@@ -39,6 +40,7 @@ const mountainBytes = readFileSync(new URL('../public/cave/mouth-mountain.glb', 
 const mountain = (await new GLTFLoader().parseAsync(mountainBytes.buffer.slice(mountainBytes.byteOffset, mountainBytes.byteOffset + mountainBytes.byteLength), '')).scene;
 mountain.applyMatrix4(link.transform);
 const fitData = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url)));
+link.floorHandoff = fitData.mouths[1].floorHandoff;
 const nativeIndex = await loadProductionMountain(link, fitData, caveData.mouths);
 after(() => nativeIndex.dispose());
 test('mountain fixture loads production native-v3 terrain and instanced props', () => {
@@ -74,7 +76,7 @@ const floorRockVariants = floorRockSource.children.map(child => {
   child.traverse(mesh => { if (mesh.isMesh) group.add(new T.Mesh(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).translate(-center.x, -box.min.y, -center.z), new T.MeshBasicMaterial({ side: T.DoubleSide }))); });
   return group;
 });
-const floorRock = createMountainFloorSeal(new Map([['rock', floorRockVariants]]), link.mouths[1], link.route, (x, z) => link.floor.heightAt(x, z), new T.MeshBasicMaterial({ side: T.DoubleSide }));
+const floorRock = createMountainFloorSeal(new Map([['rock', floorRockVariants]]), link.mouths[1], link.route, (x, z) => link.floor.heightAt(x, z) ?? link.mountain.groundHeight(x, z), new T.MeshBasicMaterial({ side: T.DoubleSide }));
 floorRock.updateMatrixWorld(true);
 const floorRockPositions = [];
 floorRock.traverse(mesh => { if (mesh.isMesh) for (const i of mesh.geometry.index.array) point.fromBufferAttribute(mesh.geometry.attributes.position, i).applyMatrix4(mesh.matrixWorld).toArray(floorRockPositions, floorRockPositions.length); });
@@ -267,19 +269,34 @@ test('unit-scale yaw/translation joins the exact mountain contract and excludes 
   console.log(`Mountain position: ${link.mountain.group.position.toArray().join(', ')}; yaw: ${link.mountain.group.rotation.y}`);
 });
 
-test('both visible scanned floors meet their neighbour within 3 cm across the seam width', () => {
+test('both walking floor supports meet their neighbour within 3 cm across the seam width', () => {
   const differences = [0, 0];
   for (let end = 0; end < 2; end++) {
     const mouth = link.mouths[end], origin = new T.Vector3(...mouth.floorCenter), forward = new T.Vector3(...mouth.outward), side = new T.Vector3(-forward.z, 0, forward.x);
     for (const lateral of [-.45, -.3, 0, .3, .45]) {
       const inside = origin.clone().addScaledVector(forward, -.025).addScaledVector(side, lateral), outside = origin.clone().addScaledVector(forward, .025).addScaledVector(side, lateral);
-      const a = link.floor.heightAt(inside.x, inside.z), b = end ? link.mountain.groundHeight(outside.x, outside.z) : groundHeight(outside.x, outside.z);
+      const a = link.groundHeight(inside.x, inside.z), b = end ? link.mountain.groundHeight(outside.x, outside.z) : groundHeight(outside.x, outside.z);
       assert.notEqual(a, null); assert.notEqual(b, null);
       differences[end] = Math.max(differences[end], Math.abs(a - b));
     }
   }
   assert.ok(differences.every(step => step < .03), `seam mismatch ${differences} m`);
   console.log(`Seam height differences: forest ${differences[0].toFixed(9)} m; mountain ${differences[1].toFixed(9)} m`);
+});
+
+test('the inward mountain floor handoff is native-supported with a half-metre ramp and sub-3mm contact', () => {
+  const plan = link.floorHandoff;
+  assert.ok(plan.along >= link.length - 3 && plan.along < link.length);
+  assert.equal(plan.along - plan.rampStart, .5);
+  assert.ok(plan.removedTriangles > 0);
+  for (const offset of [-.001, 0, .001]) {
+    const p = routePointAt(link.route, plan.along + offset), near = nearestRoute(p.x, p.z, link.route), side = new T.Vector3(near.tangent[2], 0, -near.tangent[0]);
+    for (const lateral of [-.6, -.3, 0, .3, .6]) {
+      const q = p.clone().addScaledVector(side, lateral), actual = link.groundHeight(q.x, q.z), native = link.mountain.groundHeight(q.x, q.z);
+      assert.notEqual(actual, null); assert.notEqual(native, null);
+      assert.ok(Math.abs(actual - native) <= .003, `Handoff step ${actual - native} at ${lateral}`);
+    }
+  }
 });
 
 test('host movement walks terrain, both seams, real cave floor and graded mountain approach, then back', () => {

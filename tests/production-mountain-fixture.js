@@ -25,7 +25,7 @@ export async function loadProductionMountain(link, fit, mouths, { clipAperture =
     extensions: { has: name => name === 'WEBGL_compressed_texture_etc' },
   };
   await link.mountain.load();
-  const options = { nativeCliff: true, outwardDepth: fit.mouths[1].nativeOpeningExtensionMetres };
+  const options = { nativeCliff: true, outwardDepth: fit.mouths[1].nativeOpeningExtensionMetres, floorHandoff: fit.mouths[1].floorHandoff };
   limitMountainToExit(link.mountain.group, link.mouths[1], options);
   if (clipAperture) clipMountainAperture(link.mountain.group, link.transform.clone().invert(), fit.volume, mouths, options);
   link.mountain.group.updateMatrixWorld(true);

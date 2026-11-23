@@ -13,8 +13,7 @@ import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLow
 import { enableCaveShadows } from './cave-shadows.js';
 import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
 import { createMountainFloorSeal, createMountainRockCover } from './cave-rock-cover.js';
-import { setMountainFloorGround } from './cave-material.js';
-import { CAPTURE_SHIFT } from '../xianxia-near.js';
+import { floorHandoffHeight, useMountainFloorMaterial } from './cave-floor-handoff.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -83,23 +82,20 @@ export class CaveLink {
       await frame(); await this.mountain.load();
       await this.mountain.prepare(host.camera);
       this.mountain.group.updateMatrixWorld(true);
-      const ground = this.mountain.world.photographicGround;
-      setMountainFloorGround(this.assets.material, {
-        texture: ground.textures.groundMesoColor,
-        worldToLocal: new T.Matrix4().makeTranslation(-CAPTURE_SHIFT.x, -CAPTURE_SHIFT.y, -CAPTURE_SHIFT.z).multiply(this.mountain.world.root.matrixWorld.clone().invert()),
-        metres: ground.manifest.textures.groundColor.physicalTileMeters * 8
-      });
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
       const fit = this.fit;
       const nativeCliff = fit.mouths[1].strategy === 'native-cliff';
       limitMountainToExit(this.mountain.group, this.mouths[1], { nativeCliff });
       this.nativeApertureTriangles = clipMountainAperture(this.mountain.group, this.transform.clone().invert(), fit.volume, data.mouths,
-        { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0 });
+        { nativeCliff, outwardDepth: nativeCliff ? fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff });
+      const nativeFloor = this.mountain.group.getObjectByName('native-mountain');
+      useMountainFloorMaterial(mesh, this.floorHandoff, Array.isArray(nativeFloor.material) ? nativeFloor.material[0] : nativeFloor.material);
+      await warmCaveAssets({ root: mesh.clone(false), textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
       const cover = createMountainRockCover(host.habitat.models, this.mouths[1], this.route, (x, z) => this.mountain.groundHeight(x, z), this.assets.material);
       await warmCaveAssets({ root: cover, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
       cover.visible = false; this.dressing.add(cover);
-      const floorRock = createMountainFloorSeal(host.habitat.models, this.mouths[1], this.route, (x, z) => this.floor.heightAt(x, z), this.assets.material);
+      const floorRock = createMountainFloorSeal(host.habitat.models, this.mouths[1], this.route, (x, z) => this.floor.heightAt(x, z) ?? this.mountain.groundHeight(x, z), this.assets.material);
       await warmCaveAssets({ root: floorRock, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
       floorRock.visible = false; this.dressing.add(floorRock);
       this.phase = 'upload-mountain';
@@ -129,6 +125,7 @@ export class CaveLink {
     const response = await fetch('/cave/mouth-fit.json');
     if (!response.ok) throw new Error('Missing scanned mouth profiles');
     this.fit = await response.json();
+    this.floorHandoff = this.fit.mouths[1].floorHandoff;
     this.dressing = new T.Group(); this.dressing.name = 'Scanned cave mouth outcrops';
     const { scene: forest } = await new GLTFLoader().loadAsync('/cave/mouth-forest.glb');
     attachCaveRoute(forest, data.route);
@@ -228,6 +225,10 @@ export class CaveLink {
     const region = this.regionAt(x, z);
     if (region === 'cave') {
       const height = this.floor?.heightAt(x, z);
+      if (this.ready && this.floorHandoff && mouthDistance({ x, z }, this.mouths[1]) > -this.floorHandoff.band - 1) {
+        const support = floorHandoffHeight(this.floorHandoff, this.route, x, z, height, this.mountain.groundHeight(x, z));
+        if (support != null) return support;
+      }
       if (height != null) return height;
       if (mouthDistance({ x, z }, this.mouths[0]) > -.08) return groundHeight(x, z);
       if (mouthDistance({ x, z }, this.mouths[1]) > -.08) return this.mountain.groundHeight(x, z);
@@ -244,6 +245,10 @@ export class CaveLink {
     if (!this.caveAttached || !this.floor || (!this.ready && nearestRoute(x, z, this.route).along > this.bends[0] - 1)) return false;
     const before = this.groundHeight(ax, az), after = this.groundHeight(x, z);
     if (before == null || after == null || Math.abs(before - after) > .4) return false;
+    if (next === 'cave' && this.floorHandoff && this.ready && mouthDistance({ x, z }, this.mouths[1]) > -this.floorHandoff.band - 1) {
+      const near = nearestRoute(x, z, this.route);
+      if (near.along >= this.floorHandoff.along && near.distance <= 1.2 && !this.mountain.canMove(ax, az, x, z)) return false;
+    }
     if (next !== previous) return Math.abs(before - after) < .08;
     if (next === 'mountain') return this.ready && [[0, 0], [.05, 0], [-.05, 0], [0, .05], [0, -.05]].every(([dx, dz]) => this.mountain.canMove(ax + dx, az + dz, x + dx, z + dz));
     return this.floor.canMove(ax, az, x, z, .4, (x, z) => this.groundHeight(x, z));

@@ -1,5 +1,6 @@
 import { Vector3, Matrix3, Matrix4, Plane } from 'three';
 import { insideScannedCave } from './cave-volume.js';
+import { nearestRoute } from './cave-space.js';
 
 const scannedMountain = name => ['capture-grounded-rock', 'native-mountain', 'coastal-cliff-04-native-capture'].includes(name);
 
@@ -25,7 +26,7 @@ export function limitMountainToExit(root, mouth, { nativeCliff = false } = {}) {
   return plane;
 }
 
-export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0 } = {}) {
+export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null } = {}) {
   if (!volume?.route?.length || mouths?.length !== 2) throw new TypeError('Mountain aperture requires scanned cave profiles');
   if (!Number.isFinite(outwardDepth) || outwardDepth < 0) throw new RangeError('Invalid mountain opening depth');
   root.updateMatrixWorld(true);
@@ -45,7 +46,7 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
       a.fromBufferAttribute(p, ids[0]); b.fromBufferAttribute(p, ids[1]); c.fromBufferAttribute(p, ids[2]);
       normal.subVectors(b, a).cross(edge.subVectors(c, a)).applyNormalMatrix(normalMatrix);
       const lateral = (centroid.x - end.floorCenter[0]) * end.outward[2] - (centroid.z - end.floorCenter[2]) * end.outward[0];
-      const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && Math.abs(lateral) > .7);
+      const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && (Math.abs(lateral) > .7 || floorHandoff && nearestRoute(centroid.x, centroid.z, volume.route).along >= floorHandoff.along));
       const thresholdFloor = floorOverlap && Math.abs(centroid.y - end.floorCenter[1]) < .4 && Math.abs(normal.y) > .6;
       if (depth < outwardDepth && !thresholdFloor && insideScannedCave(centroid.toArray(), volume, mouths)) removed++;
       else keep.push(...ids);

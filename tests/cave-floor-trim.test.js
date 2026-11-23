@@ -5,7 +5,8 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mountainFloorFaces } from '../scripts/trim-mountain-floor.mjs';
 import { createCaveMaterial, setMountainFloorGround } from '../src/cave/cave-material.js';
-import { CaveFloorIndex } from '../src/cave/cave-space.js';
+import { CaveFloorIndex, nearestRoute } from '../src/cave/cave-space.js';
+import { floorHandoffHeight, routePointAt, useMountainFloorMaterial } from '../src/cave/cave-floor-handoff.js';
 
 const route = [[0, 0, -10], [0, 0, 0]], mouth = { floorCenter: [0, 0, 0], outward: [0, 0, 1] };
 const floor = (x, y = 0, z = -1) => [x, y, z, x, y, z + .3, x + .2, y, z];
@@ -52,8 +53,22 @@ test('committed fitted body has no remaining triangles matching the mountain flo
   for (let i = 0; i < p.count; i++) point.fromBufferAttribute(p, i).applyMatrix4(mesh.matrixWorld).toArray(positions, i * 3);
   assert.deepEqual(mountainFloorFaces(positions, mesh.geometry.index.array, data.route, data.mouths[1]), []);
   const floor = new CaveFloorIndex(new T.BufferGeometry().setAttribute('position', new T.BufferAttribute(positions, 3)).setIndex(mesh.geometry.index), data.route);
-  const height = floor.heightAt(-.266296592, 96.338121849);
-  assert.ok(Number.isFinite(height) && Math.abs(height - .06988) < .001, 'Keep the walking floor at the seam corner, 0.6 m off the route');
+  const plan = JSON.parse(readFileSync(new URL('../public/cave/mouth-fit.json', import.meta.url))).mouths[1].floorHandoff;
+  assert.equal(floorHandoffHeight(plan, data.route, -.266296592, 96.338121849, floor.heightAt(-.266296592, 96.338121849), .06988), .06988, 'Native terrain now owns support at the old seam corner');
+  assert.ok(mesh.geometry.attributes._cave_native_floor, 'The remaining strip uses the full native ground material');
+  const dressed = new T.Mesh(mesh.geometry.clone().setAttribute('position', new T.BufferAttribute(positions, 3)), new T.MeshStandardMaterial({ side: T.DoubleSide }));
+  useMountainFloorMaterial(dressed, plan, new T.MeshStandardMaterial({ side: T.DoubleSide }));
+  dressed.geometry.computeBoundingBox(); dressed.geometry.computeBoundingSphere(); dressed.updateMatrixWorld(true);
+  for (const depth of [.2, .8, 1.5, 1.9]) {
+    const p = routePointAt(data.route, plan.along - depth), near = nearestRoute(p.x, p.z, data.route), side = new T.Vector3(near.tangent[2], 0, -near.tangent[0]);
+    for (const lateral of [-.3, 0, .3]) {
+      const q = p.clone().addScaledVector(side, lateral), height = floor.heightAt(q.x, q.z);
+      assert.notEqual(height, null);
+      const hit = new T.Raycaster(new T.Vector3(q.x, height + .1, q.z), new T.Vector3(0, -1, 0)).intersectObject(dressed).find(hit => Math.abs(hit.point.y - height) < .002);
+      assert.ok(hit, 'Walking support must be rendered');
+      assert.equal(hit.face.materialIndex, 1, `Full native ground material ${depth}m before handoff at ${lateral}m laterally`);
+    }
+  }
 });
 
 test('mountain floor fade reuses the existing ground map and frame over the last metre only', () => {
