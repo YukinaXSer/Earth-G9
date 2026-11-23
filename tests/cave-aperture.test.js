@@ -59,6 +59,23 @@ test('native cliff keeps photographed shader callbacks without sharing the exit 
   assert.doesNotThrow(() => limitMountainToExit(new T.Group(), mouths[1], { nativeCliff: true }));
 });
 
+test('native terrain beneath the trimmed floor flanks survives, but corridor backing, deep floors and walls do not', () => {
+  const root = new T.Group(), geometry = new T.BufferGeometry();
+  geometry.setAttribute('position', new T.Float32BufferAttribute([
+    .9, 0, .4, 1.1, 0, .4, 1, 0, .8,
+    -.1, 0, .4, .1, 0, .4, 0, 0, .8,
+    .9, 0, -4, 1.1, 0, -4, 1, 0, -3.6,
+    .9, 0, .4, 1.1, 0, .4, 1, 1, .4
+  ], 3));
+  geometry.setIndex([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  const mesh = new T.Mesh(geometry); mesh.name = 'native-mountain'; root.add(mesh);
+  const longVolume = { ...volume, route: [[0, 0, -6], [0, 0, 2]] }, longMouths = [{ ...mouths[0], floorCenter: [0, 0, -6] }, mouths[1]];
+  clipMountainAperture(root, new T.Matrix4(), longVolume, longMouths, { nativeCliff: true });
+  assert.deepEqual(Array.from(mesh.geometry.index.array), [0, 1, 2]);
+  assert.equal(geometry.index.count, 12);
+  assert.deepEqual(mesh.geometry.attributes.position.array, geometry.attributes.position.array);
+});
+
 test('native cliff opening extends beyond the recessed tube with only whole-triangle deletion', () => {
   const root = new T.Group(), geometry = new T.BufferGeometry();
   geometry.setAttribute('position', new T.Float32BufferAttribute([-.2, .2, 2.5, .2, .2, 2.5, 0, 1, 2.5, -.2, 0, 2.5, .2, 0, 2.5, 0, 0, 3] , 3));

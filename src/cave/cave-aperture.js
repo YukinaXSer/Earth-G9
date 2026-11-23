@@ -44,7 +44,9 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
       const depth = (centroid.x - end.floorCenter[0]) * end.outward[0] + (centroid.z - end.floorCenter[2]) * end.outward[2];
       a.fromBufferAttribute(p, ids[0]); b.fromBufferAttribute(p, ids[1]); c.fromBufferAttribute(p, ids[2]);
       normal.subVectors(b, a).cross(edge.subVectors(c, a)).applyNormalMatrix(normalMatrix);
-      const thresholdFloor = depth > -.6 && Math.abs(centroid.y - end.floorCenter[1]) < .4 && Math.abs(normal.y) > .6;
+      const lateral = (centroid.x - end.floorCenter[0]) * end.outward[2] - (centroid.z - end.floorCenter[2]) * end.outward[0];
+      const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && Math.abs(lateral) > .7);
+      const thresholdFloor = floorOverlap && Math.abs(centroid.y - end.floorCenter[1]) < .4 && Math.abs(normal.y) > .6;
       if (depth < outwardDepth && !thresholdFloor && insideScannedCave(centroid.toArray(), volume, mouths)) removed++;
       else keep.push(...ids);
     }

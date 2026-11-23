@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createMountainRockCover, rockRouteClearance } from '../src/cave/cave-rock-cover.js';
+import { createMountainFloorSeal, createMountainRockCover, rockRouteClearance } from '../src/cave/cave-rock-cover.js';
 import { CaveLink } from '../src/cave/cave-link.js';
 import { loadProductionMountain } from './production-mountain-fixture.js';
 import data from '../src/cave/cave-data.json' with { type: 'json' };
@@ -76,4 +76,19 @@ test('visual cover attaches after collision construction without entering collid
   assert.ok(source.slice(start, end).includes('this.dressing.add(cover)'));
   assert.ok(source.indexOf('await warmCaveAssets({ root: cover', start) < source.indexOf('this.dressing.add(cover)', start));
   assert.doesNotMatch(source.slice(start, end), /dressingIndex|floor\.cells|colliders/);
+});
+
+test('the single buried floor rock stays below the entire route footprint without changing its source', () => {
+  const source = variants[4].children[0], positions = source.geometry.attributes.position.array.slice();
+  const cover = createMountainFloorSeal(models, link.mouths[1], link.route, () => -.3, material);
+  assert.equal(cover.children.length, 1); cover.updateMatrixWorld(true);
+  assert.ok(new T.Box3().setFromObject(cover).max.y <= -.38 + 1e-6);
+  assert.deepEqual(source.geometry.attributes.position.array, positions);
+  assert.equal(source.geometry.attributes.caveGranite, undefined);
+  assert.equal(cover.userData.colliders, undefined);
+  for (const height of [null, NaN, Infinity]) assert.equal(createMountainFloorSeal(models, link.mouths[1], link.route, () => height, material).children.length, 0);
+  assert.equal(createMountainFloorSeal(new Map(), link.mouths[1], link.route, () => 0, material).children.length, 0);
+  assert.throws(() => createMountainFloorSeal(models, null, [], null, null), TypeError);
+  const code = readFileSync(new URL('../src/cave/cave-link.js', import.meta.url), 'utf8'), start = code.indexOf('const floorRock = createMountainFloorSeal'), end = code.indexOf("this.phase = 'upload-mountain'", start);
+  assert.ok(start > 0 && end > start); assert.doesNotMatch(code.slice(start, end), /dressingIndex|floor\.cells|colliders/);
 });

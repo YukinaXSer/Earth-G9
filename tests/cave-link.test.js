@@ -17,6 +17,7 @@ import { CaveRayIndex } from '../src/cave/cave-rays.js';
 import { CAVE_TEXTURE_SETS } from '../src/cave/cave-material.js';
 import { loadProductionMountain } from './production-mountain-fixture.js';
 import mountainEyes from './cave-mountain-eyes.json' with { type: 'json' };
+import { createMountainFloorSeal } from '../src/cave/cave-rock-cover.js';
 
 const host = { scene: new T.Scene(), rain: new T.Group(), rainy: false, lowDetail: false, position: new T.Vector3(START.x, 0, START.z), keys: new Set(), colliderIndex: { query: () => [] } };
 host.canMove = Rainforest.prototype.canMove; host.groundHeight = Rainforest.prototype.groundHeight;
@@ -66,6 +67,19 @@ for (const [key, triangles] of link.dressingIndex.cells) {
   link.floor.cells.get(key).push(...floors);
 }
 
+const { scene: floorRockSource } = await new GLTFLoader().loadAsync('/models/moss-rock.glb');
+floorRockSource.updateMatrixWorld(true);
+const floorRockVariants = floorRockSource.children.map(child => {
+  const group = new T.Group(), box = new T.Box3().setFromObject(child), center = box.getCenter(new T.Vector3());
+  child.traverse(mesh => { if (mesh.isMesh) group.add(new T.Mesh(mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).translate(-center.x, -box.min.y, -center.z), new T.MeshBasicMaterial({ side: T.DoubleSide }))); });
+  return group;
+});
+const floorRock = createMountainFloorSeal(new Map([['rock', floorRockVariants]]), link.mouths[1], link.route, (x, z) => link.floor.heightAt(x, z), new T.MeshBasicMaterial({ side: T.DoubleSide }));
+floorRock.updateMatrixWorld(true);
+const floorRockPositions = [];
+floorRock.traverse(mesh => { if (mesh.isMesh) for (const i of mesh.geometry.index.array) point.fromBufferAttribute(mesh.geometry.attributes.position, i).applyMatrix4(mesh.matrixWorld).toArray(floorRockPositions, floorRockPositions.length); });
+const floorRockRays = new CaveFloorIndex(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(floorRockPositions, 3)), []);
+
 test('cloned scanned cliffs use absolute yaw even when the source quaternion has a noncanonical Euler representation', () => {
   for (const yaw of [-1.0337963267948966, 2.1077963267948965]) {
     const ridge = placeScannedCliff(cliff, new T.Vector3(2, 3, 4), yaw);
@@ -96,7 +110,7 @@ for (const end of [0, 1]) test(`${end ? 'mountain' : 'forest'} scan has no sky g
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i) + TERRAIN.centerZ; p.setXYZ(i, x, groundHeight(x, z), z); }
   link.openTerrain(ground);
   const terrain = new CaveFloorIndex(ground, []), body = Object.assign(Object.create(CaveFloorIndex.prototype), physics.floor);
-  const surfaces = new CaveRayIndex([body, link.dressingIndex, terrain]), tube = new CaveRayIndex([body]);
+  const surfaces = new CaveRayIndex([body, link.dressingIndex, terrain, floorRockRays]), tube = new CaveRayIndex([body]);
   const cast = (origin, direction, maximum, onlyBody = false) => {
     return onlyBody ? tube.cast(origin, direction, maximum) : Math.min(surfaces.cast(origin, direction, maximum), nativeIndex.cast(origin, direction, maximum));
   };

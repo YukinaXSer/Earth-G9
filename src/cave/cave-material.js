@@ -1,4 +1,4 @@
-import { MeshStandardMaterial, DoubleSide } from 'three';
+import { MeshStandardMaterial, DoubleSide, Matrix4 } from 'three';
 
 export const CAVE_TEXTURE_SETS = ['rock_face_03', 'rock_surface', 'rock_face_04', 'rock_ground_02'];
 export const CAVE_REPEAT_METRES = 1.8;
@@ -13,6 +13,11 @@ uniform float caveRepeat;
 uniform float caveNormalStrength;
 uniform float caveRouteLength;
 uniform float caveViewerBrightness;
+uniform float caveGroundEnabled;
+uniform float caveGroundMetres;
+uniform float caveGroundReflectance;
+uniform mat4 caveGroundWorldToLocal;
+uniform sampler2D caveMountainGround;
 uniform sampler2D caveColor0;
 uniform sampler2D caveColor1;
 uniform sampler2D caveColor2;
@@ -65,6 +70,13 @@ export function caveDepthOcclusion(depth) {
   return t < 4 ? 1 - .5 * t / 4 : .5 - .17 * Math.min(1, (t - 4) / 6);
 }
 
+export function setMountainFloorGround(material, { texture, worldToLocal, metres, reflectance = .35 }) {
+  if (!material?.userData?.mountainFloor || !texture?.isTexture || !worldToLocal?.isMatrix4 || !Number.isFinite(metres) || metres <= 0 || !Number.isFinite(reflectance) || reflectance < 0) throw new TypeError('Mountain floor fade requires photographed ground and its coordinate frame');
+  const uniforms = material.userData.mountainFloor;
+  uniforms.caveMountainGround.value = texture; uniforms.caveGroundWorldToLocal.value.copy(worldToLocal);
+  uniforms.caveGroundMetres.value = metres; uniforms.caveGroundReflectance.value = reflectance; uniforms.caveGroundEnabled.value = 1;
+}
+
 export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, normalStrength = .65, routeLength = 105.37 } = {}) {
   if (!Number.isFinite(repeatMetres) || repeatMetres <= 0 || !Number.isFinite(normalStrength) || normalStrength < 0 || !Number.isFinite(routeLength) || routeLength <= 0) {
     throw new RangeError('Invalid cave texture scale or normal strength');
@@ -77,7 +89,12 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
   material.defaultAttributeValues = { ...material.defaultAttributeValues, caveWallOnly: [0], caveGranite: [0], caveShade: [1] };
   const viewerBrightness = { value: 1 };
   material.userData.viewerBrightness = viewerBrightness;
+  const mountainFloor = material.userData.mountainFloor = {
+    caveGroundEnabled: { value: 0 }, caveGroundMetres: { value: 1 }, caveGroundReflectance: { value: .35 },
+    caveGroundWorldToLocal: { value: new Matrix4() }, caveMountainGround: { value: sets[3].color }
+  };
   material.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, mountainFloor);
     shader.uniforms.caveRepeat = { value: repeatMetres };
     shader.uniforms.caveNormalStrength = { value: normalStrength };
     shader.uniforms.caveRouteLength = { value: routeLength };
@@ -126,6 +143,12 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
           macroTint = mix(macroTint, vec3(dot(macroTint, vec3(0.2126, 0.7152, 0.0722))), vCaveGranite);
           diffuseColor.rgb *= mix(vec3(0.7), macroTint, 0.45);
         #endif
+        float caveGroundFade = caveGroundEnabled * caveFloor * smoothstep(caveRouteLength - 1.0, caveRouteLength, vCaveRoute * caveRouteLength);
+        if (caveGroundFade > 0.0001) {
+          vec3 groundPoint = (caveGroundWorldToLocal * vec4(vCavePosition, 1.0)).xyz / caveGroundMetres;
+          vec3 groundAlbedo = texture2D(caveMountainGround, vec2(groundPoint.x, -groundPoint.z)).rgb * caveGroundReflectance;
+          diffuseColor.rgb = mix(diffuseColor.rgb, groundAlbedo, caveGroundFade);
+        }
       `)
       .replace('#include <roughnessmap_fragment>', /* glsl */`
         float roughnessFactor = 0.0;
@@ -161,6 +184,6 @@ export function createCaveMaterial(sets, { repeatMetres = CAVE_REPEAT_METRES, no
         #include <opaque_fragment>
       `);
   };
-  material.customProgramCacheKey = () => 'cave-triplanar-cliff-face';
+  material.customProgramCacheKey = () => 'cave-triplanar-mountain-floor-fade';
   return material;
 }

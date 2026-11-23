@@ -12,7 +12,9 @@ import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
 import { enableCaveShadows } from './cave-shadows.js';
 import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
-import { createMountainRockCover } from './cave-rock-cover.js';
+import { createMountainFloorSeal, createMountainRockCover } from './cave-rock-cover.js';
+import { setMountainFloorGround } from './cave-material.js';
+import { CAPTURE_SHIFT } from '../xianxia-near.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -80,6 +82,13 @@ export class CaveLink {
       host.scene.add(this.assets.root, this.dressing); this.caveAttached = true; this.addMouthLights(); this.state = 'loading-mountain';
       await frame(); await this.mountain.load();
       await this.mountain.prepare(host.camera);
+      this.mountain.group.updateMatrixWorld(true);
+      const ground = this.mountain.world.photographicGround;
+      setMountainFloorGround(this.assets.material, {
+        texture: ground.textures.groundMesoColor,
+        worldToLocal: new T.Matrix4().makeTranslation(-CAPTURE_SHIFT.x, -CAPTURE_SHIFT.y, -CAPTURE_SHIFT.z).multiply(this.mountain.world.root.matrixWorld.clone().invert()),
+        metres: ground.manifest.textures.groundColor.physicalTileMeters * 8
+      });
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
       const fit = this.fit;
@@ -90,6 +99,9 @@ export class CaveLink {
       const cover = createMountainRockCover(host.habitat.models, this.mouths[1], this.route, (x, z) => this.mountain.groundHeight(x, z), this.assets.material);
       await warmCaveAssets({ root: cover, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
       cover.visible = false; this.dressing.add(cover);
+      const floorRock = createMountainFloorSeal(host.habitat.models, this.mouths[1], this.route, (x, z) => this.floor.heightAt(x, z), this.assets.material);
+      await warmCaveAssets({ root: floorRock, textures: [] }, host.renderer, host.camera, host.scene, { waitForIdle: () => this.waitIdle() });
+      floorRock.visible = false; this.dressing.add(floorRock);
       this.phase = 'upload-mountain';
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
       this.mountain.group.traverse(m => { if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value); });

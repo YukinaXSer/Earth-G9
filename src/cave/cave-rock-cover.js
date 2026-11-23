@@ -43,3 +43,39 @@ export function createMountainRockCover(models, mouth, route, groundHeight, mate
   group.add(rock);
   return group;
 }
+
+export function createMountainFloorSeal(models, mouth, route, floorHeight, material) {
+  if (!mouth?.floorCenter || !mouth?.outward || !Array.isArray(route) || route.length < 2 || typeof floorHeight !== 'function' || !material) throw new TypeError('Floor rock requires a mouth, route, floor and material');
+  const group = new Group(); group.name = 'Reused buried mountain floor rock'; group.userData.caveEnd = 1;
+  const source = models?.get('rock')?.[4];
+  if (!source) return group;
+  const rock = source.clone(true), forward = new Vector3(...mouth.outward), side = new Vector3(-forward.z, 0, forward.x);
+  rock.position.fromArray(mouth.floorCenter).addScaledVector(forward, -8).addScaledVector(side, -2);
+  rock.position.y = 0; rock.rotation.set(0, 0, 0); rock.scale.setScalar(4); rock.updateMatrixWorld(true);
+  const box = new Box3().setFromObject(rock);
+  if (box.isEmpty()) return group;
+  let top = mouth.floorCenter[1] - .12;
+  const a = new Vector3(), b = new Vector3(), point = new Vector3();
+  for (let i = 1; i < route.length; i++) {
+    a.fromArray(route[i - 1]); b.fromArray(route[i]);
+    const count = Math.ceil(a.distanceTo(b) / .2);
+    for (let j = 0; j <= count; j++) {
+      point.copy(a).lerp(b, count ? j / count : 0);
+      if (point.x < box.min.x - .7 || point.x > box.max.x + .7 || point.z < box.min.z - .7 || point.z > box.max.z + .7) continue;
+      const height = floorHeight(point.x, point.z);
+      if (!Number.isFinite(height)) return group;
+      top = Math.min(top, height - .08);
+    }
+  }
+  rock.position.y = top - box.max.y;
+  rock.traverse(mesh => {
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone(); mesh.material = material; mesh.castShadow = true; mesh.receiveShadow = true;
+    const count = mesh.geometry.attributes.position.count;
+    for (const name of ['caveGranite', 'caveRoute']) mesh.geometry.setAttribute(name, new BufferAttribute(new Float32Array(count).fill(1), 1));
+    mesh.geometry.setAttribute('caveWallOnly', new BufferAttribute(new Float32Array(count), 1));
+    mesh.geometry.setAttribute('color', new BufferAttribute(new Float32Array(count * 3).fill(.58), 3));
+  });
+  group.userData.maximumY = top; group.userData.minimumFloorClearance = .08; group.add(rock);
+  return group;
+}

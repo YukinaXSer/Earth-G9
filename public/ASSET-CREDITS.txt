@@ -38,6 +38,16 @@ Mouth boulders reuse the rainforest moss-rock scan credited below.
 Mountain shard cover reuses its fourth boot-loaded Rock Moss Set 01 boulder,
 uniformly scaled, buried at least 0.35 m and shaded with existing granite PBR.
 It is visual dressing outside the 1.2 m route corridor; collision is unchanged.
+The low mountain floor-edge sheets are whole-triangle trimmed outside a
+1.4 m-wide floor strip; scripts/trim-mountain-floor.mjs records the rule.
+The existing Coastal Cliff shell's low flanks are buried further without
+moving its roof (scripts/bury-mountain-shell.py). One additional fifth
+Rock Moss Set 01 boulder is uniformly scaled and fully buried below the
+walking floor to seal downward sightlines. It adds no collision or floor
+index entries. The last metre of passage floor reuses the mountain's
+already loaded photographed ground macro colour; no new texture download.
+Our aperture cut retains existing low native floor triangles under the
+trimmed flanks; native mountain files and ground-height data are unchanged.
 Mountain-side dressing also meets the existing Coastal Cliff 04 scan
 (public/xianxia/surface/capture.bin), credited in the mountain section below.
 Bageshawe Resurgence Dry Passage — cave-dive-make. CC BY 4.0.

@@ -67,7 +67,7 @@ export async function loadCaveAssets({ base = '/cave/', renderer, data } = {}) {
   try {
     const sets = CAVE_TEXTURE_SETS.map((_, i) => ({ color: results[i * 3].value,
       normal: results[i * 3 + 1].value, roughness: results[i * 3 + 2].value }));
-    material = createCaveMaterial(sets);
+    material = createCaveMaterial(sets, { routeLength: data.routeLength });
     const root = results.at(-1).value;
     attachCaveRoute(root, data.route);
     root.traverse(mesh => { if (mesh.isMesh) mesh.material = material; });
