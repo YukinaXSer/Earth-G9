@@ -72,11 +72,7 @@ export class CaveLink {
       await warmCaveAssets(this.assets, host.renderer, host.camera, host.scene);
       this.phase = 'dress-mouths';
       await this.dress();
-      this.nativeFloorPatch = await createNativeCaveFloorPatch(this.assets.material, this.assets.root, this.route, this.mouths[1], frame, this.fit.volume.radius);
-      await this.clearEntrance();
-      this.attachCave();
-      await frame(); await this.mountain.load();
-      await this.mountain.prepare(host.camera);
+      await this.loadMountainAssets();
       this.mountain.group.updateMatrixWorld(true);
       this.prepareMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
@@ -98,6 +94,17 @@ export class CaveLink {
       await warmCaveAssets({ root: this.mountain.group, textures: [...textures] }, host.renderer, host.camera, host.scene);
       this.attachMountain();
     } catch (error) { this.state = 'failed'; this.error = error; console.error('Cave streaming failed:', error); }
+  }
+  async prepareNativeFloorPatch(yieldFrame = frame) {
+    this.nativeFloorPatch = await createNativeCaveFloorPatch(this.assets.material, this.assets.root, this.route, this.mouths[1], yieldFrame, this.fit.volume.radius);
+  }
+  async loadMountainAssets(yieldFrame = frame) {
+    await this.clearEntrance();
+    this.attachCave();
+    await Promise.all([
+      this.prepareNativeFloorPatch(yieldFrame),
+      (async () => { await yieldFrame(); await this.mountain.load(); await this.mountain.prepare(this.host.camera); })(),
+    ]);
   }
   attachMountain() {
     const host = this.host;
