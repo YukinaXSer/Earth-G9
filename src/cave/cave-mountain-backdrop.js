@@ -8,9 +8,12 @@ export function holdMountainBackdrop(root, replacement) {
   const held = [];
   root.traverse(mesh => {
     if (!mesh.isBatchedMesh || mesh.name !== 'native-mountain-far') return;
-    for (let i = 0; i < mesh.instanceCount; i++) {
+    const count = mesh.instanceCount;
+    let visited = 0;
+    for (let i = 0; i < mesh.maxInstanceCount && visited < count; i++) {
       try {
-        mesh.getMatrixAt(i, matrix); world.multiplyMatrices(mesh.matrixWorld, matrix);
+        mesh.getMatrixAt(i, matrix); visited++;
+        world.multiplyMatrices(mesh.matrixWorld, matrix);
         if (!world.elements.every((v, j) => Math.abs(v - near.matrixWorld.elements[j]) < 1e-8)) continue;
         mesh.getBoundingBoxAt(mesh.getGeometryIdAt(i), box);
         if (Math.abs(box.min.x - bounds.min.x) > .001 || Math.abs(box.max.x - bounds.max.x) > .001) continue;
