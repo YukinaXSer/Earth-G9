@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { XianxiaDemoRuntime } from '../src/xianxia-demo-runtime.js';
 
@@ -9,6 +10,13 @@ function explorer(){
     worldLink:{owns:(x,z)=>z<-105,groundHeight:()=>0,canWalk:()=>true},
   });
 }
+test('standalone copy consistently marks the cave closed instead of promising a rainforest connection',()=>{
+  const source=readFileSync(new URL('../src/xianxia-main.js',import.meta.url),'utf8');
+  for(const text of ['山洞尚未开放，当前可沿山径探索。','山洞尚未开放，暂不连接雨林。','当前为独立山境，山洞尚未开放。沿山径前行，听松看云。','两界洞 · 尚未开放','独立山境试玩 · 山洞尚未开放'])assert.ok(source.includes(text),text);
+  assert.doesNotMatch(source,/回身穿洞|即可往返雨林|可穿过两界洞|两界相连，循径可返|从雨林洞口出发|青岚境与雨林连续山境/);
+  assert.match(source,/nearOnly:true/);
+  assert.match(source,/\$\('#forest-start'\)\.hidden=true/);
+});
 test('demo walks beyond native bounds on linked ground without replacing its shared player',()=>{
   const world=explorer(),position=world.position;
   for(let i=0;i<32;i++)world.moveDemo(.25);
