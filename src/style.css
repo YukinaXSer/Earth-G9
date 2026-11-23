@@ -95,6 +95,7 @@ h1 span { display: block; font-size: 23px; letter-spacing: 5px; margin-top: 23px
 .trail-guide p { margin: 5px 0; font-size: 13px; color: #e1c78b; }
 .trail-guide small { display: block; font-size: 10px; white-space: nowrap; color: var(--text-muted); }
 .trail-guide .icon-button { margin-left: 5px; flex: 0 0 30px; }
+.entry-trail { display: block; margin-top: 12px; font-size: 11px; }
 @media (max-width: 700px) { .trail-guide { top: 154px; padding: 10px 12px; gap: 10px; } }
 @media (max-height: 500px) and (max-width: 1000px) { .trail-guide { top: 75px; left: auto; right: 4%; transform: none; } }
 #toggle-mission { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; font-size: 11px; }

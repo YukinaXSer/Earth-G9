@@ -46,6 +46,7 @@ app.innerHTML = `
       <h1>雨林之境<span>在这里，与万物共生。</span></h1>
       <p class="intro-description">把喧嚣留在世界之外。<br>沿着水声，走进一片自由生长的原生雨林。<br>发现微小的生命，也种下属于你的新生。</p>
       <button class="primary-button" id="enter"><span>进入 2 号地球</span>${icon('arrow')}</button>
+      <button class="text-button entry-trail hidden" id="enter-trail">从入口沿小径出发（保留进度）</button>
       <div class="entry-note">无需安装 <i>·</i> 3D 自由漫游 <i>·</i> 进度自动保存</div>
       <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 滚轮 / 双指缩放<br>靠近光标按 E / 点按互动</p>
     </section>
@@ -113,6 +114,7 @@ function toast(message) {
 
 function syncProgress() {
   $('#enter span').textContent = savedView || getCompletion(progress) ? '继续探索雨林' : '进入 2 号地球';
+  show('#enter-trail', !!savedView);
   $('#mission-summary').textContent = `探索 ${progress.discovered.length + progress.planted.length} / 8`;
   $('#nav-count').textContent = `${progress.discovered.length} / 5`;
   $('#discover-count').textContent = `${progress.discovered.length} / 5`;
@@ -385,6 +387,7 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
+    case 'enter-trail': enterWorld(); navigationTarget = null; world.resetPosition(); break;
     case 'zoom-in': world.zoomView(.85); break;
     case 'zoom-out': world.zoomView(1 / .85); break;
     case 'zoom-reset': world.resetZoom(); break;
