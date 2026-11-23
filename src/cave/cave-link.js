@@ -7,7 +7,8 @@ import { BOUNDS, groundHeight, isWalkableGround } from '../data.js';
 import { createColliderIndex } from '../captured-collisions.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { terrainCutWriter } from './cave-terrain.js';
-import { clipMountainAperture, limitMountainToExit } from './cave-aperture.js';
+import { clipMountainAperture, clipMountainApertureAsync, limitMountainToExit } from './cave-aperture.js';
+import { holdMountainBackdrop } from './cave-mountain-backdrop.js';
 import { CaveRayIndex } from './cave-rays.js';
 import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
@@ -77,7 +78,8 @@ export class CaveLink {
       this.mountain.group.updateMatrixWorld(true);
       if (host.lowDetail) useLowMountainMaterials(this.mountain.group, Object.values(this.mountain.world.photographicGround.textures));
       host.renderer.localClippingEnabled = true;
-      this.prepareMountainMeshes(this.mountain.group);
+      await this.prepareMountainMeshesAsync(this.mountain.group);
+      await this.mountainPreparation;
       this.nativeFloor = createMountainHandoffFloor(this.mountain.group, this.route, this.floorHandoff);
       const nativeFloor = this.mountain.group.getObjectByName('native-mountain');
       useMountainFloorMaterial(mesh, this.floorHandoff, Array.isArray(nativeFloor.material) ? nativeFloor.material[0] : nativeFloor.material);
@@ -121,12 +123,16 @@ export class CaveLink {
     root.updateWorldMatrix(true, true);
     const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
     limitMountainToExit(root, this.mouths[1], { nativeCliff });
-    const point = new T.Vector3(), origin = new T.Vector3(), direction = new T.Vector3(), floorHeight = (x, z) => {
+    this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths, this.mountainApertureOptions());
+    if (this.host.lowDetail) useLowMountainMaterials(root);
+  }
+  mountainApertureOptions() {
+    const point = new T.Vector3(), origin = new T.Vector3(), direction = new T.Vector3(), cache = new Map(), floorHeight = (x, z) => {
       point.set(x, 0, z).applyMatrix4(this.transform);
       const height = this.floor?.heightAt(point.x, point.z);
       return height == null ? null : height - this.transform.elements[13];
     };
-    const insideBody = local => {
+    const contains = local => {
       point.copy(local).applyMatrix4(this.transform);
       if (!this.floor?.triangles?.(point.x, point.z).length) return false;
       const near = nearestRoute(point.x, point.z, this.route);
@@ -141,14 +147,50 @@ export class CaveLink {
         origin.y = height + 1.85;
         const distance = direction.subVectors(point, origin).length();
         if (distance <= .003) return true;
+        const bounds = this.bodyRays.root?.box;
+        if (bounds && !bounds.containsPoint(point) && bounds.containsPoint(origin)) continue;
         direction.multiplyScalar(1 / distance);
         const wall = this.bodyRays.cast(origin, direction, Infinity);
         if (Number.isFinite(wall) && wall > distance + .003) return true;
       }
       return false;
     };
-    this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths,
-      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight, insideBody });
+    const insideBody = local => {
+      const key = `${local.x},${local.y},${local.z}`;
+      if (!cache.has(key)) cache.set(key, contains(local));
+      return cache.get(key);
+    };
+    const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
+    return { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight, insideBody };
+  }
+  async prepareMountainMeshesAsync(root, yieldFrame = frame) {
+    if (root === this.mountain.group && !this.mountainWatching) {
+      this.mountainWatching = true; this.mountainPreparation = Promise.resolve();
+      root.addEventListener('childadded', ({ child }) => {
+        let scanned = false;
+        child.traverse(mesh => { if (mesh.isMesh && ['capture-grounded-rock', 'native-mountain', 'coastal-cliff-04-native-capture'].includes(mesh.name)) scanned = true; });
+        if (!scanned) { this.prepareMountainMeshes(child); return; }
+        child.updateWorldMatrix(true, true);
+        const visible = child.visible, release = holdMountainBackdrop(this.mountain.group, child);
+        child.visible = false;
+        this.mountainPreparation = this.mountainPreparation.then(async () => {
+          await this.prepareMountainMeshesAsync(child, yieldFrame);
+          if (child.parent === root) { child.visible = visible; release(); }
+        }).catch(error => { this.mountain.world.streamingError = error; });
+      });
+      const update = this.mountain.world.updateMountain;
+      this.mountain.world.updateMountain = async (...args) => {
+        await update.apply(this.mountain.world, args); await this.mountainPreparation;
+      };
+    }
+    root.updateWorldMatrix(true, true);
+    const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
+    limitMountainToExit(root, this.mouths[1], { nativeCliff });
+    if (!this.bodyRays && this.floor?.cells) {
+      this.bodyRaysLoading ??= CaveRayIndex.createAsync([this.floor], yieldFrame);
+      this.bodyRays = await this.bodyRaysLoading;
+    }
+    this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + await clipMountainApertureAsync(root, this.transform.clone().invert(), this.fit.volume, data.mouths, this.mountainApertureOptions(), yieldFrame);
     if (this.host.lowDetail) useLowMountainMaterials(root);
   }
   async dress() {
