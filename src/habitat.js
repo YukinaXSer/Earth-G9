@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, BOUNDS, START } from './data.js';
+import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, mainTrailX, BOUNDS, START } from './data.js';
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
 import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
 import { NearTrunks, treeDetailDistance } from './near-trunks.js';
+import { coversEntrancePath } from './wayfinding.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
 const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
@@ -162,6 +163,10 @@ export class Habitat {
 
   place(key, x, z, scale = 1, angle = 0, variantIndex = 0, elevatedY) {
     const variants = this.models.get(key), variant = variants[variantIndex % variants.length];
+    if (['fern', 'broadleaf', 'groundcover', 'creeper'].includes(key)) {
+      const width = Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale;
+      if (coversEntrancePath(x, z, variant.userData.spread * width * Math.SQRT1_2)) return [];
+    }
     const embedded = (SOIL_SKIRT_DEPTH[key] ?? 0) * (Array.isArray(scale) ? scale[1] : scale);
     let floor = groundHeight(x, z);
     const radius = (SOIL_SKIRT_RADIUS[key] ?? 0) * (Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale);
@@ -319,7 +324,7 @@ export class Habitat {
       }
     }
     for (let i = 0; i < 18; i++) {
-      const z = 9 - i * 7.2, x = Math.sin(z * .06) * 1.4 + (i % 2 ? 1 : -1) * w.rand(4, 8);
+      const z = 9 - i * 7.2, x = mainTrailX(z) + (i % 2 ? 1 : -1) * w.rand(4, 8);
       if (Math.abs(x - riverX(z)) < 6) continue;
       this.backgroundTree(x, z, w.rand(1.7, 2.8), w.rand(0, 6));
       w.colliders.push({ x, z, radius: .35 });
@@ -354,13 +359,13 @@ export class Habitat {
     for (const [key, x, z, scale, variant] of foreground) this.place(key, x, z, scale, w.rand(0, 6), variant);
     for (let z = 34; z > -110; z -= 2.2) {
       for (const side of [-1, 1]) {
-        const x = Math.sin(z * .06) * 1.4 + side * w.rand(.9, 1.5);
+        const x = mainTrailX(z) + side * w.rand(.9, 1.5);
         if ([...SPECIES, ...PLANT_SITES].some(s => Math.hypot(s.x - x, s.z - z) < 2)) continue;
         this.place('fern', x, z, w.rand(2.8, 4.5), w.rand(0, 6), 3);
       }
     }
     for (let i = 0; i < 240; i++) {
-      const z = w.rand(14, 38), path = Math.sin(z * .06) * 1.4;
+      const z = w.rand(14, 38), path = mainTrailX(z);
       const x = path + (i % 2 ? 1 : -1) * w.rand(.9, 8);
       if ([...SPECIES, ...PLANT_SITES].some(s => Math.hypot(s.x - x, s.z - z) < 1.8)) continue;
       const key = i % 3 ? 'fern' : 'broadleaf';
