@@ -322,6 +322,19 @@ test('movement follows the authored ramp or overlapping rendered native floor wi
   }
 });
 
+test('the extended scanned floor grade has no height step above 1cm at 5cm intervals in either direction', () => {
+  const blend = fitData.mouths[1].floorHandoff.floorBlend;
+  assert.ok(blend.metres >= .5);
+  const heights = [];
+  for (let along = blend.start; along < blend.end; along += .05) {
+    const point = routePointAt(link.route, along), height = link.groundHeight(point.x, point.z);
+    assert.ok(Number.isFinite(height)); heights.push(height);
+  }
+  const end = routePointAt(link.route, blend.end);
+  heights.push(link.groundHeight(end.x, end.z));
+  for (const values of [heights, heights.toReversed()]) for (let i = 1; i < values.length; i++) assert.ok(Math.abs(values[i] - values[i - 1]) <= .01, `Floor blend step ${values[i] - values[i - 1]}`);
+});
+
 test('host movement walks terrain, both seams, real cave floor and graded mountain approach, then back', () => {
   const first = new T.Vector3(...link.mouths[0].floorCenter).addScaledVector(new T.Vector3(...link.mouths[0].outward), 2);
   const end = new T.Vector3(MOUNTAIN_ENTRANCE.approach.endX, MOUNTAIN_ENTRANCE.approach.endY, MOUNTAIN_ENTRANCE.approach.endZ).applyMatrix4(link.mountain.group.matrixWorld);
