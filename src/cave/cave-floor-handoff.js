@@ -54,7 +54,7 @@ export function floorHandoffHeight(plan, route, x, z, body, native, renderedNati
   const near = nearestRoute(x, z, route);
   if (near.along < plan.rampStart || near.distance > 1.2) return body;
   if (near.along >= plan.along || body == null) return native;
-  if (Number.isFinite(renderedNative) && Math.abs(renderedNative - body) <= (plan.maximumHeightDifference ?? .1)) return Math.max(body, renderedNative);
+  if (Number.isFinite(renderedNative) && Math.abs(renderedNative - body) <= .2) return Math.max(body, renderedNative);
   return body;
 }
 
