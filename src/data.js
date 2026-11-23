@@ -15,6 +15,7 @@ export const PLANT_SITES = [
 ];
 
 export const START = { x: 0, z: 35 };
+export const CAVE_FOREST_MOUTH = Object.freeze({ x: 72, z: -250, yaw: Math.PI });
 export function formatCoordinates(position) {
   const north = START.z - position.z;
   return `${Math.abs(north).toFixed(1)} ${north < 0 ? 'S' : 'N'}   ${Math.abs(position.x).toFixed(1)} ${position.x < 0 ? 'W' : 'E'}`;
@@ -114,12 +115,12 @@ export function saveProgress(storage, progress) {
 }
 export function getCompletion(progress) { return Math.round((progress.discovered.length + progress.planted.length) / 8 * 100); }
 
-export function loadView(storage) {
+export function loadView(storage, { preservePosition = false } = {}) {
   try {
     const view = JSON.parse(storage.getItem('earth2-view'));
     if (!view || !['x', 'z', 'yaw', 'pitch'].every(k => Number.isFinite(view[k]))) return null;
-    const z = Math.max(BOUNDS.minZ, Math.min(view.z, BOUNDS.maxZ));
-    return { x: Math.max(BOUNDS.minX, Math.min(view.x, BOUNDS.maxX)), z, yaw: view.yaw % (Math.PI * 2), pitch: Math.max(-1.05, Math.min(1.05, view.pitch)) };
+    const z = preservePosition ? view.z : Math.max(BOUNDS.minZ, Math.min(view.z, BOUNDS.maxZ));
+    return { x: preservePosition ? view.x : Math.max(BOUNDS.minX, Math.min(view.x, BOUNDS.maxX)), z, yaw: view.yaw % (Math.PI * 2), pitch: Math.max(-1.05, Math.min(1.05, view.pitch)) };
   } catch { return null; }
 }
 

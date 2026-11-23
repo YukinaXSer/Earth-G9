@@ -3,7 +3,7 @@ import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
 import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
 import { entranceGuidance } from './wayfinding.js';
-import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
+import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, CAVE_FOREST_MOUTH, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
   leaf: '<path d="M20 4C10 3 3 7 4 15c1 6 13 7 16-11Z"/><path d="m4 21 11-12M9 16v-5m3 2h5"/>',
@@ -79,7 +79,7 @@ app.innerHTML = `
   </main>
 
   <footer class="bottom-bar">
-    <div class="location">${icon('pin')}<div><strong>原生雨林 <span>· 溪谷入口</span></strong><small id="coordinates">00.0 N &nbsp; 00.0 E</small></div></div>
+    <div class="location">${icon('pin')}<div><strong><b id="region-world">原生雨林</b> <span>· 溪谷入口</span></strong><small id="coordinates">00.0 N &nbsp; 00.0 E</small></div></div>
     <div class="intro-footer" id="intro-footer"><span class="tiny-line"></span> 不是征服自然，而是成为自然的一部分。</div>
     <div class="game-hint hidden" id="game-hint"><kbd>W A S D</kbd> 移动 <span>·</span> 拖动环顾 <span>·</span> <kbd>E</kbd> 互动</div>
     <div class="toolbar" aria-label="探索工具">
@@ -99,7 +99,7 @@ app.innerHTML = `
 let storage;
 try { storage = window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw new Error('storage unavailable'); } }; }
 let progress = loadProgress(storage);
-let savedView = loadView(storage), lastViewSave = 0;
+let savedView = loadView(storage, { preservePosition: true }), lastViewSave = 0, entering = false;
 const settings = loadSettings(storage);
 let world, entered = false, currentPoint = null, modalType = null, previousFocus = null, toastTimer, audioContext, birdTimer, navigationTarget = null;
 let riverGain, rainGain;
@@ -131,12 +131,19 @@ function commitProgress() {
   syncProgress();
 }
 
-function enterWorld() {
-  if (!world) return;
+async function enterWorld() {
+  if (!world || entering) return;
+  entering = true;
   if (!entered && savedView) {
-    world.position.set(savedView.x, 0, savedView.z); world.yaw = savedView.yaw; world.pitch = savedView.pitch;
-    world.recoverPosition();
+    try {
+      const { restoreCaveView } = await import('./cave/cave-view.js');
+      restoreCaveView(world, savedView);
+    } catch {
+      world.position.set(CAVE_FOREST_MOUTH.x, 0, CAVE_FOREST_MOUTH.z);
+      world.yaw = savedView.yaw; world.pitch = savedView.pitch; world.recoverPosition();
+    }
   }
+  entering = false;
   entered = true; world.active = true;
   if (settings.sound) setAudio(true, false);
   ['#intro', '#intro-aside', '#intro-footer'].forEach(s => show(s, false));
@@ -166,11 +173,14 @@ function updatePosition(position) {
   }
   $('#coordinates').textContent = formatCoordinates(position);
   const nearbyView = nearestPoint(position, VIEWPOINTS, 35);
-  const region = nearbyView?.name ?? (position.x > riverX(position.z) + 8 ? '东岸雨林' : position.x < -60 ? '西部密林' : position.z < -125 ? '北部林冠' : position.z > 85 ? '南溪岸林' : position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地');
+  const region = world?.worldLink?.region ?? nearbyView?.name ?? (position.x > riverX(position.z) + 8 ? '东岸雨林' : position.x < -60 ? '西部密林' : position.z < -125 ? '北部林冠' : position.z > 85 ? '南溪岸林' : position.z > 5 ? '溪谷入口' : position.z > -40 ? '蕨影小径' : position.z > -75 ? '巨木深处' : '新生林地');
   if (navigationTarget && Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z) < 6) {
     toast(`已到达${navigationTarget.name}。按 E 欣赏风景，按 P 留下照片。`); navigationTarget = null;
   }
   $('.location strong span').textContent = navigationTarget ? `· ${world.targetDirection(navigationTarget)}${navigationTarget.name} ${Math.ceil(Math.hypot(position.x - navigationTarget.x, position.z - navigationTarget.z))}米` : `· ${region}`;
+  const mountainRegion = world?.worldLink?.region === '青岚境';
+  $('#region-world').textContent = mountainRegion ? '青岚境' : '原生雨林';
+  $('#nav-world').firstChild.textContent = mountainRegion ? '青岚境 ' : '雨林之境 ';
   const points = [
     ...SPECIES.map(s => ({ ...s, kind: 'species' })),
     ...PLANT_SITES.filter(s => !progress.planted.includes(s.id)).map(s => ({ ...s, kind: 'plant' })),
@@ -374,7 +384,7 @@ app.addEventListener('click', event => {
   if (button.dataset.travel) {
     navigationTarget = null;
     const point = [...SPECIES, ...PLANT_SITES].find(s => s.id === button.dataset.travel);
-    if (!entered) enterWorld(); world.travelTo(point); closeModal(); toast(`已来到${point.name}附近，向前走几步即可互动。`); return;
+    if (!entered) { savedView = null; enterWorld(); } world.travelTo(point); closeModal(); toast(`已来到${point.name}附近，向前走几步即可互动。`); return;
   }
   switch (button.id) {
     case 'toggle-mission': {
@@ -387,7 +397,7 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
-    case 'enter-trail': enterWorld(); navigationTarget = null; world.resetPosition(); break;
+    case 'enter-trail': savedView = null; enterWorld(); navigationTarget = null; world.resetPosition(); break;
     case 'zoom-in': world.zoomView(.85); break;
     case 'zoom-out': world.zoomView(1 / .85); break;
     case 'zoom-reset': world.resetZoom(); break;

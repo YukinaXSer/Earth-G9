@@ -1,3 +1,75 @@
+Cave link (streamed only when requested after the first scene)
+-------------------------------------------------------------
+forest-low.glb: UV-preserving simplified geometry from the bundled fern,
+calathea, pachira, anthurium, shrub-03 and shrub-04 assets credited below.
+Loaded only for the low tier after the first frame; original photographs reused.
+Mouth hillside: Poly Haven coastal_cliff_01 real cliff scan, CC0.
+https://polyhaven.com/a/coastal_cliff_01
+Forest mouth: Rocky cave entrance — Nature-témoin (speleotv), CC BY 4.0.
+https://sketchfab.com/3d-models/rocky-cave-entrance-6b0765f8887a47e1b0a063a118293c83
+https://creativecommons.org/licenses/by/4.0/
+Source obtained through Allen AI Objaverse (203,884 imported triangles).
+Modified: uniform scale and rigid placement, decimation and regenerated normals,
+whole-triangle removal at the interior overlap and shared walking floor; no caps.
+Its native 1024x1024 photographed atlas is blurred and sampled into linear vertex
+macro tint, not enlarged. Close detail uses the existing photographed triplanar PBR.
+Interior macro colour blends to the tube over the 0.35 m overlap.
+Seated 0.5 m below its neck datum, with retained native ceiling overlap.
+The upper back is embedded in a uniformly scaled Coastal Cliff 01 scan already
+bundled with the cave; its photographed vertex tint and the existing PBR are reused.
+Moss rocks, ferns and shrubs over the top/flanks reuse the boot-loaded scans.
+Only the entrance's inward-facing ceiling carries baked shade, starting 1.4 m
+before the neck datum. The passage has no broad baked AO. Its non-floor walls
+are coarsened for delivery, protecting floor faces and both 6 m mouth regions
+before the mountain wall rim is recessed 3 m into the native cliff.
+public/cave/mouth-forest.glb; preparation: scripts/prepare-cave-entrance.py;
+source hash, placement and measured sections: public/cave/mouth-fit.json.
+Mountain mouth: the host's existing Poly Haven coastal_cliff_04 scanned cliff,
+tiles and grounded scan rocks, CC0. The aperture-snapped mountain rim stays removed.
+An additional uniformly scaled Coastal Cliff 04 scan wraps the upper cave shell,
+with its original perimeter buried 0.7 m and no snapped vertices or cap faces.
+Existing rock_face_04 triplanar and grey macro tint supply the granite surface.
+Preparation: scripts/prepare-mountain-shell.py; measurements: mouth-fit.json.
+The passage wall rim is recessed 3 m; native opening cuts delete whole
+triangles only. Preparation: scripts/prepare-native-mountain-mouth.py.
+https://polyhaven.com/a/coastal_cliff_04
+Reduced mesh with atlas-derived vertex tint and a cropped entrance aperture.
+Mouth boulders reuse the rainforest moss-rock scan credited below.
+Mountain shard cover reuses its fourth boot-loaded Rock Moss Set 01 boulder,
+uniformly scaled, buried at least 0.35 m and shaded with existing granite PBR.
+It is visual dressing outside the 1.2 m route corridor; collision is unchanged.
+The low mountain floor-edge sheets are whole-triangle trimmed outside a
+1.4 m-wide floor strip; scripts/trim-mountain-floor.mjs records the rule.
+The existing Coastal Cliff shell's low flanks are buried further without
+moving its roof (scripts/bury-mountain-shell.py). One additional fifth
+Rock Moss Set 01 boulder is uniformly scaled and fully buried below the
+walking floor to seal downward sightlines. It adds no collision or floor
+index entries. The remaining floor's last two metres use the mountain's
+complete photographed ground material, including its normal and roughness.
+scripts/prepare-mountain-floor-handoff.mjs measures native ground-height
+overlap, trims supported floor triangles and authors the half-metre ramp
+and 2.5 cm buried lateral edges. No new texture or model download.
+Our aperture cut retains existing low native floor triangles under the
+trimmed flanks; native mountain files and ground-height data are unchanged.
+Mountain-side dressing also meets the existing Coastal Cliff 04 scan
+(public/xianxia/surface/capture.bin), credited in the mountain section below.
+Bageshawe Resurgence Dry Passage — cave-dive-make. CC BY 4.0.
+https://sketchfab.com/3d-models/1183fc2d392e4eee9ebe74d07af0361c
+https://creativecommons.org/licenses/by/4.0/
+Source obtained through Allen AI Objaverse, retaining Sketchfab attribution.
+Modified: metric rigid placement, open end cuts, decimation, welded smooth normals,
+small-hole repair, atlas-to-vertex macro tint and quantized GLB export.
+public/cave/cave.glb; source hash and transform: src/cave/cave-data.json.
+
+Photographed PBR — Poly Haven, CC0 (colour, OpenGL normal and roughness):
+rock_face_03 — https://polyhaven.com/a/rock_face_03 (rainforest-end walls)
+rock_surface — https://polyhaven.com/a/rock_surface (interior walls)
+rock_face_04 — https://polyhaven.com/a/rock_face_04 (mountain-end walls)
+rock_ground_02 — https://polyhaven.com/a/rock_ground_02 (floor, Rob Tuytel)
+https://creativecommons.org/publicdomain/zero/1.0/
+Original 2K maps from https://api.polyhaven.com/files/<asset>, converted to WebP.
+Source URLs/checksums and derivative hashes: src/cave/cave-data.json.
+
 Scanned rainforest wildlife (additional assets, loaded after the first scene)
 ----------------------------------------------------------------------------
 Psalidognathus superbus / rainforest-beetle.glb

@@ -105,11 +105,20 @@ export class Rainforest {
     this.renderer.render(this.scene, this.camera);
     this.initializing = false;
     this.wildlife.startAdditional?.();
+    this.scheduleCave?.();
+  }
+
+  scheduleCave(start = () => import('./cave/cave-link.js').then(({ streamCave }) => streamCave(this))) {
+    requestAnimationFrame(() => {
+      const idle = window.requestIdleCallback ?? (callback => setTimeout(callback, 1));
+      idle(() => Promise.resolve().then(start).catch(error => console.error('Cave initialization failed:', error)), { timeout: 1500 });
+    });
   }
 
   makeLighting() {
-    this.scene.add(new THREE.HemisphereLight('#b8cda4', '#65503b', this.lowDetail ? 1.35 : .85));
-    if (this.lowDetail) this.scene.add(new THREE.AmbientLight('#dbe2d3', 1.1));
+    this.hemisphere = new THREE.HemisphereLight('#b8cda4', '#65503b', this.lowDetail ? 1.35 : .85);
+    this.scene.add(this.hemisphere);
+    if (this.lowDetail) { this.ambient = new THREE.AmbientLight('#dbe2d3', 1.1); this.scene.add(this.ambient); }
     this.sun = new THREE.DirectionalLight('#fff0ce', 3);
     this.sun.position.set(-24, 30, 12);
     this.sunOffset = this.sun.position.clone();
@@ -118,6 +127,10 @@ export class Rainforest {
     this.sun.shadow.mapSize.set(1024, 1024);
     this.sun.shadow.bias = -0.001;
     this.scene.add(this.sun, this.sun.target);
+    this.mouthLights = Array.from({ length: 2 }, () => {
+      const light = new THREE.SpotLight('#ffffff', 0, 24, .85, .8, 1.5);
+      light.position.set(10000, 10000, 10000); this.scene.add(light, light.target); return light;
+    });
     const hdrLoader = new HDRLoader(this.loadingManager);
     this.environmentReady = Promise.all([
       hdrLoader.loadAsync('/textures/rainforest-light.hdr'),
@@ -361,6 +374,47 @@ export class Rainforest {
 
   notifyPosition() { this.onUpdate?.({ x: this.position.x, z: this.position.z, yaw: this.yaw, pitch: this.pitch, moving: false }); }
 
+  groundHeight(x, z) { return this.worldLink?.groundHeight(x, z) ?? groundHeight(x, z); }
+
+  canMove(fromX, fromZ, x, z) {
+    const linked = this.worldLink?.canMove(fromX, fromZ, x, z);
+    if (linked != null) return linked;
+    if (x < BOUNDS.minX || x > BOUNDS.maxX || z < BOUNDS.minZ || z > BOUNDS.maxZ) return false;
+    const floor = groundHeight(x, z);
+    return isWalkableGround(x, z) && !this.colliderIndex.query(x, z).some(c => colliderContains(c, x, z, .4, floor));
+  }
+
+  movePlayer(dt, forward, side) {
+    const length = Math.max(1, Math.hypot(forward, side));
+    const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 8 : 4.3) * dt / length;
+    const steps = Math.ceil(dt / 0.035);
+    for (let step = 0; step < steps; step++) {
+      const nx = this.position.x + (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * speed / steps;
+      const nz = this.position.z + (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side) * speed / steps;
+      if (this.canMove(this.position.x, this.position.z, nx, nz)) { this.position.x = nx; this.position.z = nz; }
+    }
+  }
+
+  applyLinkLighting(dt) {
+    const profile = this.worldLink?.lighting;
+    if (!profile) return;
+    const { brightness: light, blend, mountain: m } = profile, mix = THREE.MathUtils.lerp;
+    this.scene.fog.color.set(this.rainy ? '#65776d' : '#8ca18c').lerp(new THREE.Color(this.rainy ? m.fog.rainyColor : m.fog.sunnyColor), blend);
+    this.scene.fog.density = mix((this.rainy ? .007 : .0045) + this.moisture * .006, (this.rainy ? m.fog.rainyDensity : m.fog.sunnyDensity) + this.moisture * .006, blend) + (1 - light) * .008;
+    this.scene.environmentIntensity = mix(this.rainy ? .45 : .85, this.rainy ? m.environment.rainy : m.environment.sunny, blend) * light;
+    this.sun.intensity = mix(this.rainy ? .75 : 3, this.rainy ? m.sun.rainy : m.sun.sunny, blend) * light;
+    this.sun.color.set('#fff0ce').lerp(new THREE.Color(m.sun.color), blend);
+    this.hemisphere.color.set('#b8cda4').lerp(new THREE.Color(m.hemisphere.sky), blend);
+    this.hemisphere.groundColor.set('#65503b').lerp(new THREE.Color(m.hemisphere.ground), blend);
+    this.hemisphere.intensity = mix(this.lowDetail ? 1.35 : .85, this.lowDetail ? m.hemisphere.low : m.hemisphere.high, blend) * light;
+    if (this.ambient) { this.ambient.color.set('#dbe2d3').lerp(new THREE.Color(m.ambient.color), blend); this.ambient.intensity = mix(1.1, m.ambient.low, blend) * light; }
+    this.scene.backgroundIntensity = mix(this.rainy ? .45 : 1, this.rainy ? m.background.rainyIntensity : m.background.sunnyIntensity, blend) * light;
+    this.scene.backgroundRotation.y = mix(this.rainy ? 1.7 : -2.083, this.rainy ? m.background.rainyRotation : m.background.sunnyRotation, blend);
+    this.renderer.toneMappingExposure = mix(this.renderer.toneMappingExposure, mix(.96, m.exposure, blend) + (1 - light) * .25, 1 - Math.exp(-dt / 2));
+    this.waterMaterial.uniforms.fogColor.value.copy(this.scene.fog.color);
+    this.sunRays.visible = !this.rainy && !this.lowDetail && light > .85;
+  }
+
   targetDirection(point) {
     const angle = Math.atan2(-(point.x - this.position.x), -(point.z - this.position.z));
     const delta = Math.atan2(Math.sin(angle - this.yaw), Math.cos(angle - this.yaw));
@@ -381,24 +435,12 @@ export class Rainforest {
       const side = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0) + (this.touchMove?.x ?? 0);
       if (this.keys.has('ArrowLeft')) this.yaw += dt * 1.3;
       if (this.keys.has('ArrowRight')) this.yaw -= dt * 1.3;
-      const length = Math.max(1, Math.hypot(forward, side));
-      const speed = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 8 : 4.3) * dt / length;
-      const steps = Math.ceil(dt / 0.035);
-      for (let step = 0; step < steps; step++) {
-        const nx = THREE.MathUtils.clamp(this.position.x + (-Math.sin(this.yaw) * forward + Math.cos(this.yaw) * side) * speed / steps, BOUNDS.minX, BOUNDS.maxX);
-        const nz = THREE.MathUtils.clamp(this.position.z + (-Math.cos(this.yaw) * forward - Math.sin(this.yaw) * side) * speed / steps, BOUNDS.minZ, BOUNDS.maxZ);
-        const floor = groundHeight(nx, nz);
-        const blocked = !isWalkableGround(nx, nz) || this.colliderIndex.query(nx, nz).some(c => colliderContains(c, nx, nz, .4, floor));
-        if (!blocked) {
-          this.position.x = nx;
-          this.position.z = nz;
-        }
-      }
+      this.movePlayer(dt, forward, side);
       moving = !!(forward || side);
     }
     this.sun.position.copy(this.position).add(this.sunOffset);
     this.sun.target.position.copy(this.position);
-    this.camera.position.set(this.position.x, groundHeight(this.position.x, this.position.z) + 1.85 + (moving ? Math.sin(t * 9) * 0.035 : Math.sin(t * 0.8) * 0.012), this.position.z);
+    this.camera.position.set(this.position.x, this.groundHeight(this.position.x, this.position.z) + 1.85 + (moving ? Math.sin(t * 9) * 0.035 : Math.sin(t * 0.8) * 0.012), this.position.z);
     const introYaw = !this.active ? Math.sin(t * 0.09) * 0.075 : 0;
     this.camera.rotation.set(this.pitch, this.yaw + introYaw, 0, 'YXZ');
     this.waterMaterial.uniforms.time.value = t;
@@ -410,6 +452,7 @@ export class Rainforest {
       this.habitat.updateVisibility(this.camera.position);
       this.onUpdate?.({ x: this.position.x, z: this.position.z, yaw: this.yaw, pitch: this.pitch, moving }); this.lastUpdate = t;
     }
+    this.worldLink?.update(dt); this.applyLinkLighting(dt);
     if (!this.initializing) this.renderer.render(this.scene, this.camera);
   };
 }
