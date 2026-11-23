@@ -397,7 +397,7 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
-    case 'enter-trail': enterWorld(); navigationTarget = null; world.resetPosition(); break;
+    case 'enter-trail': savedView = null; enterWorld(); navigationTarget = null; world.resetPosition(); break;
     case 'zoom-in': world.zoomView(.85); break;
     case 'zoom-out': world.zoomView(1 / .85); break;
     case 'zoom-reset': world.resetZoom(); break;
