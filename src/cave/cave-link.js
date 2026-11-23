@@ -227,8 +227,8 @@ export class CaveLink {
     if (region === 'cave') {
       const height = this.floor?.heightAt(x, z);
       if (this.ready && this.floorHandoff && mouthDistance({ x, z }, this.mouths[1]) > -this.floorHandoff.band - 1) {
-        const renderedNative = this.nativeFloor?.heightAt(x, z), rendered = renderedNative == null ? height : height == null ? renderedNative : Math.max(height, renderedNative);
-        const support = floorHandoffHeight(this.floorHandoff, this.route, x, z, rendered, this.mountain.groundHeight(x, z));
+        const renderedNative = this.nativeFloor?.heightAt(x, z);
+        const support = floorHandoffHeight(this.floorHandoff, this.route, x, z, height, this.mountain.groundHeight(x, z), renderedNative);
         if (support != null) return support;
       }
       if (height != null) return height;

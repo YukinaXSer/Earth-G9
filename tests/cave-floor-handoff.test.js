@@ -30,6 +30,20 @@ test('missing terrain or floor does not manufacture a handoff; invalid inputs fa
   assert.throws(() => findFloorHandoff(route, () => 0, () => 0, { spacing: 0 }), TypeError);
   assert.throws(() => findFloorHandoff([[0, 0, 0], [0, 0, 0]], () => 0, () => 0), RangeError);
 });
+test('rendered native support cannot lift movement before the ramp or beyond its contact tolerance', () => {
+  const plan = { along: 2, rampStart: 1.5, band: 3 };
+  const link = Object.assign(Object.create(CaveLink.prototype), { route, ready: true, floorHandoff: plan, regionAt: () => 'cave', mouths: [{ floorCenter: [0,0,0], outward: [0,0,-1] }, { floorCenter: [0,0,4], outward: [0,0,1] }], floor: { heightAt: () => -.28 }, nativeFloor: { heightAt: () => -.13 }, mountain: { groundHeight: () => .05 } });
+  assert.equal(link.groundHeight(0,1.4),-.28);
+  assert.equal(link.groundHeight(0,1.75),-.28);
+  link.nativeFloor.heightAt = () => -.279;
+  assert.equal(link.groundHeight(0,1.4),-.28);
+  assert.equal(link.groundHeight(0,1.75),-.279);
+  link.nativeFloor.heightAt = () => null;
+  assert.equal(link.groundHeight(0,1.75),-.28);
+  link.nativeFloor.heightAt = () => NaN;
+  assert.equal(link.groundHeight(0,1.75),-.28);
+  assert.equal(link.groundHeight(0,2.1),.05);
+});
 test('remaining authored floor faces use the complete native shader without changing wall material or source uniforms', () => {
   const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(new Float32Array(18), 3)).setAttribute('_cave_native_floor', new T.Uint8BufferAttribute([0, 0, 0, 1, 1, 1], 1)).setIndex([0, 1, 2, 3, 4, 5]);
   const cave = new T.MeshStandardMaterial(), native = new T.MeshStandardMaterial({ vertexColors: true }), force = { value: -1 };
