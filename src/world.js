@@ -6,6 +6,7 @@ import { createRiverWater } from './river-water.js';
 import { TERRAIN } from './ground-relief.js';
 import { colliderContains, createColliderIndex } from './captured-collisions.js';
 import { DEFAULT_FOV, setFov, scaleView, bindLookControls } from './view-controls.js';
+import { ENTRANCE_YAW } from './wayfinding.js';
 import { SPECIES, PLANT_SITES, VIEWPOINTS, START, BOUNDS, distanceToTrail, isWalkableGround, groundHeight, riverX, RIVER_LEVEL } from './data.js';
 
 function seededRandom(seed = 2718) {
@@ -23,7 +24,7 @@ export class Rainforest {
     this.random = seededRandom();
     this.keys = new Set();
     this.position = new THREE.Vector3(START.x, 0, START.z);
-    this.yaw = -0.09;
+    this.yaw = ENTRANCE_YAW;
     this.pitch = 0.035;
     this.active = false;
     this.paused = false;
@@ -159,12 +160,12 @@ export class Rainforest {
     geometry.rotateX(-Math.PI / 2);
     const positions = geometry.attributes.position;
     const colors = [];
-    const forest = new THREE.Color('#ded2b6'), path = new THREE.Color('#c7bca4'), colorRandom = seededRandom(61491);
+    const forest = new THREE.Color('#ded2b6'), path = new THREE.Color('#b69c76'), colorRandom = seededRandom(61491);
     for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i), z = positions.getZ(i) + TERRAIN.centerZ;
       positions.setZ(i, z); positions.setY(i, groundHeight(x, z));
-      const mix = Math.max(0, 1 - distanceToTrail(x, z) / 1.2);
-      const color = forest.clone().lerp(path, mix * 0.7).multiplyScalar(.9 + colorRandom() * .15);
+      const mix = Math.max(0, 1 - distanceToTrail(x, z) / 2.4);
+      const color = forest.clone().lerp(path, mix).multiplyScalar(.9 + colorRandom() * .15);
       colors.push(color.r, color.g, color.b);
     }
     geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3)); geometry.computeVertexNormals();
@@ -336,7 +337,7 @@ export class Rainforest {
     this.notifyPosition();
   }
 
-  resetPosition() { this.position.set(START.x, 0, START.z); this.yaw = -0.09; this.pitch = 0.035; this.notifyPosition(); }
+  resetPosition() { this.position.set(START.x, 0, START.z); this.yaw = ENTRANCE_YAW; this.pitch = 0.035; this.notifyPosition(); }
 
   addCollider(collider) {
     this.colliders.push(collider);

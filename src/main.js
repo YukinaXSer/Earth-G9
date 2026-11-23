@@ -2,6 +2,7 @@ import './style.css';
 import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
 import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
+import { entranceGuidance } from './wayfinding.js';
 import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
@@ -59,6 +60,11 @@ app.innerHTML = `
       <p id="mission-hint">沿着林间小径，寻找微微发光的标记。</p>
     </section>
     <div class="crosshair hidden" id="crosshair" aria-hidden="true"></div>
+    <section class="trail-guide hidden" id="trail-guide" aria-label="入口步行路线指引">
+      <span class="trail-bearing" aria-hidden="true">${icon('arrow')}</span>
+      <div><strong>走出溪谷入口</strong><p id="trail-direction"></p><small id="trail-description">沿土色小径，绕过右侧主榕</small></div>
+      <button class="icon-button" data-open="map" aria-label="查看步道地图">${icon('map')}</button>
+    </section>
     <div class="zoom-controls hidden" id="zoom-controls" role="group" aria-label="场景视野缩放">
       <button id="zoom-out" aria-label="拉远视野" title="拉远视野 · −">−</button>
       <button id="zoom-reset" aria-label="恢复默认视野" title="恢复默认视野 · 0">1×</button>
@@ -135,12 +141,23 @@ function enterWorld() {
   ['#mission', '#crosshair', '#game-hint', '#touch-controls', '#zoom-controls'].forEach(s => show(s, true));
   document.body.classList.add('exploring');
   world.canvas.focus({ preventScroll: true });
-  toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '记录 5 种生命，种下 3 株幼苗。靠近光标后按 E 或点按互动。');
+  updateTrailGuide();
+  toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '先跟随上方箭头，沿土色小径走出入口。左侧蕨丛可按 E 观察。');
+}
+
+function updateTrailGuide() {
+  const guidance = entranceGuidance(lastPosition);
+  show('#trail-guide', entered && !modalType && !world?.paused && !!guidance);
+  if (!guidance) return;
+  $('.trail-bearing').style.transform = `rotate(${guidance.angle - Math.PI / 2}rad)`;
+  $('#trail-direction').textContent = guidance.onPath ? `${guidance.direction} · 距蕨影小径约${guidance.remaining}米` : `${guidance.direction} · 先回到土色小径`;
+  $('#trail-description').textContent = lastPosition.z > 20 ? '沿土色小径，绕过右侧主榕' : '继续沿土色小径，按 M 查看全图';
 }
 
 function updatePosition(position) {
   if (position.error) { toast(position.error); return; }
   lastPosition = position;
+  updateTrailGuide();
   updateSoundscape();
   if (entered && performance.now() - lastViewSave > 1000) {
     saveView(storage, { x: position.x, z: position.z, yaw: position.yaw, pitch: position.pitch }); lastViewSave = performance.now();

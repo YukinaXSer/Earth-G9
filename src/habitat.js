@@ -4,6 +4,7 @@ import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
 import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
 import { NearTrunks, treeDetailDistance } from './near-trunks.js';
+import { coversEntrancePath } from './wayfinding.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
 const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
@@ -162,6 +163,10 @@ export class Habitat {
 
   place(key, x, z, scale = 1, angle = 0, variantIndex = 0, elevatedY) {
     const variants = this.models.get(key), variant = variants[variantIndex % variants.length];
+    if (['fern', 'broadleaf', 'groundcover', 'creeper'].includes(key)) {
+      const width = Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale;
+      if (coversEntrancePath(x, z, variant.userData.spread * width * Math.SQRT1_2)) return [];
+    }
     const embedded = (SOIL_SKIRT_DEPTH[key] ?? 0) * (Array.isArray(scale) ? scale[1] : scale);
     let floor = groundHeight(x, z);
     const radius = (SOIL_SKIRT_RADIUS[key] ?? 0) * (Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale);
