@@ -47,7 +47,7 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
       normal.subVectors(b, a).cross(edge.subVectors(c, a)).applyNormalMatrix(normalMatrix);
       const lateral = (centroid.x - end.floorCenter[0]) * end.outward[2] - (centroid.z - end.floorCenter[2]) * end.outward[0];
       const handoffOverlap = floorHandoff && nativeCliff && depth > -5.25 && depth < outwardDepth && Math.abs(centroid.y - end.floorCenter[1]) < .4 && [a, b, c].some(v => { vertex.copy(v).applyMatrix4(matrix); return nearestRoute(vertex.x, vertex.z, volume.route).along >= floorHandoff.along; });
-      const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && (Math.abs(lateral) > .7 || nearestRoute(centroid.x, centroid.z, volume.route).distance > .7 || handoffOverlap));
+      const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && (Math.abs(lateral) > .7 || [a, b, c].some(v => { vertex.copy(v).applyMatrix4(matrix); return nearestRoute(vertex.x, vertex.z, volume.route).distance > .7; }) || handoffOverlap));
       const thresholdFloor = Math.abs(centroid.y - end.floorCenter[1]) < .4 && (floorOverlap && Math.abs(normal.y) > .6 || nativeCliff && depth > -5.25 && handoffOverlap);
       if (depth < outwardDepth && !thresholdFloor && insideScannedCave(centroid.toArray(), volume, mouths)) removed++;
       else keep.push(...ids);
