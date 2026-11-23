@@ -88,6 +88,16 @@ h1 span { display: block; font-size: 23px; letter-spacing: 5px; margin-top: 23px
 .toolbar .icon-button .icon { width: 19px; }
 .mission { position: absolute; top: 151px; left: 4.2%; width: 280px; background: #142d249c; padding: 23px; border: 1px solid var(--border); border-radius: var(--radius); }
 .mission { pointer-events: auto; }
+.trail-guide { position: absolute; top: 116px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 13px; padding: 13px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: #142d24ed; pointer-events: auto; }
+.trail-bearing { display: flex; color: #e1c78b; }
+.trail-bearing .icon { width: 28px; height: 28px; }
+.trail-guide strong { font-size: 13px; font-weight: 500; }
+.trail-guide p { margin: 5px 0; font-size: 13px; color: #e1c78b; }
+.trail-guide small { display: block; font-size: 10px; white-space: nowrap; color: var(--text-muted); }
+.trail-guide .icon-button { margin-left: 5px; flex: 0 0 30px; }
+.entry-trail { display: block; margin-top: 12px; font-size: 11px; }
+@media (max-width: 700px) { .trail-guide { top: 154px; padding: 10px 12px; gap: 10px; } }
+@media (max-height: 500px) and (max-width: 1000px) { .trail-guide { top: 75px; left: auto; right: 4%; transform: none; } }
 #toggle-mission { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; font-size: 11px; }
 #toggle-mission > :last-child { margin-left: auto; }
 #toggle-mission .icon { width: 16px; height: 16px; }

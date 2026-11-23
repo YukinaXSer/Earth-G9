@@ -23,11 +23,11 @@ export function nativeGroundVariant(extensions){
   return null;
 }
 
-export async function loadPhotographicGround(renderer,{walls=false}={}){
+export async function loadPhotographicGround(renderer,{walls=false,quality='low'}={}){
   if(renderer.capabilities.maxTextureSize<4096)throw new Error('Photographic ground requires 4096px texture support');
   const variant=nativeGroundVariant(renderer.extensions);
   if(!variant)throw new Error('Photographic ground requires ETC2 or S3TC with sRGB support');
-  const root='/xianxia/surface/',response=await fetch(`${root}manifest.json`);
+  const root='/xianxia/surface/',response=await fetch(root+(quality==='high'?'manifest-high.json':'manifest.json'));
   if(!response.ok)throw new Error('Photographic ground manifest unavailable');
   const source=await response.json();
   const manifest={...source,...source.variants[variant],variant};
@@ -44,6 +44,7 @@ export async function loadPhotographicGround(renderer,{walls=false}={}){
 }
 
 export function addPhotographicCapture(material,uniforms){
+  uniforms.mesoMeters??={value:new THREE.Vector2()};
   uniforms.captureWorldToLocal??={value:new THREE.Matrix4()};
   uniforms.captureNormalToWorld??={value:new THREE.Matrix3()};
   uniforms.captureUseGroundCover??={value:false};
@@ -66,9 +67,7 @@ export function addPhotographicCapture(material,uniforms){
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec3 photoDx=dFdx(posM),photoDy=dFdy(posM);
       vec3 photoG=normalize(normM);if(!gl_FrontFacing)photoG=-photoG;
-      vec3 faceG=normalize(cross(photoDx,photoDy));if(dot(faceG,photoG)<0.)faceG=-faceG;
-      if(dot(faceG,photoG)<.7071)photoG=faceG;
-      vec3 photoW=pow(abs(photoG),vec3(6.));photoW/=dot(photoW,vec3(1.));
+      vec3 photoW=photoProjectionWeights(photoG,photoDx,photoDy);
       float region=dot(vec4(posM,1.),groundRegion);
       if(captureUseProfile&&!captureUseGroundCover){
         float station=mod(posM.x+captureCorridorOrigin.x,132.);if(station>66.)station=132.-station;
@@ -90,13 +89,14 @@ export function addPhotographicCapture(material,uniforms){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(photoSurface.r,.22,1.);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mat3(viewMatrix)*captureNormalToWorld*photoSurface.n);');
   };
-  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v5';material.needsUpdate=true;return material;
+  material.customProgramCacheKey=()=> 'xianxia-native-photo-shared-pbr-v9';material.needsUpdate=true;return material;
 }
 
 export function addPhotographicGround(material,{manifest,textures}){
   const vertices=[...TRAIL,...BRANCH],edges=[];
   for(const route of [TRAIL,BRANCH])for(let i=0;i<route.length-1;i++)edges.push([vertices.indexOf(route[i]),vertices.indexOf(route[i+1])]);
   const uniform={stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.25)},groundMean:{value:new THREE.Vector3(...manifest.groundMean)},photoRoute:{value:vertices.map(p=>new THREE.Vector4(p[0],p[2],p[3],0))}};
+  uniform.mesoMeters={value:new THREE.Vector2(manifest.textures.groundMesoColor.physicalTileMeters,manifest.textures.wallMesoColor.physicalTileMeters)};
   for(const [key,texture]of Object.entries(textures))uniform[key]={value:texture};
   material.onBeforeCompile=shader=>{
     Object.assign(shader.uniforms,uniform);
@@ -120,6 +120,6 @@ float photoPath(vec2 p){
     `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,photoSurface.r,photoMask);')
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mix(normal,mat3(viewMatrix)*photoSurface.n,photoMask));');
   };
-  material.customProgramCacheKey=()=> 'xianxia-full-photo-plus-grain-v1';
+  material.customProgramCacheKey=()=> 'xianxia-full-photo-plus-grain-v3';
   material.needsUpdate=true;return material;
 }

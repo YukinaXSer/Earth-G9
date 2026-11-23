@@ -1,0 +1,611 @@
+{
+  "method": "Full native-scale mossy Forest Leaves 02 photograph for ground meso color/GL normal/roughness; existing Forest Floor fine grain and captured rock maps unchanged. Only offline GPU block transcode; no runtime decoder or geometry changes.",
+  "groundMean": [
+    0.34320953706812707,
+    0.2308328807707476,
+    0.1283438297978928
+  ],
+  "wallMean": [
+    0.28449111122855875,
+    0.2753931993983912,
+    0.23848877811372668
+  ],
+  "variants": {
+    "etc2": {
+      "textures": {
+        "groundColor": {
+          "file": "etc2-ground-detail-color.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 699536,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
+          "license": "CC0",
+          "physicalTileMeters": 0.2674999535083771,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 2.1399996280670166,
+          "encoding": "etc-rgb",
+          "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+          "gzipBytes": 659708,
+          "vkFormat": 148,
+          "supercompression": 0
+        },
+        "groundMesoColor": {
+          "file": "etc2-ground-forest-leaves-02-color.ktx2",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 2796712,
+          "gzipBytes": 2658218,
+          "source": "forest_leaves_02",
+          "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+          "license": "CC0",
+          "author": {
+            "Rob Tuytel": "All"
+          },
+          "physicalTileMeters": 3.0009725093841553,
+          "sourcePhysicalMeters": 3.0009725093841553,
+          "sourcePixels": 4096,
+          "sourceRectPixels": [
+            0,
+            0,
+            4096,
+            4096
+          ],
+          "roughnessSourcePixels": null,
+          "encoding": "etc-rgb",
+          "vkFormat": 148,
+          "supercompression": 0,
+          "sha256": "cef44ddf93f05c57d5ec3b23c110ec205befaf8051efcd083e52c66888752ca6"
+        },
+        "groundNormal": {
+          "file": "etc2-ground-detail-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
+          "license": "CC0",
+          "physicalTileMeters": 0.2674999535083771,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 2.1399996280670166,
+          "encoding": "etc-rgba",
+          "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
+          "roughnessSourcePixels": 256,
+          "gzipBytes": 1098516,
+          "vkFormat": 151,
+          "supercompression": 0
+        },
+        "groundMesoNormal": {
+          "file": "etc2-ground-forest-leaves-02-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "gzipBytes": 1228207,
+          "source": "forest_leaves_02",
+          "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+          "license": "CC0",
+          "author": {
+            "Rob Tuytel": "All"
+          },
+          "physicalTileMeters": 3.0009725093841553,
+          "sourcePhysicalMeters": 3.0009725093841553,
+          "sourcePixels": 4096,
+          "sourceRectPixels": [
+            0,
+            0,
+            4096,
+            4096
+          ],
+          "roughnessSourcePixels": 2048,
+          "encoding": "etc-rgba",
+          "vkFormat": 151,
+          "supercompression": 0,
+          "sha256": "e8680b59df79548e7d57027f267bdf64a062c730608d6bbcdab555640b45fba7"
+        },
+        "wallColor": {
+          "file": "etc2-wall-detail-color.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 699536,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 0.225,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "etc-rgb",
+          "sha256": "5f64ce35f765320551f45ba0dcc083dab163e03a527b7dff46fd76388c380de4",
+          "gzipBytes": 446628,
+          "vkFormat": 148,
+          "supercompression": 0
+        },
+        "wallMesoColor": {
+          "file": "etc2-wall-full-color.ktx2",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 11185344,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 1.8,
+          "sourceRectPixels": [
+            0,
+            0,
+            8192,
+            8192
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "etc-rgb",
+          "sha256": "c8128eaae10d2154b25e267082a0faa76537aba4b25bd77ee30c9e416c776e44",
+          "gzipBytes": 7244640,
+          "vkFormat": 148,
+          "supercompression": 0
+        },
+        "wallNormal": {
+          "file": "etc2-wall-detail-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 0.225,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "etc-rgba",
+          "sha256": "32ea264ea08457493858c4254ea6434feea115199d06cb004b9281fccbb9cf6b",
+          "roughnessSourcePixels": 1024,
+          "gzipBytes": 1068499,
+          "vkFormat": 151,
+          "supercompression": 0
+        },
+        "wallMesoNormal": {
+          "file": "etc2-wall-full-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 1.8,
+          "sourceRectPixels": [
+            0,
+            0,
+            8192,
+            8192
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "etc-rgba",
+          "sha256": "95e274e8d29eb35cccc0826f306bfc6bf64c8d58e65e972a5aa9267049f1f433",
+          "gzipBytes": 1127557,
+          "vkFormat": 151,
+          "supercompression": 0
+        }
+      },
+      "textureFileBytes": 20975624,
+      "gzipTextureBytes": 15531973
+    },
+    "s3tc": {
+      "textures": {
+        "groundColor": {
+          "file": "s3tc-ground-detail-color.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 699536,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
+          "license": "CC0",
+          "physicalTileMeters": 0.2674999535083771,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 2.1399996280670166,
+          "encoding": "bc1",
+          "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+          "gzipBytes": 651267,
+          "vkFormat": 132,
+          "supercompression": 0
+        },
+        "groundMesoColor": {
+          "file": "s3tc-ground-forest-leaves-02-color.ktx2",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 2796712,
+          "gzipBytes": 2631510,
+          "source": "forest_leaves_02",
+          "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+          "license": "CC0",
+          "author": {
+            "Rob Tuytel": "All"
+          },
+          "physicalTileMeters": 3.0009725093841553,
+          "sourcePhysicalMeters": 3.0009725093841553,
+          "sourcePixels": 4096,
+          "sourceRectPixels": [
+            0,
+            0,
+            4096,
+            4096
+          ],
+          "roughnessSourcePixels": null,
+          "encoding": "bc1",
+          "vkFormat": 132,
+          "supercompression": 0,
+          "sha256": "058014a9125750f0af25c6f7acf526f33bd26e9878ae8bb2a97fa908743603e5"
+        },
+        "groundNormal": {
+          "file": "s3tc-ground-detail-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "forest_floor",
+          "sourceUrl": "https://polyhaven.com/a/forest_floor",
+          "license": "CC0",
+          "physicalTileMeters": 0.2674999535083771,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 2.1399996280670166,
+          "encoding": "bc3",
+          "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
+          "roughnessSourcePixels": 256,
+          "gzipBytes": 1126556,
+          "vkFormat": 137,
+          "supercompression": 0
+        },
+        "groundMesoNormal": {
+          "file": "s3tc-ground-forest-leaves-02-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "gzipBytes": 1232533,
+          "source": "forest_leaves_02",
+          "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+          "license": "CC0",
+          "author": {
+            "Rob Tuytel": "All"
+          },
+          "physicalTileMeters": 3.0009725093841553,
+          "sourcePhysicalMeters": 3.0009725093841553,
+          "sourcePixels": 4096,
+          "sourceRectPixels": [
+            0,
+            0,
+            4096,
+            4096
+          ],
+          "roughnessSourcePixels": 2048,
+          "encoding": "bc3",
+          "vkFormat": 137,
+          "supercompression": 0,
+          "sha256": "26872a7d9e61bccdcb358b9851be54085387a0dc86c4ca7ba79ee09563f0dff1"
+        },
+        "wallColor": {
+          "file": "s3tc-wall-detail-color.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 699536,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 0.225,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "bc1",
+          "sha256": "5f64ce35f765320551f45ba0dcc083dab163e03a527b7dff46fd76388c380de4",
+          "gzipBytes": 450442,
+          "vkFormat": 132,
+          "supercompression": 0
+        },
+        "wallMesoColor": {
+          "file": "s3tc-wall-full-color.ktx2",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 11185344,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 1.8,
+          "sourceRectPixels": [
+            0,
+            0,
+            8192,
+            8192
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "bc1",
+          "sha256": "c8128eaae10d2154b25e267082a0faa76537aba4b25bd77ee30c9e416c776e44",
+          "gzipBytes": 7205661,
+          "vkFormat": 132,
+          "supercompression": 0
+        },
+        "wallNormal": {
+          "file": "s3tc-wall-detail-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 0.225,
+          "sourceRectPixels": [
+            4096,
+            4096,
+            5120,
+            5120
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "bc3",
+          "sha256": "32ea264ea08457493858c4254ea6434feea115199d06cb004b9281fccbb9cf6b",
+          "roughnessSourcePixels": 1024,
+          "gzipBytes": 1087274,
+          "vkFormat": 137,
+          "supercompression": 0
+        },
+        "wallMesoNormal": {
+          "file": "s3tc-wall-full-normal.ktx2",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1398624,
+          "source": "Rock043L",
+          "sourceUrl": "https://ambientcg.com/a/Rock043L",
+          "license": "CC0",
+          "physicalTileMeters": 1.8,
+          "sourceRectPixels": [
+            0,
+            0,
+            8192,
+            8192
+          ],
+          "sourcePixels": 8192,
+          "sourcePhysicalMeters": 1.8,
+          "encoding": "bc3",
+          "sha256": "95e274e8d29eb35cccc0826f306bfc6bf64c8d58e65e972a5aa9267049f1f433",
+          "gzipBytes": 1147690,
+          "vkFormat": 137,
+          "supercompression": 0
+        }
+      },
+      "textureFileBytes": 20975624,
+      "gzipTextureBytes": 15532933
+    }
+  },
+  "textures": {
+    "groundColor": {
+      "file": "etc2-ground-detail-color.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 699536,
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
+      "license": "CC0",
+      "physicalTileMeters": 0.2674999535083771,
+      "sourceRectPixels": [
+        4096,
+        4096,
+        5120,
+        5120
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 2.1399996280670166,
+      "encoding": "etc-rgb",
+      "sha256": "305f58059bf7ba1b3c63a54243b3932490c31c92a6c46b82dca6e95b268172a8",
+      "gzipBytes": 659708,
+      "vkFormat": 148,
+      "supercompression": 0
+    },
+    "groundMesoColor": {
+      "file": "etc2-ground-forest-leaves-02-color.ktx2",
+      "width": 2048,
+      "height": 2048,
+      "bytes": 2796712,
+      "gzipBytes": 2658218,
+      "source": "forest_leaves_02",
+      "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+      "license": "CC0",
+      "author": {
+        "Rob Tuytel": "All"
+      },
+      "physicalTileMeters": 3.0009725093841553,
+      "sourcePhysicalMeters": 3.0009725093841553,
+      "sourcePixels": 4096,
+      "sourceRectPixels": [
+        0,
+        0,
+        4096,
+        4096
+      ],
+      "roughnessSourcePixels": null,
+      "encoding": "etc-rgb",
+      "vkFormat": 148,
+      "supercompression": 0,
+      "sha256": "cef44ddf93f05c57d5ec3b23c110ec205befaf8051efcd083e52c66888752ca6"
+    },
+    "groundNormal": {
+      "file": "etc2-ground-detail-normal.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1398624,
+      "source": "forest_floor",
+      "sourceUrl": "https://polyhaven.com/a/forest_floor",
+      "license": "CC0",
+      "physicalTileMeters": 0.2674999535083771,
+      "sourceRectPixels": [
+        4096,
+        4096,
+        5120,
+        5120
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 2.1399996280670166,
+      "encoding": "etc-rgba",
+      "sha256": "59d27cfa5f771ffc6c3a377dc3109246e9476778bde8d0d9cd171010ab707777",
+      "roughnessSourcePixels": 256,
+      "gzipBytes": 1098516,
+      "vkFormat": 151,
+      "supercompression": 0
+    },
+    "groundMesoNormal": {
+      "file": "etc2-ground-forest-leaves-02-normal.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1398624,
+      "gzipBytes": 1228207,
+      "source": "forest_leaves_02",
+      "sourceUrl": "https://polyhaven.com/a/forest_leaves_02",
+      "license": "CC0",
+      "author": {
+        "Rob Tuytel": "All"
+      },
+      "physicalTileMeters": 3.0009725093841553,
+      "sourcePhysicalMeters": 3.0009725093841553,
+      "sourcePixels": 4096,
+      "sourceRectPixels": [
+        0,
+        0,
+        4096,
+        4096
+      ],
+      "roughnessSourcePixels": 2048,
+      "encoding": "etc-rgba",
+      "vkFormat": 151,
+      "supercompression": 0,
+      "sha256": "e8680b59df79548e7d57027f267bdf64a062c730608d6bbcdab555640b45fba7"
+    },
+    "wallColor": {
+      "file": "etc2-wall-detail-color.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 699536,
+      "source": "Rock043L",
+      "sourceUrl": "https://ambientcg.com/a/Rock043L",
+      "license": "CC0",
+      "physicalTileMeters": 0.225,
+      "sourceRectPixels": [
+        4096,
+        4096,
+        5120,
+        5120
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 1.8,
+      "encoding": "etc-rgb",
+      "sha256": "5f64ce35f765320551f45ba0dcc083dab163e03a527b7dff46fd76388c380de4",
+      "gzipBytes": 446628,
+      "vkFormat": 148,
+      "supercompression": 0
+    },
+    "wallMesoColor": {
+      "file": "etc2-wall-full-color.ktx2",
+      "width": 4096,
+      "height": 4096,
+      "bytes": 11185344,
+      "source": "Rock043L",
+      "sourceUrl": "https://ambientcg.com/a/Rock043L",
+      "license": "CC0",
+      "physicalTileMeters": 1.8,
+      "sourceRectPixels": [
+        0,
+        0,
+        8192,
+        8192
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 1.8,
+      "encoding": "etc-rgb",
+      "sha256": "c8128eaae10d2154b25e267082a0faa76537aba4b25bd77ee30c9e416c776e44",
+      "gzipBytes": 7244640,
+      "vkFormat": 148,
+      "supercompression": 0
+    },
+    "wallNormal": {
+      "file": "etc2-wall-detail-normal.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1398624,
+      "source": "Rock043L",
+      "sourceUrl": "https://ambientcg.com/a/Rock043L",
+      "license": "CC0",
+      "physicalTileMeters": 0.225,
+      "sourceRectPixels": [
+        4096,
+        4096,
+        5120,
+        5120
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 1.8,
+      "encoding": "etc-rgba",
+      "sha256": "32ea264ea08457493858c4254ea6434feea115199d06cb004b9281fccbb9cf6b",
+      "roughnessSourcePixels": 1024,
+      "gzipBytes": 1068499,
+      "vkFormat": 151,
+      "supercompression": 0
+    },
+    "wallMesoNormal": {
+      "file": "etc2-wall-full-normal.ktx2",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 1398624,
+      "source": "Rock043L",
+      "sourceUrl": "https://ambientcg.com/a/Rock043L",
+      "license": "CC0",
+      "physicalTileMeters": 1.8,
+      "sourceRectPixels": [
+        0,
+        0,
+        8192,
+        8192
+      ],
+      "sourcePixels": 8192,
+      "sourcePhysicalMeters": 1.8,
+      "encoding": "etc-rgba",
+      "sha256": "95e274e8d29eb35cccc0826f306bfc6bf64c8d58e65e972a5aa9267049f1f433",
+      "gzipBytes": 1127557,
+      "vkFormat": 151,
+      "supercompression": 0
+    }
+  }
+}

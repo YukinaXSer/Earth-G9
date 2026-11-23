@@ -34,15 +34,20 @@ export const VIEWPOINTS = [
   { id: 'south-bank', name: '南溪岸林', x: 12, z: 176, description: '顺溪向南，林地在弯曲的岸边展开。可以观察水线、湿润落叶和贴岸生长的低层植物。跨溪请寻找地图上标出的浅滩。' },
   { id: 'east-oldgrowth', name: '东岸老树林', x: 105, z: -218, description: '涉过浅滩，沿东岸步道走进另一片林地。这里与西岸连续相接，不需要传送。停下来看看树脚、林下和高处不同的植被层次。' },
 ];
+export function mainTrailX(z) {
+  const entrance = Math.max(0, Math.min(1, (z - 5) / 10)) * Math.max(0, Math.min(1, (50 - z) / 9));
+  return Math.sin(z * .06) * 1.4 * (1 - entrance);
+}
+
 export const WALKING_ROUTES = [
-  { id: 'main', points: Array.from({ length: 59 }, (_, i) => { const z = -257 + i * 8; return [Math.sin(z * .06) * 1.4, z]; }) },
+  { id: 'main', points: Array.from({ length: 233 }, (_, i) => { const z = -257 + i * 2; return [mainTrailX(z), z]; }) },
   { id: 'west', points: [[0, 35], [-40, 65], [-122, 110], [-128, 15], [-122, -85], [-105, -170], [-50, -236], [0, -235]] },
   { id: 'east', points: [[0, 120], [48, 120], [100, 150], [130, 70], [125, -90], [105, -218], [45, -240], [36, -180], [0, -180]] },
   { id: 'south', points: [[0, 160], [12, 176], [0, 195]] },
 ];
 
 export function distanceToTrail(x, z) {
-  let distanceSquared = (x - Math.sin(z * .06) * 1.4) ** 2;
+  let distanceSquared = (x - mainTrailX(z)) ** 2;
   for (const route of WALKING_ROUTES) {
     if (route.id === 'main') continue;
     for (let i = 1; i < route.points.length; i++) {

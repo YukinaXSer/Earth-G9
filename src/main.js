@@ -2,6 +2,7 @@ import './style.css';
 import { Rainforest } from './world.js';
 import { withTimeout } from './loading.js';
 import { bindGraphicsRecovery, compatibilityUrl } from './graphics-recovery.js';
+import { entranceGuidance } from './wayfinding.js';
 import { SPECIES, PLANT_SITES, VIEWPOINTS, WALKING_ROUTES, FORDS, BOUNDS, mapProjection, START, CAVE_FOREST_MOUTH, nearestPoint, loadProgress, saveProgress, getCompletion, riverX, loadView, saveView, formatCoordinates, loadSettings, saveSettings } from './data.js';
 
 const paths = {
@@ -45,6 +46,7 @@ app.innerHTML = `
       <h1>雨林之境<span>在这里，与万物共生。</span></h1>
       <p class="intro-description">把喧嚣留在世界之外。<br>沿着水声，走进一片自由生长的原生雨林。<br>发现微小的生命，也种下属于你的新生。</p>
       <button class="primary-button" id="enter"><span>进入 2 号地球</span>${icon('arrow')}</button>
+      <button class="text-button entry-trail hidden" id="enter-trail">从入口沿小径出发（保留进度）</button>
       <div class="entry-note">无需安装 <i>·</i> 3D 自由漫游 <i>·</i> 进度自动保存</div>
       <p class="entry-guide">目标：记录 5 种生命，种下 3 株幼苗。<br>WASD / 摇杆移动 · 拖动环顾 · 滚轮 / 双指缩放<br>靠近光标按 E / 点按互动</p>
     </section>
@@ -59,6 +61,11 @@ app.innerHTML = `
       <p id="mission-hint">沿着林间小径，寻找微微发光的标记。</p>
     </section>
     <div class="crosshair hidden" id="crosshair" aria-hidden="true"></div>
+    <section class="trail-guide hidden" id="trail-guide" aria-label="入口步行路线指引">
+      <span class="trail-bearing" aria-hidden="true">${icon('arrow')}</span>
+      <div><strong>走出溪谷入口</strong><p id="trail-direction"></p><small id="trail-description">沿土色小径，绕过右侧主榕</small></div>
+      <button class="icon-button" data-open="map" aria-label="查看步道地图">${icon('map')}</button>
+    </section>
     <div class="zoom-controls hidden" id="zoom-controls" role="group" aria-label="场景视野缩放">
       <button id="zoom-out" aria-label="拉远视野" title="拉远视野 · −">−</button>
       <button id="zoom-reset" aria-label="恢复默认视野" title="恢复默认视野 · 0">1×</button>
@@ -107,6 +114,7 @@ function toast(message) {
 
 function syncProgress() {
   $('#enter span').textContent = savedView || getCompletion(progress) ? '继续探索雨林' : '进入 2 号地球';
+  show('#enter-trail', !!savedView);
   $('#mission-summary').textContent = `探索 ${progress.discovered.length + progress.planted.length} / 8`;
   $('#nav-count').textContent = `${progress.discovered.length} / 5`;
   $('#discover-count').textContent = `${progress.discovered.length} / 5`;
@@ -142,12 +150,23 @@ async function enterWorld() {
   ['#mission', '#crosshair', '#game-hint', '#touch-controls', '#zoom-controls'].forEach(s => show(s, true));
   document.body.classList.add('exploring');
   world.canvas.focus({ preventScroll: true });
-  toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '记录 5 种生命，种下 3 株幼苗。靠近光标后按 E 或点按互动。');
+  updateTrailGuide();
+  toast(savedView ? '继续上次的旅程。按 M 查看地图与目的地。' : '先跟随上方箭头，沿土色小径走出入口。左侧蕨丛可按 E 观察。');
+}
+
+function updateTrailGuide() {
+  const guidance = entranceGuidance(lastPosition);
+  show('#trail-guide', entered && !modalType && !world?.paused && !!guidance);
+  if (!guidance) return;
+  $('.trail-bearing').style.transform = `rotate(${guidance.angle - Math.PI / 2}rad)`;
+  $('#trail-direction').textContent = guidance.onPath ? `${guidance.direction} · 距蕨影小径约${guidance.remaining}米` : `${guidance.direction} · 先回到土色小径`;
+  $('#trail-description').textContent = lastPosition.z > 20 ? '沿土色小径，绕过右侧主榕' : '继续沿土色小径，按 M 查看全图';
 }
 
 function updatePosition(position) {
   if (position.error) { toast(position.error); return; }
   lastPosition = position;
+  updateTrailGuide();
   updateSoundscape();
   if (entered && performance.now() - lastViewSave > 1000) {
     saveView(storage, { x: position.x, z: position.z, yaw: position.yaw, pitch: position.pitch }); lastViewSave = performance.now();
@@ -378,6 +397,7 @@ app.addEventListener('click', event => {
       const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = '雨林反馈.txt'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 3000); $('#feedback-status').textContent = '反馈已下载；请把文本文件交给分享游戏的人。'; break;
     }
     case 'enter': enterWorld(); break;
+    case 'enter-trail': enterWorld(); navigationTarget = null; world.resetPosition(); break;
     case 'zoom-in': world.zoomView(.85); break;
     case 'zoom-out': world.zoomView(1 / .85); break;
     case 'zoom-reset': world.resetZoom(); break;

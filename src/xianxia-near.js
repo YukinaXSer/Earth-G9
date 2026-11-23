@@ -21,9 +21,10 @@ export function gradeCaptureApproach(geometry){
   const normal=new THREE.Vector3(),targetNormal=new THREE.Vector3(-approach.grade,1,0).normalize();
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),y=positions.getY(i);
-    const distance=Math.max((entry.x-.45-x)/3,(x-approach.endX-.45)/3,Math.abs(z-entry.z)-approach.width/2-.45);
     const target=entry.y+(x-entry.x)*approach.grade;
-    const blend=(1-THREE.MathUtils.smoothstep(distance,0,.6))*(1-THREE.MathUtils.smoothstep(Math.abs(y-target),.6,1.6));
+    const longitudinal=1-THREE.MathUtils.smoothstep(Math.max(entry.x-.25-x,x-approach.endX-.25),0,.75);
+    const lateral=1-THREE.MathUtils.smoothstep(Math.abs(z-entry.z),approach.width/2+.15,approach.width/2+.5);
+    const blend=longitudinal*lateral*(1-THREE.MathUtils.smoothstep(Math.abs(y-target),.6,1.6));
     if(blend<=0)continue;
     positions.setY(i,THREE.MathUtils.lerp(y,target,blend));
     normal.fromBufferAttribute(normals,i).lerp(targetNormal,blend).normalize();normals.setXYZ(i,normal.x,normal.y,normal.z);
@@ -33,19 +34,20 @@ export function gradeCaptureApproach(geometry){
   return geometry;
 }
 
-export function groundPropMatrix(geometry,index,x,z,rotation,{sink=.025}={}){
+export function groundPropMatrix(geometry,index,x,z,rotation,{sink=.025,scale=1}={}){
+  if(!Number.isFinite(scale)||scale<=0)throw new Error('Invalid grounded prop scale');
   geometry.computeBoundingBox();
   const box=geometry.boundingBox,positions=geometry.attributes.position,threshold=box.min.y+(box.max.y-box.min.y)*.2;
   const c=Math.cos(rotation),s=Math.sin(rotation);
   let height=Infinity,samples=0;
   for(let i=0;i<positions.count;i++){
     if(positions.getY(i)>threshold)continue;
-    const px=positions.getX(i),pz=positions.getZ(i);
+    const px=positions.getX(i)*scale,pz=positions.getZ(i)*scale;
     const floor=index.heightAt(x+c*px+s*pz,z-s*px+c*pz);if(floor==null)return null;
-    height=Math.min(height,floor-positions.getY(i));samples++;
+    height=Math.min(height,floor-positions.getY(i)*scale);samples++;
   }
   if(!samples)return null;
-  return new THREE.Matrix4().makeRotationY(rotation).setPosition(x,height-sink,z);
+  return new THREE.Matrix4().makeRotationY(rotation).scale(new THREE.Vector3(scale,scale,scale)).setPosition(x,height-sink,z);
 }
 
 export function groundProp(geometry,index,x,z,rotation,options){
@@ -54,12 +56,13 @@ export function groundProp(geometry,index,x,z,rotation,options){
 }
 
 export async function loadNearCapture(world){
-  const root='/xianxia/surface/',[resources,response]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true}),fetch(root+'capture.bin')]);
+  const root='/xianxia/surface/',[resources,response]=await Promise.all([loadPhotographicGround(world.renderer,{walls:true,quality:world.quality}),fetch(root+'capture.bin')]);
   if(!response.ok)throw new Error('Captured near ground unavailable');
   const geometry=gradeCaptureApproach(captureGeometry(await response.arrayBuffer()));
   const uniforms={patchOrigin:{value:CAPTURE_SHIFT.clone()},captureWorldToLocal:{value:new THREE.Matrix4()},captureNormalToWorld:{value:new THREE.Matrix3()},forceMaterial:{value:-1},stochastic:{value:true},microMeters:{value:new THREE.Vector2(.25,.225)},groundMean:{value:new THREE.Vector3(...resources.manifest.groundMean)},wallMean:{value:new THREE.Vector3(...resources.manifest.wallMean)},groundRegion:{value:new THREE.Vector4(0,0,1,1.7)},groundMixWidth:{value:.05}};
   const updateFrame=()=>{uniforms.captureWorldToLocal.value.copy(world.root.matrixWorld).invert();uniforms.captureNormalToWorld.value.getNormalMatrix(world.root.matrixWorld);};
   for(const [key,value]of Object.entries(resources.textures))uniforms[key]={value};
+  uniforms.mesoMeters={value:new THREE.Vector2(resources.manifest.textures.groundMesoColor.physicalTileMeters,resources.manifest.textures.wallMesoColor.physicalTileMeters)};
   const material=addPhotographicCapture(new THREE.MeshStandardMaterial({side:THREE.DoubleSide,roughness:1,envMapIntensity:.22}),uniforms);
   const mesh=new THREE.Mesh(geometry,material);mesh.name='coastal-cliff-04-native-capture';mesh.receiveShadow=true;mesh.castShadow=true;mesh.onBeforeRender=updateFrame;world.root.add(mesh);
   world.ground=mesh;world.foreground=mesh;world.surfaceMeshes=[mesh];world.terrainIndex=createFloorIndex([geometry],2);world.photographicGround=resources;

@@ -59,6 +59,7 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
     }
     return {scene};
   });
+  t.mock.method(GLTFLoader.prototype,'parseAsync',function(){return this.loadAsync();});
   const renderer={capabilities:{maxTextureSize:4096,getMaxAnisotropy:()=>8},extensions:{has:name=>name==='WEBGL_compressed_texture_etc'},toneMapping:THREE.ACESFilmicToneMapping,toneMappingExposure:.96,outputColorSpace:THREE.SRGBColorSpace};
   const original={...renderer},host=new THREE.Scene(),sun=new THREE.DirectionalLight();host.add(sun);
   host.background=new THREE.Color('#8ca18c');host.environment=new THREE.Texture();host.fog=new THREE.FogExp2('#8ca18c',.0045);
@@ -69,13 +70,14 @@ test('mountain load is idempotent, scene-neutral and does not request a panorama
   assert.equal(host.background,background);assert.equal(host.environment,environment);assert.equal(host.fog,fog);
   assert.deepEqual(renderer,original);assert.equal(mountain.world.horizon,undefined);
   assert.ok(requested.every(url=>url.startsWith('/xianxia/surface/')));
+  assert.ok(requested.includes('/xianxia/surface/mountain-v4.json'));
   assert.equal(requested.filter(url=>url.endsWith('-near.bin')).length,2);
   assert.equal(requested.filter(url=>url.endsWith('-far.bin')).length,4);
   assert.equal(mountain.groundHeight(1e6,1e6),null);
   const mesh=mountain.world.ground;host.updateMatrixWorld(true);mesh.onBeforeRender();
   const shader={vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader,uniforms:{}};
   mesh.material.onBeforeCompile(shader);
-  assert.deepEqual(shader.uniforms.captureReflectance.value.toArray(),[.35,.38]);
+  assert.deepEqual(shader.uniforms.captureReflectance.value.toArray(),[.27,.38]);
   assert.equal(shader.uniforms.captureUseGroundCover.value,true);
   assert.equal(mesh.geometry.attributes.groundCover.normalized,true);
   const ferns=[];mountain.group.traverse(object=>{if(object.name==='grounded-mountain-ferns')ferns.push(object);});

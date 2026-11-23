@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, BOUNDS, START } from './data.js';
+import { groundHeight, riverX, SPECIES, PLANT_SITES, VIEWPOINTS, distanceToTrail, mainTrailX, BOUNDS, START } from './data.js';
 import { createForestLayout, createBackdropLayout } from './forest-layout.js';
-import { capturedCollider, colliderContains } from './captured-collisions.js';
+import { capturedCollider, colliderBoundsContain, refineCollider } from './captured-collisions.js';
+import { NearTrunks, treeDetailDistance } from './near-trunks.js';
+import { coversEntrancePath } from './wayfinding.js';
 
 const FILES = { banyan: 'captured-banyan', tree: 'canopy-tree', fern: 'fern', broadleaf: 'calathea', sapling: 'pachira', flower: 'anthurium', log: 'fallen-trunk', rock: 'moss-rock', groundcover: 'shrub-03', creeper: 'shrub-04', forest: 'forest-tree', distant: 'forest-distant', horizon: 'forest-horizon' };
 const SOIL_SKIRT_DEPTH = { forest: .14, distant: .14, horizon: .14, rooted: 1.3, 'rooted-far': 1.3 };
@@ -22,6 +24,11 @@ export class Habitat {
     this.treeMaterials = new Map();
     this.lodTrees = [];
     this.groundOccluders = [];
+    this.nearTrunks = new NearTrunks({
+      captureSupported: world.renderer?.extensions?.has('WEBGL_compressed_texture_etc') ?? true,
+      anisotropy: world.renderer?.capabilities?.getMaxAnisotropy?.() ?? 1,
+      onMaterial: material => { this.materials.add(material); this.setWet(this.world.rainy); },
+    });
     this.hiddenMatrix = new THREE.Matrix4().makeScale(.000001, .000001, .000001);
     this.dummy = new THREE.Object3D();
   }
@@ -61,6 +68,7 @@ export class Habitat {
               if (waxy) { material.shininess = 32; material.specular.set('#3c4936'); }
               material.userData.foliageTint = material.color.clone();
             }
+            material.userData.nearTrunk = key === 'banyan' ? 'capture' : treeLod && original.name === 'island_tree_02';
             materialCache.set(materialKey, material);
             return material;
           });
@@ -101,11 +109,14 @@ export class Habitat {
         variant.children.forEach(mesh => {
           mesh.geometry.translate(-center.x, -box.min.y, -center.z).scale(scale, scale, scale);
           if (key === 'banyan' && mesh.geometry.index) {
-            const positions = mesh.geometry.attributes.position, indices = mesh.geometry.index.array, kept = [];
+            const positions = mesh.geometry.attributes.position, indices = mesh.geometry.index.array, kept = [], corners = [];
             for (let i = 0; i < indices.length; i += 3) {
-              if ([indices[i], indices[i + 1], indices[i + 2]].some(vertex => positions.getY(vertex) >= .65)) kept.push(indices[i], indices[i + 1], indices[i + 2]);
+              if ([indices[i], indices[i + 1], indices[i + 2]].some(vertex => positions.getY(vertex) >= .65)) {
+                kept.push(indices[i], indices[i + 1], indices[i + 2]); corners.push(i, i + 1, i + 2);
+              }
             }
             mesh.geometry.setIndex(kept);
+            mesh.geometry.userData.captureCorners = new Uint32Array(corners);
           }
         });
       }
@@ -114,11 +125,16 @@ export class Habitat {
         const rooted = result[0].clone();
         for (const mesh of rooted.children) {
           mesh.geometry = mesh.geometry.clone();
-          const positions = mesh.geometry.attributes.position, indices = mesh.geometry.index.array, kept = [];
+          mesh.geometry.userData = { ...mesh.geometry.userData };
+          const positions = mesh.geometry.attributes.position, indices = mesh.geometry.index.array, kept = [], corners = [];
+          const sourceCorners = mesh.geometry.userData.captureCorners;
           for (let i = 0; i < indices.length; i += 3) {
-            if ([indices[i], indices[i + 1], indices[i + 2]].some(vertex => positions.getY(vertex) >= 1.1)) kept.push(indices[i], indices[i + 1], indices[i + 2]);
+            if ([indices[i], indices[i + 1], indices[i + 2]].some(vertex => positions.getY(vertex) >= 1.1)) {
+              kept.push(indices[i], indices[i + 1], indices[i + 2]); corners.push(sourceCorners[i], sourceCorners[i + 1], sourceCorners[i + 2]);
+            }
           }
           mesh.geometry.setIndex(kept);
+          mesh.geometry.userData.captureCorners = new Uint32Array(corners);
         }
         this.models.set('rooted', [rooted]);
         const lod = await captureLod, far = rooted.clone();
@@ -147,6 +163,10 @@ export class Habitat {
 
   place(key, x, z, scale = 1, angle = 0, variantIndex = 0, elevatedY) {
     const variants = this.models.get(key), variant = variants[variantIndex % variants.length];
+    if (['fern', 'broadleaf', 'groundcover', 'creeper'].includes(key)) {
+      const width = Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale;
+      if (coversEntrancePath(x, z, variant.userData.spread * width * Math.SQRT1_2)) return [];
+    }
     const embedded = (SOIL_SKIRT_DEPTH[key] ?? 0) * (Array.isArray(scale) ? scale[1] : scale);
     let floor = groundHeight(x, z);
     const radius = (SOIL_SKIRT_RADIUS[key] ?? 0) * (Array.isArray(scale) ? Math.max(scale[0], scale[2]) : scale);
@@ -164,6 +184,10 @@ export class Habitat {
       const batch = this.batches.get(batchKey), matrix = this.dummy.matrix.clone();
       placements.push({ batch, index: batch.matrices.length, matrix });
       batch.matrices.push(matrix);
+    }
+    if (!this.nearTrunks?.captureDisabled && (key === 'banyan' || key === 'rooted' && Math.hypot(x - START.x, z - START.z) < 32)) {
+      const detailBounds = new THREE.Box3().setFromObject(variant).applyMatrix4(placements[0].matrix);
+      this.lodTrees.push({ x, z, parts: placements, modelKey: key, detailBounds, near: false, group: null });
     }
     return placements;
   }
@@ -224,7 +248,7 @@ export class Habitat {
   composeForest() {
     const w = this.world, layout = createForestLayout(w.lowDetail);
     for (const tree of layout.emergent) {
-      if (w.colliders.some(c => colliderContains(c, tree.x, tree.z, tree.scale * 1.5, groundHeight(tree.x, tree.z)))) continue;
+      if (w.colliders.some(c => colliderBoundsContain(c, tree.x, tree.z, tree.scale * 1.5, groundHeight(tree.x, tree.z)))) continue;
       this.place('tree', tree.x, tree.z, tree.scale, tree.angle, 0, groundHeight(tree.x, tree.z) - .12);
       w.colliders.push({ x: tree.x, z: tree.z, radius: tree.scale * 1.5, shadeRadius: tree.scale * 4 });
     }
@@ -247,11 +271,12 @@ export class Habitat {
     }
     for (const item of layout.debris) {
       if (w.colliders.some(c => !c.parts && Math.hypot(c.x - item.x, c.z - item.z) < c.radius + (item.key === 'log' && item.scale < .55 ? .25 : 1.2))) continue;
-      this.place(item.key, item.x, item.z, item.scale, item.angle, item.variant);
+      const placed = this.place(item.key, item.x, item.z, item.scale, item.angle, item.variant);
       if (item.key === 'log' && item.scale >= .55) {
+        const variants = this.models.get('log'), variant = variants[item.variant % variants.length];
         for (let i = 0; i <= 6; i++) {
           const offset = (i / 6 - .5) * 3.05 * item.scale;
-          w.colliders.push({ x: item.x + Math.cos(item.angle) * offset, z: item.z - Math.sin(item.angle) * offset, radius: .18 * item.scale + .06 });
+          w.colliders.push(refineCollider({ x: item.x + Math.cos(item.angle) * offset, z: item.z - Math.sin(item.angle) * offset, radius: .18 * item.scale + .06 }, variant, placed[0].matrix));
         }
       } else if (item.key === 'rock') w.colliders.push({ x: item.x, z: item.z, radius: item.scale * 1.15 });
     }
@@ -299,7 +324,7 @@ export class Habitat {
       }
     }
     for (let i = 0; i < 18; i++) {
-      const z = 9 - i * 7.2, x = Math.sin(z * .06) * 1.4 + (i % 2 ? 1 : -1) * w.rand(4, 8);
+      const z = 9 - i * 7.2, x = mainTrailX(z) + (i % 2 ? 1 : -1) * w.rand(4, 8);
       if (Math.abs(x - riverX(z)) < 6) continue;
       this.backgroundTree(x, z, w.rand(1.7, 2.8), w.rand(0, 6));
       w.colliders.push({ x, z, radius: .35 });
@@ -334,13 +359,13 @@ export class Habitat {
     for (const [key, x, z, scale, variant] of foreground) this.place(key, x, z, scale, w.rand(0, 6), variant);
     for (let z = 34; z > -110; z -= 2.2) {
       for (const side of [-1, 1]) {
-        const x = Math.sin(z * .06) * 1.4 + side * w.rand(.9, 1.5);
+        const x = mainTrailX(z) + side * w.rand(.9, 1.5);
         if ([...SPECIES, ...PLANT_SITES].some(s => Math.hypot(s.x - x, s.z - z) < 2)) continue;
         this.place('fern', x, z, w.rand(2.8, 4.5), w.rand(0, 6), 3);
       }
     }
     for (let i = 0; i < 240; i++) {
-      const z = w.rand(14, 38), path = Math.sin(z * .06) * 1.4;
+      const z = w.rand(14, 38), path = mainTrailX(z);
       const x = path + (i % 2 ? 1 : -1) * w.rand(.9, 8);
       if ([...SPECIES, ...PLANT_SITES].some(s => Math.hypot(s.x - x, s.z - z) < 1.8)) continue;
       const key = i % 3 ? 'fern' : 'broadleaf';
@@ -359,12 +384,11 @@ export class Habitat {
         this.world.butterflyPerch = point.add(new THREE.Vector3(0, .023, 0));
       }
     }
-    this.place('log', -7, 22, .8, .7);
-    this.place('log', 5, -89, .85, -.3);
     for (const [x, z, scale, angle] of [[-7, 22, .8, .7], [5, -89, .85, -.3]]) {
+      const placed = this.place('log', x, z, scale, angle);
       for (let i = 0; i <= 6; i++) {
         const offset = (i / 6 - .5) * 3.05 * scale;
-        w.colliders.push({ x: x + Math.cos(angle) * offset, z: z - Math.sin(angle) * offset, radius: .22 });
+        w.colliders.push(refineCollider({ x: x + Math.cos(angle) * offset, z: z - Math.sin(angle) * offset, radius: .22 }, this.models.get('log')[0], placed[0].matrix));
       }
     }
     this.place('rock', 4, -88, 1.2, .4);
@@ -405,13 +429,13 @@ export class Habitat {
       mesh.visible = distance < mesh.userData.viewDistance && distance >= (mesh.userData.minViewDistance ?? -Infinity);
     }
     for (const tree of this.lodTrees) {
-      const near = (tree.x - position.x) ** 2 + (tree.z - position.z) ** 2 < 18 ** 2;
+      const near = treeDetailDistance(tree, position) < 18 || (this.nearTrunks?.needsNearGroup(tree.group) ?? false);
       if (near === tree.near) continue;
       tree.near = near;
       if (near && !tree.group) {
-        tree.group = this.models.get('forest')[0].clone();
+        tree.group = this.models.get(tree.modelKey ?? 'forest')[0].clone();
         tree.group.applyMatrix4(tree.parts[0].matrix);
-        tree.group.children.forEach(mesh => { mesh.castShadow = !this.world.lowDetail; mesh.receiveShadow = true; });
+        tree.group.children.forEach(mesh => { mesh.castShadow = !this.world.lowDetail && tree.modelKey !== 'banyan'; mesh.receiveShadow = true; });
         this.world.scene.add(tree.group);
       }
       if (tree.group) tree.group.visible = near;
@@ -420,6 +444,7 @@ export class Habitat {
         part.batch.mesh.instanceMatrix.needsUpdate = true;
       }
     }
+    this.nearTrunks?.update(position, this.lodTrees);
   }
 
   setWet(rainy) {

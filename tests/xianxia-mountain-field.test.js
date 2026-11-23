@@ -1,16 +1,94 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {gunzipSync} from 'node:zlib';
+import * as THREE from 'three';
 import {decodeMountainGeometry,MOUNTAIN_BASE_X,MOUNTAIN_BASE_Z,MOUNTAIN_PERIOD,MOUNTAIN_WIDTH,mountainStation} from '../src/xianxia-mountain-geometry.js';
 import {gradeCaptureApproach} from '../src/xianxia-near.js';
 import {createFloorIndex} from '../src/xianxia-world.js';
 import {MountainTileSurface} from '../src/xianxia-mountain-surface.js';
+import {mountainFernPlacement,mountainPinePlacements,mountainPineFamilies} from '../src/xianxia-mountain-field.js';
+import {mountainPathDistance} from '../src/xianxia-mountain-route.js';
+
+const manifest=JSON.parse(readFileSync(new URL('../public/xianxia/surface/mountain-v4.json',import.meta.url)));
 
 function load(phase,lod){
-  const b=readFileSync(new URL('../public/xianxia/surface/v3/tile-'+phase+'-'+lod+'.bin',import.meta.url));
+  const b=readFileSync(new URL('../public/xianxia/surface/'+manifest.tiles[phase][lod],import.meta.url));
   const geometry=decodeMountainGeometry(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
   return phase?geometry:gradeCaptureApproach(geometry);
 }
+
+test('off-path rock feet retain the captured surface rather than the old broad forecourt deformation',()=>{
+  const geometry=load(0,'near'),positions=geometry.attributes.position,indices=geometry.index;
+  // Original Coastal Cliff 04 LOD0 samples, rigidly translated into the mountain frame.
+  const samples=[[103.9031677,1.18783057,-117.20053],[103.931488,1.22102296,-117.042816],[104.314064,1.08575165,-116.86166]];
+  const triangle=new THREE.Triangle(),closest=new THREE.Vector3();
+  for(const sample of samples){
+    const point=new THREE.Vector3(...sample);let distance=Infinity;
+    for(let i=0;i<indices.count;i+=3){
+      triangle.a.fromBufferAttribute(positions,indices.getX(i));
+      triangle.b.fromBufferAttribute(positions,indices.getX(i+1));
+      triangle.c.fromBufferAttribute(positions,indices.getX(i+2));
+      if(triangle.getArea()<1e-12)continue;
+      triangle.closestPointToPoint(point,closest);distance=Math.min(distance,closest.distanceTo(point));
+    }
+    assert.ok(distance<.03,JSON.stringify({sample,distance}));
+  }
+});
+
+test('mature pine groves belong to their streamed phase and keep the walking line open',()=>{
+  const placements=Array.from({length:4},(_,phase)=>{
+    const points=mountainPinePlacements(phase);
+    assert.deepEqual(points,mountainPinePlacements(phase));
+    for(const {x,z}of points){
+      assert.ok(x>=MOUNTAIN_BASE_X+mountainStation(phase*16));
+      assert.ok(x<MOUNTAIN_BASE_X+mountainStation((phase+1)*16));
+      assert.ok(mountainPathDistance(x,z)>=1.7);
+      assert.ok(Math.abs(z-MOUNTAIN_BASE_Z)<MOUNTAIN_WIDTH/2);
+    }
+    return points;
+  }).flat();
+  assert.ok(placements.length>=8);
+  assert.ok(new Set(placements.map(p=>p.i)).size===placements.length);
+});
+
+for(const quality of ['low','high'])test(quality+' pine LODs keep native UVs and cost less than the replaced sapling download',()=>{
+  assert.deepEqual(mountainPineFamilies(quality),quality==='low'?['pine-mature-v5','pine-mid-v3']:['pine-mature-v8','pine-mid-v6']);
+  let total=0;
+  for(const family of mountainPineFamilies(quality))for(const lod of ['near','far']){
+    const compressed=readFileSync(new URL('../public/xianxia/surface/'+family+'-'+lod+'.glb.gz',import.meta.url));total+=compressed.length;
+    const bytes=gunzipSync(compressed);assert.equal(bytes.toString('ascii',0,4),'glTF');
+    const json=JSON.parse(bytes.subarray(20,20+bytes.readUInt32LE(12)).toString());
+    assert.ok(!json.extensionsRequired?.some(name=>/draco|meshopt|basisu/i.test(name)));
+    assert.ok((json.images??[]).every(image=>image.bufferView!==undefined));
+    assert.equal(json.nodes.filter(n=>n.mesh!==undefined).length,1);
+    const spray=json.materials.find(m=>m.name.includes('sprays'));
+    assert.equal(spray.alphaMode,'MASK');assert.equal(spray.alphaCutoff,.18);assert.ok(!spray.doubleSided);
+    assert.deepEqual(spray.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],quality==='low'?[.6,1,.7,1]:[1,1,1,1]);
+    if(quality==='high'){
+      const oldFamily=family.startsWith('pine-mature')?'pine-mature-v7':'pine-mid-v5';
+      const previousBytes=gunzipSync(readFileSync(new URL('../public/xianxia/surface/'+oldFamily+'-'+lod+'.glb.gz',import.meta.url)));
+      const previous=JSON.parse(previousBytes.subarray(20,20+previousBytes.readUInt32LE(12)).toString());
+      assert.equal(json.meshes.reduce((n,m)=>n+m.primitives.length,0),previous.meshes.reduce((n,m)=>n+m.primitives.length,0),'split offline simplification must not add runtime draw primitives');
+      assert.equal(json.images?.length??0,previous.images?.length??0,'native atlas padding reuses the existing texture count');
+      assert.equal(spray.extras.pinePhotographBalanced,true);
+      const wood=json.materials.find(m=>m.name.includes('native_fine_twigs'));assert.ok(wood);
+      assert.deepEqual(wood.pbrMetallicRoughness.baseColorFactor??[1,1,1,1],[1,1,1,1]);
+      assert.ok(json.materials.some(m=>m.name.includes('pine_cones')));
+    }
+    if(lod==='far'){
+      assert.equal(json.images?.length??0,0);
+      for(const mesh of json.meshes)for(const primitive of mesh.primitives){
+        assert.notEqual(primitive.attributes.TEXCOORD_0,undefined,'geometry-only LOD must retain UVs for reused near textures');
+        assert.equal(json.accessors[primitive.attributes.TEXCOORD_0].count,json.accessors[primitive.attributes.POSITION].count);
+      }
+      assert.ok(json.materials.some(m=>m.name.includes('twig')));
+      assert.ok(json.materials.some(m=>/trunk|dead_branches/.test(m.name)));
+    }
+    assert.ok(json.materials.some(m=>m.name.includes('twig')&&m.extensions?.KHR_materials_specular?.specularFactor<.1));
+  }
+  assert.ok(total<=readFileSync(new URL('../public/xianxia/surface/pine-medium.glb',import.meta.url)).length);
+});
 
 test('native scanned entrance keeps the whole fixed eight-metre forecourt walkable',()=>{
   const surface=new MountainTileSurface();
@@ -49,4 +127,26 @@ test('near and far surface heights retain common clipped tile rims',()=>{
       }
     }
   }
+});
+
+test('fern patches repeat deterministically when streamed, with mixed sizes and irregular lateral clusters',()=>{
+  for(let phase=0;phase<4;phase++){
+    const samples=Array.from({length:225},(_,i)=>mountainFernPlacement(phase,i,45));
+    assert.deepEqual(samples,Array.from({length:225},(_,i)=>mountainFernPlacement(phase,i,45)));
+    assert.ok(Math.min(...samples.map(p=>p.scale))<.6);
+    assert.ok(Math.max(...samples.map(p=>p.scale))>1.1);
+    assert.ok(Math.max(...samples.map(p=>p.z))-Math.min(...samples.map(p=>p.z))>20);
+    for(const p of samples){
+      assert.ok(p.scale>=.55&&p.scale<2.4);
+      assert.ok(p.rotation>=0&&p.rotation<Math.PI*2&&p.variant>=0&&p.variant<1);
+      assert.ok(p.x>MOUNTAIN_BASE_X+mountainStation(phase*16)&&p.x<MOUNTAIN_BASE_X+mountainStation((phase+1)*16));
+      assert.ok(Math.abs(p.z-MOUNTAIN_BASE_Z)<MOUNTAIN_WIDTH/2);
+    }
+  }
+  const patch=Array.from({length:9},(_,i)=>mountainFernPlacement(1,25+i,25));
+  for(const a of patch)for(const b of patch)assert.ok(Math.hypot(a.x-b.x,a.z-b.z)<2.71);
+  const contact=mountainFernPlacement(2,37,25,[[139,-100]]);
+  assert.equal(contact.x,139);assert.equal(contact.z,-100);
+  const grove=mountainFernPlacement(2,29,25,[[139,-100]]);
+  assert.ok(mountainPinePlacements(2).some(tree=>Math.hypot(tree.x-grove.x,tree.z-grove.z)<=1.36));
 });

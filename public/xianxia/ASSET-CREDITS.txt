@@ -1,6 +1,6 @@
 青岚境 / Earth 2 Xianxia — material provenance
 ===========================================
-This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses a complete photographed landscape, with measured Huangshan elevations beyond it; neither is a profile invented around the route. The background photograph is not walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
+This is an interpreted, fictional walkable landscape, NOT a digital twin of a real hiking route. Route layout, camera, placement, collisions and cave arrangement are authored. Close terrain uses scanned rocks and photographically derived gentle ground; the distant band uses a credited Huangshan photograph, not reconstructed elevations or walkable geometry. The cave body and entrances use the licensed real captures credited below, adapted and joined for this fictional journey. Visual acceptance is still pending.
 
 Close-scale photographed landscape
 ----------------------------------
@@ -8,9 +8,10 @@ The mountain-only entry now uses Coastal Cliff 04 by Poly Haven (CC0):
 https://polyhaven.com/a/coastal_cliff_04
 Native-scale scan surfaces are joined offline to a graded walking corridor
 derived from the captured height profile and Rocky Trail photographic
-displacement. Infill slopes are limited to 0.5 per axis before union
-(35.3 degrees maximum combined grade); cliff silhouettes, ledges and
-overhangs retain the scan's native geometry, without lateral planar caps.
+displacement. Revision 3 infill uses isotropically filtered captured support;
+its generated triangles remain below 45 degrees. Cliff silhouettes, ledges
+and overhangs retain the scan's native geometry, without backing shells or
+lateral planar caps.
 Four shared near/far tiles repeat with alternating X reflection.
 The two one-metre terminal bands blend the tangent between reflected blocks;
 the remaining captured interior is not enlarged. The visible baked triangles
@@ -25,8 +26,17 @@ https://ambientcg.com/a/Rock043L
 Full photographic layers repeat at 2.14m and 1.8m; native detail crops at .2675m
 and .225m add grain. Original albedo, normal and roughness are repacked into
 precompressed GPU texture blocks; source dimensions, crop bounds, format,
-licenses and checksums are listed in surface/manifest.json. Scattered rocks
-and ferns retain their captured scale and are grounded against visible tiles.
+licenses and checksums are listed in surface/manifest.json. The complete
+forest-floor photograph is offset and quarter-turned in overlapping patches,
+with matching normal and roughness samples; its original colors are retained.
+The native crop only contributes grain, not the leaf distribution. Scattered
+rocks retain their captured scale except one complete shoulder boulder,
+uniformly enlarged 2.4 times without altering its proportions. Visible
+geometry, grounding, route clearance and collision share that transform;
+no extra rock model or generated surface is added. The four captured fern variants form
+irregular mixed-age patches with size factors of 0.55–2.4; their scaled root
+footprints are grounded against the same visible tiles. Low/High use at most
+190/350 placement candidates per native phase, before support/path rejection.
 Entry vegetation includes native-scale Pine Sapling Small by Poly Haven, CC0:
 https://polyhaven.com/a/pine_sapling_small
 Only one original approximately 1.05m seedling is retained, with quantized
@@ -79,6 +89,10 @@ Source tile URLs and SHA-256 hashes: src/xianxia-terrain-data.json.
 Reproducer: scripts/import-xianxia-terrain.py EXISTING_DOWNLOAD_CACHE_DIRECTORY
 (Python dependencies: numpy, Pillow, requests).
 
+The former non-walkable DEM backdrop also used this measured grid. It failed
+visual checks (near green slopes, weak ridge, then underside cutouts) and is
+not the current backdrop or any close walkable support.
+
 EOxCloudless by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)
 https://cloudless.eox.at/
 https://tiles.maps.eox.at/wmts/1.0.0/WMTSCapabilities.xml
@@ -95,6 +109,48 @@ Source: https://commons.wikimedia.org/wiki/File:Environment_of_huangshan.jpg
 License: Creative Commons Attribution 2.0 Generic
 https://creativecommons.org/licenses/by/2.0/
 Changes: downloaded 3840 px image; converted to WebP; mirrored into a closed camera-following photographic sky environment, sky-blended, color-tinted and occluded by cave darkness. No claim of original photography.
+
+Intermediate distant-only derivative: huangshan-distant-v2.webp, 1024x387 RGBA. The earlier huangshan-distant.webp remains archived, not loaded.
+The original 3840x1172 capture is cropped to its left 3100 pixels to exclude
+foreground pine branches, downsampled, sky-masked, edge-padded for mipmaps,
+and faded at its sides and bottom. No generative fill or height reconstruction.
+Reproducer: scripts/prepare-xianxia-horizon.py (numpy, scipy, Pillow).
+Current ring: mountain-distant-ring-v6.webp (3072x432 RGBA),
+mountain-distant-ring-v6-low.webp (2048x288 RGBA), each below 256KB.
+The east-facing Huangshan view is reframed and composited behind the
+forested ridges of the genuine 360-degree Shudu Lake panorama (below).
+Reproducer: scripts/prepare-xianxia-horizon-ring.py (numpy, scipy, Pillow).
+The panorama alignment is retained. Revision 6 replaces its lakeside hut
+sector with same-angular-scale forest photography, separates sky per pixel
+instead of filling columns below the first dark pixel, preserves hazy
+neutral-coloured ridges as opaque foreground rather than isolated treetops,
+and excludes the low lakeshore, people and boardwalk. Restoring the real
+hazy ridges makes the previous repeating forest backing unnecessary; that
+layer is removed so it cannot cross the pale east cliffs' sky notches.
+Only the hut-replacement sector reuses neighbouring forest photography.
+Runtime eye alignment is 0.58 instead of 0.65, lowering the entire composite
+by 3.54375 degrees without changing its angular scale or source alignment.
+The lower feather then falls below the horizon instead of blending sky
+through the photographed scrub. This is an authored visual alignment,
+not a measured camera pose; the image files and their provenance are unchanged.
+This is not a geographically continuous 360-degree capture.
+No mirror, generated fill, closed sky sphere,
+pole stretch or reachable photographic ground is used. Transparent RGB is
+padded for mipmaps and the lower edge is feathered. This authored composite
+of two captures is not a single Huangshan 360 photograph, digital twin,
+measured camera calibration or three-dimensional relief. Host sky/HDR,
+ACES/sRGB, exposure and weather remain shared; near ground is unchanged.
+
+Shudu Lake — Alex Radosnov / Poly Haven, CC0 1.0 Universal
+https://polyhaven.com/a/shudu_lake
+https://polyhaven.com/license
+https://creativecommons.org/publicdomain/zero/1.0/
+Capture location: 27.904654 N, 99.938984 E, Yunnan, China.
+Original full tonemapped equirectangular panorama: 8192x4096 JPEG,
+https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/shudu_lake.jpg
+MD5 cb579edf160dcdf86d52e748209cd190, 35529116 B.
+The original full panorama/HDR is NOT loaded by the game. Only the two
+small ring derivatives are distributed; each quality tier requests one.
 
 Poly Haven resources — CC0 1.0 Universal
 --------------------------------------
@@ -115,7 +171,7 @@ https://polyhaven.com/a/kiara_1_dawn
 
 Changes: rock GLTF converted to binary GLB; mesh welding, simplification, pruning and deduplication with glTF Transform and Meshoptimizer; textures converted to embedded WebP. Separate low-quality rock GLBs use further simplification and 512 px textures. The old repeated rock-face cave and stacked entrance were removed; their source files remain for provenance. Scenery is instanced and distance-culled. Rocky trail photographs supply color, normal and displacement textures.
 
-Pine foliage is not aggressively decimated: all three complete, detailed pine_sapling_medium variants are lit and rendered offline to 1536x2048 transparent PNG impostors. Both the original photographic alpha mask and leaf-material alpha testing are restored before rendering. Runtime needle edges use soft transparency and FXAA rather than a hard low-resolution alpha cutout. The runtime uses camera-facing instanced images, preserving the dense authored needles without millions of geometry triangles per tree. These are renders of a photo-textured model, not original photographs of whole trees. Native model dimensions are retained in tree-dimensions.json and the scene varies scale slightly. Close rocks and the walkable terrain remain actual 3D geometry.
+Archived legacy renderer, not the current near-only entry: the three detailed pine_sapling_medium variants were lit and rendered offline to 1536x2048 transparent PNG impostors. They remain for provenance and the older optional scene only; the current streamed mountain uses real 3D small, medium and mature trees, not whole-tree camera-facing images.
 
 Captured cave geometry (Creative Commons Attribution 4.0 International)
 --------------------------------------------------------------------------
@@ -161,6 +217,25 @@ https://huggingface.co/datasets/Stable-X/ScanSceneverse
 This modified, repeated capture forms a fictional cave. It does not claim
 that the real cave connects a rainforest to Huangshan or Dartmoor.
 
+Mature pine canopy
+-----------------
+Mature pine canopy LODs — Pine Tree 01, Poly Haven, CC0.
+Photography: Rob Tuytel; modeling: Rico Cilliers.
+https://polyhaven.com/a/pine_tree_01 · https://polyhaven.com/license
+Variant B retains authored metre-scale trunk and branch geometry. This is a photo-textured tree model, not a terrain scan. Offline needle LODs preserve projected foliage coverage by widening individual disconnected needles without scaling the tree or its branches. Original vertex-color lighting is removed; both LODs reuse the near model's photographic materials under the host's shared HDR/ACES lighting. The far GLB contains geometry only. No mesh/texture codec, WASM, worker or provider request is introduced.
+The v2 GLBs pad near-black empty areas of the opaque twig atlas from adjacent photographed texels before generating mipmaps. Colored source texels are retained; mip levels no longer mix unused black atlas space into fine needles. Runtime needle albedo is compensated once per shared material, with no emissive glow or change to host exposure. Older GLBs remain archived but are not requested by the current loader.
+The v3 mature and v1 medium LODs classify slender needle components by aspect ratio: the former radius-only method also enlarged small rounded cone scales and is no longer used. Coverage compensation measures needles only, averaged over three projection axes. The authored approximately 7.01m medium trees restore the missing middle canopy below approximately 14.9m adults and above 1.05m seedlings; whole trees are not enlarged. Authored material specular/IOR properties are retained. Four GLB LODs are transported with standard gzip and native browser decompression, without a new JavaScript codec. Older source versions are not requested.
+Low mature v5 / medium v3 and High mature v7 / medium v5 replace undersampled individual needle triangles with fixed crossed photographs of a real pine shoot from the same author's original twig atlas (normalized crop x=0, y=.04, width=.235, height=.40; native241x410 pixels at1K). A connected brightness matte removes padding islands; photographed RGB is padded outside its silhouette without upscaling or synthesized detail. Clusters and axes follow original green needle geometry, not generated skeletons or camera-facing whole-tree impostors. High preserves ALL non-slender source twig surfaces, including those inside the needle UV region, rather than relying on atlas regions alone. Smaller shoot clusters use true vertex-projected axis spans rather than inflated bounding-box spans. Photographs fit uniformly inside original needle bounds, without per-corner distortion. Wood/cones retain proportions, original color and authored specular/IOR. MASK/.18 avoids stochastic alpha grain; foliage-only albedo balance does not brighten wood or change host lighting/exposure. Far files reuse near materials and retain UVs. Low models and density are unchanged. New visual/cold-load acceptance remains required.
+
+High v8 / middle v6 native-geometry revision: the original twig atlas also receives nearest-source RGB padding in near-black void texels; source colors above the padding threshold are preserved before encoding. Authored woody forks and non-slender needle-region remnants get separate simplification budgets, then rejoin one primitive/material: no added runtime textures or draw segments. No synthetic skeleton, wood/cone widening, material color gain or specular/IOR changes. Photo sprays remain unchanged from v7/v5; the complete new frame is still pending acceptance.
+
+High-only mossy forest floor meso maps
+--------------------------
+Forest Leaves 02 — Poly Haven, Rob Tuytel, CC0.
+High needle-photo color correction affects green pixels only; brown photographed shoot stems retain source RGB. A glTF material flag disables the old whole-spray gain. Low photo assets/material handling remain unchanged.
+https://polyhaven.com/a/forest_leaves_02 · https://polyhaven.com/license
+The full captured moss/leaf/twig photograph replaces only ground meso color, OpenGL tangent normal and roughness. Native approximately3.001m capture scale is preserved independently of the existing Forest Floor fine-grain crop. Source4K color/normal and2K roughness are downsampled offline to2048 color and1024 normal/roughness, without recoloring, synthesized patches or changing ground geometry. Existing ETC2/S3TC upload dimensions, mip count and allocation remain unchanged. No additional runtime maps, codec, worker or provider requests. Captured rock maps and shared HDR/ACES exposure are unchanged.
+
 Fonts
 -----
 Noto Serif CJK SC — Adobe / Google, SIL Open Font License 1.1.
@@ -175,6 +250,10 @@ All original rainforest credits and licenses are preserved at /ASSET-CREDITS.txt
 Poetry quoted in the interface is public-domain classical Chinese poetry by Wang Wei, Jia Dao and Du Fu; authors and poem names are displayed beside each verse. Wind ambience is synthesized, not a field recording. Interface text and fictional location names are authored for this experience.
 
 All assets needed at runtime are bundled locally. There is no runtime fetch to asset providers, login service, CDN, iframe or navigation-based world transition.
+
+Streamed mountain surface revision 4 (MTN2)
+-----------------------------------
+The first two phases are rebuilt from the same Coastal Cliff 04 LOD0 source. The old wide, normal-dependent forecourt grading pulled off-path rock vertices down by different amounts and folded some rock feet. Captured geometry now receives grading only inside the fixed 8 x 1.2 m walking strip, with 0.25 m longitudinal and 0.15 m lateral full-weight margins, fading out over 0.75 m and 0.35 m respectively. The surrounding gentle-earth underlay and phases 2/3 remain byte-identical to revision 3. Native scan simplification retains its 0.025 m near / 0.25 m far error limits and locked tile borders. Both runtime support and drawing use the rebuilt triangles. Versioned v4 phase 0/1 URLs preserve legacy cached assets. Photographic shading retains authored smooth normals instead of switching abruptly to per-face normals at 45 degrees; shared HDR, exposure, lights and textures are unchanged.
 
 Streamed mountain surface revision 3 (MTN2)
 -----------------------------------

@@ -37,8 +37,7 @@ export class XianxiaMountain {
   }
   loadHorizon(){
     this.horizonLoading??=this.load().then(async()=>{
-      const {loadMountainHorizon}=await import('./xianxia-mountain-horizon.js');
-      this.horizon=await loadMountainHorizon(this);return this.horizon;
+      this.horizon=await this.world.loadHorizon();return this.horizon;
     });
     this.horizonLoading.catch(error=>{this.horizonError=error;});
     return this.horizonLoading;
