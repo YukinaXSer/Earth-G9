@@ -581,3 +581,41 @@ for (const lowDetail of [true, false]) test(`${lowDetail ? 'Low' : 'High'} outbo
     assert.equal(samples, 690); console.log(`${lowDetail ? 'Low' : 'High'} outbound native terrain rays: ${samples}, raised interior sheets: 0`);
   } finally { fixture.dispose(); }
 });
+
+for (const lowDetail of [true, false]) test(`${lowDetail ? 'Low' : 'High'} look-back and sideways terrain rays cannot precede the rendered cave wall`, async () => {
+  const l = new CaveLink({ scene: new T.Scene(), lowDetail });
+  l.floor = link.floor;
+  const fixture = await loadProductionMountain(l, fitData, caveData.mouths), body = new CaveRayIndex([link.floor]);
+  try {
+    let samples = 0;
+    for (const nativeX of [null, 108.5, 140.5, 310.5, 100.5]) {
+      if (nativeX != null) await l.mountain.world.updateMountain(nativeX, -115.1);
+      assert.equal(l.mountain.world.streamingError, undefined);
+      l.mountain.group.updateMatrixWorld(true);
+      const terrain = createProductionMountainRayIndex(l, { names: ['native-mountain'] });
+      const check = (eye, direction) => {
+        const wall = body.cast(eye, direction, 12);
+        if (Number.isFinite(wall)) {
+          const distance = terrain.cast(eye, direction, wall - .003);
+          if (Number.isFinite(distance)) {
+            const point = eye.clone().addScaledVector(direction, distance), end = l.mouths[1];
+            const depth = (point.x - end.floorCenter[0]) * end.outward[0] + (point.z - end.floorCenter[2]) * end.outward[2];
+            assert.ok(depth >= -5.25, `Native terrain ${wall - distance}m ahead of cave wall at ${point.toArray()}, eye ${eye.toArray()}, stream x=${nativeX}`);
+          }
+        }
+        samples++;
+      };
+      for (const along of [80, 84, 88, 92, 96]) {
+        const point = routePointAt(l.route, along), eye = point.clone().setY(l.floor.heightAt(point.x, point.z) + 1.85), forward = routePointAt(l.route, along + 1).sub(point).setY(0).normalize();
+        for (const angle of [0, -.4, .4, Math.PI / 2, -Math.PI / 2, Math.PI, Math.PI - .4, Math.PI + .4]) {
+          for (const down of [-.3, 0, .3, .6]) check(eye, forward.clone().applyAxisAngle(new T.Vector3(0, 1, 0), angle).setY(-down).normalize());
+        }
+      }
+      const eye = new T.Vector3(77.5, l.floor.heightAt(77.5, -323.6) + 1.85, -323.6), camera = new T.PerspectiveCamera(60, 800 / 450, .1, 100);
+      camera.position.copy(eye); camera.lookAt(78.5, eye.y, -313.6); camera.updateMatrixWorld(true);
+      for (let x = 1; x <= 8; x++) for (let y = 2; y <= 9; y++) check(eye, new T.Vector3(x / 10, -y / 10, .5).unproject(camera).sub(eye).normalize());
+    }
+    assert.equal(samples, 1120);
+    console.log(`${lowDetail ? 'Low' : 'High'} look-back/sideways terrain rays: ${samples}, wall intrusions: 0`);
+  } finally { fixture.dispose(); }
+});

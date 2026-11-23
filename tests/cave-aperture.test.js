@@ -17,6 +17,15 @@ test('host clips repeated mountain tiles and their shadows behind the exit witho
 const volume = { route: [[0, 0, 0], [0, 0, 2]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(8).fill(2), Array(8).fill(2)], axisHeight: 1.1, clearance: .15 };
 const mouths = [{ floorCenter: [0, 0, 0], outward: [0, 0, -1] }, { floorCenter: [0, 0, 2], outward: [0, 0, 1] }];
 
+test('deep wall intrusions outside the sampled profile are cut against the body, including crossing faces', () => {
+  for (const insideBody of [null, () => false, point => point.y > 3]) {
+    const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([.1, 2.9, -5, .2, 3.2, -5, .3, 2.9, -5], 3)).setIndex([0, 1, 2]);
+    const root = new T.Group(), mesh = new T.Mesh(geometry); mesh.name = 'native-mountain'; root.add(mesh);
+    assert.equal(clipMountainAperture(root, new T.Matrix4(), { ...volume, radius: [Array(8).fill(.1), Array(8).fill(.1)] }, mouths, { nativeCliff: true, insideBody }), insideBody?.(new T.Vector3(0, 4, 0)) ? 1 : 0);
+    assert.equal(geometry.index.count, 3);
+  }
+});
+
 test('native floor exemptions cannot retain raised sheets over the rendered cave floor before the handoff', () => {
   for (const [height, plan, removed] of [[0, null, 1], [.2, null, 0], [null, null, 0], [0, { rampStart: 1, along: 1.5 }, 0]]) {
     const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([-.2,.2,1.6, 0,.2,1.8, .2,.2,1.6],3)).setIndex([0,1,2]);

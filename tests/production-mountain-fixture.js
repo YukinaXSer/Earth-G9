@@ -39,7 +39,7 @@ export async function loadProductionMountain(link, fit, mouths, { clipAperture =
   return { ...createProductionMountainRayIndex(link), dispose: () => { loaderMock.mock.restore(); parserMock.mock.restore(); fetchMock.mock.restore(); } };
 }
 
-export function createProductionMountainRayIndex(link) {
+export function createProductionMountainRayIndex(link, { names = null } = {}) {
   const parts = [], cache = new Map(), instance = new T.Matrix4(), matrix = new T.Matrix4();
   const bounds = new T.Box3().setFromPoints(link.mouths.map(m => new T.Vector3(...m.floorCenter))).expandByScalar(link.length + 40);
   function append(mesh, transform, start = 0, count = mesh.geometry.index?.count ?? mesh.geometry.attributes.position.count) {
@@ -60,6 +60,7 @@ export function createProductionMountainRayIndex(link) {
   }
   link.mountain.group.traverse(mesh => {
     if (!mesh.isMesh || !mesh.visible) return;
+    if (names && !names.includes(mesh.name)) return;
     if (mesh.isBatchedMesh) {
       for (let i = 0; i < mesh.instanceCount; i++) {
         if (!mesh.getVisibleAt(i)) continue;

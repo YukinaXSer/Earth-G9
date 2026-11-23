@@ -26,7 +26,7 @@ export function limitMountainToExit(root, mouth, { nativeCliff = false } = {}) {
   return plane;
 }
 
-export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null, geometryCache = null, floorHeight = null } = {}) {
+export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null, geometryCache = null, floorHeight = null, insideBody = null } = {}) {
   if (!volume?.route?.length || mouths?.length !== 2) throw new TypeError('Mountain aperture requires scanned cave profiles');
   if (!Number.isFinite(outwardDepth) || outwardDepth < 0) throw new RangeError('Invalid mountain opening depth');
   root.updateMatrixWorld(true);
@@ -56,7 +56,7 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
         const bodyHeight = floorHeight(centroid.x, centroid.z);
         if (bodyHeight != null && centroid.y > bodyHeight + .003 && (!floorHandoff || nearestRoute(centroid.x, centroid.z, volume.route).along < floorHandoff.rampStart) && [a, b, c].every(v => { vertex.copy(v).applyMatrix4(matrix); return floorHeight(vertex.x, vertex.z) != null; })) thresholdFloor = false;
       }
-      if (depth < outwardDepth && !thresholdFloor && insideScannedCave(centroid.toArray(), volume, mouths)) removed++;
+      if (depth < outwardDepth && !thresholdFloor && (insideScannedCave(centroid.toArray(), volume, mouths) || depth < -5.25 && insideBody && (insideBody(centroid) || [a, b, c].some(v => insideBody(vertex.copy(v).applyMatrix4(matrix)))))) removed++;
       else keep.push(...ids);
     }
     if (keep.length !== (index?.count ?? p.count)) {

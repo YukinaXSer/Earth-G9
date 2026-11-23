@@ -8,12 +8,13 @@ import { createColliderIndex } from '../captured-collisions.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { terrainCutWriter } from './cave-terrain.js';
 import { clipMountainAperture, limitMountainToExit } from './cave-aperture.js';
+import { CaveRayIndex } from './cave-rays.js';
 import { warmMountainHorizon } from './cave-horizon.js';
 import { prepareForestLOD, useCapturedForestLOD, useLowMountainMaterials, useLowTextureFiltering } from './cave-low-tier.js';
 import { enableCaveShadows } from './cave-shadows.js';
 import { clipForestSurface, createMouthForest, cullForestInCave } from './cave-forest.js';
 import { createMountainFloorSeal, createMountainRockCover } from './cave-rock-cover.js';
-import { createMountainHandoffFloor, floorHandoffHeight, useMountainFloorMaterial } from './cave-floor-handoff.js';
+import { createMountainHandoffFloor, floorHandoffHeight, routePointAt, useMountainFloorMaterial } from './cave-floor-handoff.js';
 
 const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
 const insideForest = (x, z) => x >= BOUNDS.minX && x <= BOUNDS.maxX && z >= BOUNDS.minZ && z <= BOUNDS.maxZ;
@@ -120,13 +121,34 @@ export class CaveLink {
     root.updateWorldMatrix(true, true);
     const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
     limitMountainToExit(root, this.mouths[1], { nativeCliff });
-    const point = new T.Vector3(), floorHeight = (x, z) => {
+    const point = new T.Vector3(), origin = new T.Vector3(), direction = new T.Vector3(), floorHeight = (x, z) => {
       point.set(x, 0, z).applyMatrix4(this.transform);
       const height = this.floor?.heightAt(point.x, point.z);
       return height == null ? null : height - this.transform.elements[13];
     };
+    const insideBody = local => {
+      point.copy(local).applyMatrix4(this.transform);
+      if (!this.floor?.triangles?.(point.x, point.z).length) return false;
+      const near = nearestRoute(point.x, point.z, this.route);
+      if (this.floorHandoff && near.along >= this.floorHandoff.rampStart) return false;
+      this.bodyRays ??= new CaveRayIndex([this.floor]);
+      for (const offset of [0, -2, 2, -4, 4, -6, 6, -8, 8, -10, 10]) {
+        const along = near.along + offset;
+        if (along < 0 || along > (this.floorHandoff?.rampStart ?? this.length)) continue;
+        origin.copy(routePointAt(this.route, along));
+        const height = this.floor.heightAt(origin.x, origin.z);
+        if (height == null) continue;
+        origin.y = height + 1.85;
+        const distance = direction.subVectors(point, origin).length();
+        if (distance <= .003) return true;
+        direction.multiplyScalar(1 / distance);
+        const wall = this.bodyRays.cast(origin, direction, Infinity);
+        if (Number.isFinite(wall) && wall > distance + .003) return true;
+      }
+      return false;
+    };
     this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths,
-      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight });
+      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight, insideBody });
     if (this.host.lowDetail) useLowMountainMaterials(root);
   }
   async dress() {
