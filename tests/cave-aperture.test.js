@@ -17,6 +17,13 @@ test('host clips repeated mountain tiles and their shadows behind the exit witho
 const volume = { route: [[0, 0, 0], [0, 0, 2]], side: [[1, 0, 0], [1, 0, 0]], radius: [Array(8).fill(2), Array(8).fill(2)], axisHeight: 1.1, clearance: .15 };
 const mouths = [{ floorCenter: [0, 0, 0], outward: [0, 0, -1] }, { floorCenter: [0, 0, 2], outward: [0, 0, 1] }];
 
+test('native floor outside a curved corridor survives even within the straight exit strip', () => {
+  const root = new T.Group(), geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([.05,0,.45, .15,0,.45, .1,0,.55, -.7,0,.45, -.6,0,.45, -.65,0,.55],3)).setIndex([0,1,2,3,4,5]);
+  const mesh = new T.Mesh(geometry); mesh.name = 'native-mountain'; root.add(mesh);
+  assert.equal(clipMountainAperture(root,new T.Matrix4(),{...volume,route:[[-1,0,0],[0,0,2]]},mouths,{nativeCliff:true}),1);
+  assert.deepEqual(Array.from(mesh.geometry.index.array),[0,1,2]);
+});
+
 test('native floor retention uses normal angle at every triangle size and preserves whole handoff-crossing faces', () => {
   for (const size of [.0001, .01, .3]) {
     const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([-size, 0, .8 - size, size, 0, .8 - size, 0, 0, .8 + size], 3)).setIndex([0, 1, 2]);
