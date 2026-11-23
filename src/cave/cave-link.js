@@ -91,11 +91,15 @@ export class CaveLink {
       const textures = new Set(Object.values(this.mountain.world.photographicGround.textures));
       this.mountain.group.traverse(m => { if (m.isMesh) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) for (const value of Object.values(mat)) if (value?.isTexture) textures.add(value); });
       await warmCaveAssets({ root: this.mountain.group, textures: [...textures] }, host.renderer, host.camera, host.scene);
-      this.horizonLoading = warmMountainHorizon(this.mountain, horizon => warmCaveAssets({ root: horizon, textures: [horizon.material.map] }, host.renderer, host.camera, host.scene));
-      await this.horizonLoading;
-      host.scene.add(this.mountain.group);
-      this.mountain.group.visible = true; this.ready = true; this.state = 'ready';
+      this.attachMountain();
     } catch (error) { this.state = 'failed'; this.error = error; console.error('Cave streaming failed:', error); }
+  }
+  attachMountain() {
+    const host = this.host;
+    host.scene.add(this.mountain.group);
+    this.mountain.group.visible = true; this.ready = true; this.state = 'ready';
+    this.horizonLoading = warmMountainHorizon(this.mountain, horizon => warmCaveAssets({ root: horizon, textures: [horizon.material.map] }, host.renderer, host.camera, host.scene))
+      .catch(error => { this.horizonError = error; console.warn('Optional mountain horizon unavailable:', error); return null; });
   }
   attachCave() {
     if (this.caveAttached) return;
