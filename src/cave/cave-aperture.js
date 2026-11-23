@@ -26,7 +26,7 @@ export function limitMountainToExit(root, mouth, { nativeCliff = false } = {}) {
   return plane;
 }
 
-export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null, geometryCache = null } = {}) {
+export function clipMountainAperture(root, worldToCave, volume, mouths, { nativeCliff = false, outwardDepth = 0, floorHandoff = null, geometryCache = null, floorHeight = null } = {}) {
   if (!volume?.route?.length || mouths?.length !== 2) throw new TypeError('Mountain aperture requires scanned cave profiles');
   if (!Number.isFinite(outwardDepth) || outwardDepth < 0) throw new RangeError('Invalid mountain opening depth');
   root.updateMatrixWorld(true);
@@ -51,7 +51,11 @@ export function clipMountainAperture(root, worldToCave, volume, mouths, { native
       const lateral = (centroid.x - end.floorCenter[0]) * end.outward[2] - (centroid.z - end.floorCenter[2]) * end.outward[0];
       const handoffOverlap = floorHandoff && nativeCliff && depth > -5.25 && depth < outwardDepth && Math.abs(centroid.y - end.floorCenter[1]) < .4 && [a, b, c].some(v => { vertex.copy(v).applyMatrix4(matrix); return nearestRoute(vertex.x, vertex.z, volume.route).along >= floorHandoff.along; });
       const floorOverlap = depth > -.6 || (nativeCliff && depth > -5.25 && (Math.abs(lateral) > .7 || [a, b, c].some(v => { vertex.copy(v).applyMatrix4(matrix); return nearestRoute(vertex.x, vertex.z, volume.route).distance > .7; }) || handoffOverlap));
-      const thresholdFloor = Math.abs(centroid.y - end.floorCenter[1]) < .4 && (floorOverlap && Math.abs(normal.y) > .6 || nativeCliff && depth > -5.25 && handoffOverlap);
+      let thresholdFloor = Math.abs(centroid.y - end.floorCenter[1]) < .4 && (floorOverlap && Math.abs(normal.y) > .6 || nativeCliff && depth > -5.25 && handoffOverlap);
+      if (thresholdFloor && floorHeight) {
+        const bodyHeight = floorHeight(centroid.x, centroid.z);
+        if (bodyHeight != null && centroid.y > bodyHeight + .003 && (!floorHandoff || nearestRoute(centroid.x, centroid.z, volume.route).along < floorHandoff.rampStart) && [a, b, c].every(v => { vertex.copy(v).applyMatrix4(matrix); return floorHeight(vertex.x, vertex.z) != null; })) thresholdFloor = false;
+      }
       if (depth < outwardDepth && !thresholdFloor && insideScannedCave(centroid.toArray(), volume, mouths)) removed++;
       else keep.push(...ids);
     }

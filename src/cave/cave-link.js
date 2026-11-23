@@ -120,8 +120,13 @@ export class CaveLink {
     root.updateWorldMatrix(true, true);
     const nativeCliff = this.fit.mouths[1].strategy === 'native-cliff';
     limitMountainToExit(root, this.mouths[1], { nativeCliff });
+    const point = new T.Vector3(), floorHeight = (x, z) => {
+      point.set(x, 0, z).applyMatrix4(this.transform);
+      const height = this.floor?.heightAt(point.x, point.z);
+      return height == null ? null : height - this.transform.elements[13];
+    };
     this.nativeApertureTriangles = (this.nativeApertureTriangles ?? 0) + clipMountainAperture(root, this.transform.clone().invert(), this.fit.volume, data.mouths,
-      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry });
+      { nativeCliff, outwardDepth: nativeCliff ? this.fit.mouths[1].nativeOpeningExtensionMetres : 0, floorHandoff: this.floorHandoff, geometryCache: this.mountainGeometry, floorHeight });
     if (this.host.lowDetail) useLowMountainMaterials(root);
   }
   async dress() {

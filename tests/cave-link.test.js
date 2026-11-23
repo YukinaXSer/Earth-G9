@@ -544,3 +544,40 @@ test('low-tier native terrain is clipped again after the actual 32m outward trip
     assert.equal(escapes, 0); console.log(`Post-return mountain sky escapes: ${escapes}`);
   } finally { index.dispose(); }
 });
+
+for (const lowDetail of [true, false]) test(`${lowDetail ? 'Low' : 'High'} outbound mountain LODs never cover the cave floor with raised native sheets`, async () => {
+  const h = { scene: new T.Scene(), lowDetail }, l = new CaveLink(h);
+  l.floor = link.floor;
+  const fixture = await loadProductionMountain(l, fitData, caveData.mouths);
+  try {
+    let samples = 0;
+    for (const nativeX of [null, 108.5, 140.5, 310.5, 100.5]) {
+      if (nativeX != null) await l.mountain.world.updateMountain(nativeX, -115.1);
+      assert.equal(l.mountain.world.streamingError, undefined);
+      l.mountain.group.updateMatrixWorld(true);
+      const terrain = [];
+      l.mountain.group.traverse(mesh => {
+        if (mesh.name === 'native-mountain') terrain.push(mesh);
+        if (mesh.name === 'native-mountain-far') {
+          assert.ok(mesh.isBatchedMesh);
+          assert.equal(mesh.material.clippingPlanes.length, 1);
+          for (let along = 80; along < 103; along++) assert.ok(mesh.material.clippingPlanes[0].distanceToPoint(routePointAt(l.route, along)) < 0, 'All batched far geometry levels must clip the interior');
+        }
+      });
+      for (let along = 80; along < 103; along += .5) {
+        const point = routePointAt(l.route, along), eye = point.clone().setY(l.floor.heightAt(point.x, point.z) + 1.85), forward = routePointAt(l.route, along + 3).sub(point).setY(0).normalize();
+        for (const down of [.15, .3, .5]) {
+          const direction = forward.clone().setY(-down).normalize();
+          const hits = new T.Raycaster(eye, direction, 0, 18).intersectObjects(terrain);
+          for (const hit of hits) {
+            const near = nearestRoute(hit.point.x, hit.point.z, l.route), floor = l.floor.heightAt(hit.point.x, hit.point.z);
+            if (near.distance > .6 || near.along >= l.floorHandoff.rampStart || floor == null) continue;
+            assert.ok(hit.point.y <= floor + .003, `Raised ${hit.object.name} face ${hit.faceIndex} at ${hit.point.toArray()}, ${hit.point.y - floor}m above cave floor; camera s=${along}, stream x=${nativeX}`);
+          }
+          samples++;
+        }
+      }
+    }
+    assert.equal(samples, 690); console.log(`${lowDetail ? 'Low' : 'High'} outbound native terrain rays: ${samples}, raised interior sheets: 0`);
+  } finally { fixture.dispose(); }
+});
