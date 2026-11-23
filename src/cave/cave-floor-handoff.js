@@ -52,7 +52,9 @@ export function findFloorHandoff(route, floorHeight, nativeHeight, { band = 3, s
 export function floorHandoffHeight(plan, route, x, z, body, native, renderedNative = null) {
   if (!plan || !Number.isFinite(native)) return body;
   const near = nearestRoute(x, z, route);
-  if (near.along < plan.rampStart || near.distance > 1.2) return body;
+  if (near.distance > 1.2) return body;
+  if (body == null && Number.isFinite(renderedNative) && Math.abs(renderedNative - native) <= .003) return renderedNative;
+  if (near.along < plan.rampStart) return body;
   if (near.along >= plan.along || body == null) return native;
   if (Number.isFinite(renderedNative) && Math.abs(renderedNative - body) <= .2) return Math.max(body, renderedNative);
   return body;

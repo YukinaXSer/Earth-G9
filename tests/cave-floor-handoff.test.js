@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import { createMountainHandoffFloor, findFloorHandoff, floorHandoffHeight, useMountainFloorMaterial } from '../src/cave/cave-floor-handoff.js';
 import { CaveLink } from '../src/cave/cave-link.js';
+import { CaveFloorIndex } from '../src/cave/cave-space.js';
 
 const route = [[0, 0, 0], [0, 0, 4]];
 test('rendered native support indexes retained floor faces, handles an empty root and rejects invalid inputs', () => {
@@ -46,6 +47,19 @@ test('rendered native support cannot lift movement before the ramp or beyond its
   link.nativeFloor.heightAt = () => NaN;
   assert.equal(link.groundHeight(0,1.75),-.28);
   assert.equal(link.groundHeight(0,2.1),.05);
+});
+test('native-only support before the ramp must match the visible terrain, including capsule probes', () => {
+  const plan = { along: 2, rampStart: 1.5, band: 3 };
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.4, null, .05, .0501), .0501);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.4, null, .05, .25), null);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.4, null, .05), null);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.4, null, null, .05), null);
+  assert.equal(floorHandoffHeight(plan, route, 0, 1.4, 0, .05, .05), 0);
+  const floor = new CaveFloorIndex(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute([], 3)), route);
+  const link = Object.assign(Object.create(CaveLink.prototype), { route, ready: true, caveAttached: true, floorHandoff: plan, regionAt: () => 'cave', mouths: [{ floorCenter: [0,0,0], outward: [0,0,-1] }, { floorCenter: [0,0,4], outward: [0,0,1] }], floor, nativeFloor: { heightAt: () => .05 }, mountain: { groundHeight: () => .05 } });
+  assert.equal(link.canMove(0, 1.35, 0, 1.4), true);
+  link.nativeFloor.heightAt = () => .25;
+  assert.equal(link.canMove(0, 1.35, 0, 1.4), false);
 });
 test('remaining authored floor faces use the complete native shader without changing wall material or source uniforms', () => {
   const geometry = new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(new Float32Array(18), 3)).setAttribute('_cave_native_floor', new T.Uint8BufferAttribute([0, 0, 0, 1, 1, 1], 1)).setIndex([0, 1, 2, 3, 4, 5]);
