@@ -4,3 +4,4 @@ dist-visual/
 dist-real-assets/
 *.log
 .DS_Store
+artifacts/

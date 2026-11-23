@@ -1,0 +1,66 @@
+import * as THREE from 'three';
+import { Rainforest } from './world.js';
+import { BOUNDS,groundHeight,riverX } from './data.js';
+import { colliderContains } from './captured-collisions.js';
+
+export class XianxiaDemoRuntime extends Rainforest {
+  makeMaterials(){this.textureLoads=[];this.waterMaterial={uniforms:{environmentSampler:{value:null}}};}
+  makeTerrain(){}
+  makeParticles(){this.animate=()=>{};}
+  async loadHabitat(){await this.environmentReady;}
+  constructor(...args){
+    super(...args);
+    this.camera.fov=60;this.camera.far=2800;this.camera.updateProjectionMatrix();
+    this.animate=this.animateDemo.bind(this);
+    this.demoSunOffset=this.sun.position.clone();
+    this.animate();
+  }
+  moveDemo(dt){
+    if(!this.active||this.paused)return false;
+    const forward=(this.keys.has('KeyW')||this.keys.has('ArrowUp')?1:0)-(this.keys.has('KeyS')||this.keys.has('ArrowDown')?1:0)+(this.touchMove?.y??0);
+    const side=(this.keys.has('KeyD')?1:0)-(this.keys.has('KeyA')?1:0)+(this.touchMove?.x??0);
+    if(this.keys.has('ArrowLeft'))this.yaw+=dt*1.3;
+    if(this.keys.has('ArrowRight'))this.yaw-=dt*1.3;
+    const speed=(this.keys.has('ShiftLeft')||this.keys.has('ShiftRight')?8:4.3)*dt/Math.max(1,Math.hypot(forward,side)),steps=Math.max(1,Math.ceil(dt/.035));
+    for(let i=0;i<steps;i++){
+      const rawX=this.position.x+(-Math.sin(this.yaw)*forward+Math.cos(this.yaw)*side)*speed/steps;
+      const rawZ=this.position.z+(-Math.cos(this.yaw)*forward-Math.sin(this.yaw)*side)*speed/steps;
+      const linked=this.worldLink?.owns(rawX,rawZ);
+      const x=linked?rawX:THREE.MathUtils.clamp(rawX,BOUNDS.minX,Math.min(BOUNDS.maxX,riverX(rawZ)-5.3));
+      const z=linked?rawZ:THREE.MathUtils.clamp(rawZ,BOUNDS.minZ,BOUNDS.maxZ);
+      const floor=linked?this.worldLink.groundHeight(x,z):groundHeight(x,z);
+      const blocked=linked?!this.worldLink.canWalk(x,z,this.position.x,this.position.z):this.colliders.some(c=>colliderContains(c,x,z,.4,floor));
+      if(!blocked){this.position.x=x;this.position.z=z;}
+    }
+    return !!(forward||side);
+  }
+  async prepareDemo(scene){
+    await this.renderer.compileAsync(scene,this.camera);
+    this.renderer.render(scene,this.camera);
+    const gl=this.renderer.getContext(),fence=gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE,0);
+    if(!fence)throw new Error('Initial GPU upload unavailable');
+    gl.flush();
+    const start=performance.now();
+    try{
+      for(;;){
+        const status=gl.clientWaitSync(fence,0,0);
+        if(status===gl.ALREADY_SIGNALED||status===gl.CONDITION_SATISFIED)break;
+        if(status===gl.WAIT_FAILED||performance.now()-start>90000)throw new Error('Initial GPU upload did not complete');
+        await new Promise(requestAnimationFrame);
+      }
+    }finally{gl.deleteSync(fence);}
+  }
+  animateDemo(){
+    requestAnimationFrame(this.animate);
+    const delta=this.clock.getDelta();if(document.hidden)return;
+    const dt=Math.min(delta,.75);this.elapsed+=dt;const t=this.elapsed,moving=this.moveDemo(dt);
+    this.sun.position.copy(this.position).add(this.demoSunOffset);this.sun.target.position.copy(this.position);
+    const floor=this.worldLink?.owns(this.position.x,this.position.z)?this.worldLink.groundHeight(this.position.x,this.position.z):groundHeight(this.position.x,this.position.z);
+    this.camera.position.set(this.position.x,floor+1.85+(moving?Math.sin(t*9)*.035:Math.sin(t*.8)*.012),this.position.z);
+    this.camera.rotation.set(this.pitch,this.yaw+(!this.active?Math.sin(t*.09)*.075:0),0,'YXZ');
+    if(!this.lastUpdate||t-this.lastUpdate>.12){
+      this.onUpdate?.({x:this.position.x,z:this.position.z,yaw:this.yaw,pitch:this.pitch,moving});this.lastUpdate=t;
+    }
+    if(!this.initializing)this.renderer.render(this.worldLink?.update(this.position,t)??this.scene,this.camera);
+  }
+}
